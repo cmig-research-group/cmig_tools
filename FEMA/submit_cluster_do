@@ -1,0 +1,14 @@
+#!/bin/bash
+date
+hostname
+module load matlab/2021b
+
+code_dir=$1 # path to `cmig_tools`
+matlab_command=$2
+
+export MATLABPATH=$code_dir:$code_dir/FEMA:$code_dir/cmig_tools_utils/matlab:$code_dir/showSurf:$code_dir/showVol
+export MATLABPATH=$MATLABPATH:/wynton/group/rad-rsl/ABCD/code/PALM # REPLACE HERE
+matlab -nodisplay -r "$matlab_command"
+
+## End-of-job summary, if running as a job
+[[ -n "$JOB_ID" ]] && qstat -j "$JOB_ID"  
