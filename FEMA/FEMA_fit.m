@@ -287,6 +287,9 @@ for coli_ri=1:ncols_ri
                         nseg = 1;
                   end
 
+                  sig2mat_save = sig2mat; % Ugly hack to save resampled random effects estimates
+                  sig2tvec_save = sig2tvec;
+                  binvec_save = binvec;
                   if permi>0 
                         sig2tvec = sig2tvec_bak;
                         sig2mat = sig2mat_bak;
@@ -359,8 +362,10 @@ for coli_ri=1:ncols_ri
                   beta_hat_perm(:,:,permi+1) = beta_hat;
                   beta_se_perm(:,:,permi+1) = beta_se;
                   zmat_perm(:,:,permi+1) = zmat;
-                  sig2mat_perm(:,:,permi+1) = sig2mat;
-                  sig2tvec_perm(:,:,permi+1) = sig2tvec;
+%                  sig2mat_perm(:,:,permi+1) = sig2mat;
+%                  sig2tvec_perm(:,:,permi+1) = sig2tvec;
+                  sig2mat_perm(:,:,permi+1) = sig2mat_save;
+                  sig2tvec_perm(:,:,permi+1) = sig2tvec_save;
                   if ~isempty(logLikvec)
                         logLikvec_perm(:,:,permi+1) = logLikvec;
                   end
