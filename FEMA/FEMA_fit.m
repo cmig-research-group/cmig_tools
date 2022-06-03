@@ -265,6 +265,26 @@ for coli_ri=1:ncols_ri
 
                   sig2mat = sig2mat ./ max(eps,sum(sig2mat,1));
 
+                  if 0
+                    % REML estimation
+                    sig2mat_reml = nan(size(sig2mat));
+                    for idx=1:length(sig2tvec)
+                      f = @(x) FEMA_loglike(exp(x),ymat_res(:, idx),clusterinfo,RandomEffects);
+                      %x0 = sig2mat(:, idx) * sig2tvec(idx);
+                      x0 = sig2tvec(idx) * ones(length(RandomEffects), 1) / length(RandomEffects);
+                      sig2mat_reml(:, idx) = exp(fminsearch(f, log(x0), struct('Display', 'iter')));
+
+                      nlogl_reml =  f(log(sig2mat_reml(:, idx)))
+                      nlogl = f(log(sig2mat(:, idx) * sig2tvec(idx)))
+                    end
+                    sig2tvec_reml = sum(sig2mat_reml);
+                    sig2mat_reml = sig2mat_reml ./ sig2tvec_reml;
+                    plot(sig2mat_reml(:), sig2mat(:), '*'); hold on;  plot([0, 1], [0, 1]); xlabel('sig2mat, ML'); ylabel('sig2mat, MoM');
+
+                    sig2mat = sig2mat_reml;
+                    sig2tvec = sig2tvec_reml;
+                  end
+
                   if iter>niter, break; end
 
                   binvec = NaN(size(sig2tvec));
