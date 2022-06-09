@@ -258,7 +258,9 @@ for coli_ri=1:ncols_ri
             
             for iter = 1:max(1,niter)
 
-                  sig2tvec = mean(ymat_res.^2,1);
+                  %  sig2tvec = mean(ymat_res.^2,1);
+                  sig2tvec = sum(ymat_res.^2,1)/(size(ymat_res,1)-size(X,2));  % Should we use  ymat_res' * inv(V) * ymat_res instead, as ymat_res ~ N(0, sig_t * V), with inv(V)=Vis, as defined in FEMA_sig2binseg_parfeval?
+
                   LHS = ymat_res(subvec1,:).*ymat_res(subvec2,:); % Look into using subasgn?
                   
                   if ~NonnegFlag % Standard least squares and max(0,x)
