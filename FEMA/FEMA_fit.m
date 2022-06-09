@@ -143,8 +143,8 @@ nfamtypes = length(famtypelist);
 
 % Prepare generalized matrix version of MoM estimator
 %tic
-S_sum = 0;
-for i = 1:length(Ss)
+S_sum = Ss{1};
+for i = 2:length(Ss)
   S_sum = S_sum + Ss{i};
 end
 [subvec1 subvec2] = find(tril(S_sum));
