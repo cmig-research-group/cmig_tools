@@ -28,11 +28,12 @@ function [beta_hat beta_se zmat logpmat sig2tvec sig2mat binvec logLikvec beta_h
 %   nperms <num>               :  deault 0 --> if >0 will run and output permuted effects
 %   CovType <char>             :  default 'analytic' --> no other options currently available
 %   FixedEstType <char>        :  default 'GLS' --> other option: 'OLS'
+%   RandomEstType <char>       :  default 'MoM' --> other option: 'ML' (much slower)
 %   GroupByFamType <boolean>   :  default true
 %   Parallelize <boolean>      :  default false
 %   NonnegFlag <blooean>       :  default true - non-negativity constraint on random effects estimation
 %   SingleOrDouble <char>      :  default 'double' --> other option: 'single' - for precision
-%   logLikflag <boolean>       :  default 0 --> still in development
+%   logLikflag <boolean>       :  default true - compute log-likelihood
 %   PermType <char>            :  input for FEMA_fit - options:
 %                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation 
 %                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
@@ -81,13 +82,14 @@ end
 p = inputParser;
 addParamValue(p,'CovType','analytic');
 addParamValue(p,'FixedEstType','GLS');
+addParamValue(p,'RandomEstType','MoM');
 addParamValue(p,'PermType','wildbootstrap');
 addParamValue(p,'GroupByFamType',true);
 addParamValue(p,'Parallelize',false);
 addParamValue(p,'NonnegFlag',true); % Perform lsqnonneg on random effects estimation
 addParamValue(p,'SingleOrDouble','double');
 addParamValue(p,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
-addParamValue(p,'logLikflag',0);
+addParamValue(p,'logLikflag',true);
 addParamValue(p,'nperms',0);
 addParamValue(p,'reverse_cols',1); % AMD in development
 addParamValue(p,'reverseinferenceflag',0); % AMD in development
@@ -95,6 +97,7 @@ addParamValue(p,'reverseinferenceflag',0); % AMD in development
 parse(p,varargin{:})
 CovType = p.Results.CovType;
 FixedEstType = p.Results.FixedEstType;
+RandomEstType = p.Results.RandomEstType;
 GroupByFamType = p.Results.GroupByFamType;
 Parallelize = p.Results.Parallelize;
 NonnegFlag = p.Results.NonnegFlag;
@@ -102,6 +105,8 @@ SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
 OLSflag = ismember(lower(FixedEstType),{'ols'});
 GLSflag = ismember(lower(FixedEstType),{'gee' 'gls'});
+MoMflag = ismember(lower(RandomEstType),{'mom'});
+MLflag = ismember(lower(RandomEstType),{'ml'});
 logLikflag = p.Results.logLikflag;
 nperms = p.Results.nperms;
 PermType = p.Results.PermType;
@@ -265,24 +270,23 @@ for coli_ri=1:ncols_ri
 
                   sig2mat = sig2mat ./ max(eps,sum(sig2mat,1));
 
-                  if 0
-                    % REML estimation
-                    sig2mat_reml = nan(size(sig2mat));
-                    for idx=1:length(sig2tvec)
-                      f = @(x) FEMA_loglike(exp(x),ymat_res(:, idx),clusterinfo,RandomEffects);
-                      %x0 = sig2mat(:, idx) * sig2tvec(idx);
-                      x0 = sig2tvec(idx) * ones(length(RandomEffects), 1) / length(RandomEffects);
-                      sig2mat_reml(:, idx) = exp(fminsearch(f, log(x0), struct('Display', 'iter')));
+                  if MLflag
+                    sig2mat_ml = nan(size(sig2mat));
+                    for coli=1:size(ymat_res, 2)
+                      f = @(x) (-1 * FEMA_logLik(exp(x),X,ymat_res(:, coli),clusterinfo,Ss));
+                      %x0 = sig2mat(:, coli) * sig2tvec(coli);   % start from MoM estimate (the problem is that some of the estimates might be zero)
+                      x0 = sig2tvec(coli) * ones(length(RandomEffects), 1) / length(RandomEffects);
+                      sig2mat_ml(:, coli) = exp(fminsearch(f, log(x0), struct('Display', 'off', 'TolFun', 1e-2, 'TolX', 1e-2)));
 
-                      nlogl_reml =  f(log(sig2mat_reml(:, idx)))
-                      nlogl = f(log(sig2mat(:, idx) * sig2tvec(idx)))
+                      logl_ml =  f(log(sig2mat_ml(:, coli)));
+                      logl_mom = f(log(sig2mat(:, coli) * sig2tvec(coli)));
+                      logging('pheno %i of %i, perm %i of %i: loglike(MoM)=%.2f, loglike(ML)=%.2f', coli, size(ymat_res, 2), permi, nperms, logl_mom, logl_ml);
                     end
-                    sig2tvec_reml = sum(sig2mat_reml);
-                    sig2mat_reml = sig2mat_reml ./ sig2tvec_reml;
-                    plot(sig2mat_reml(:), sig2mat(:), '*'); hold on;  plot([0, 1], [0, 1]); xlabel('sig2mat, ML'); ylabel('sig2mat, MoM');
-
-                    sig2mat = sig2mat_reml;
-                    sig2tvec = sig2tvec_reml;
+                    sig2tvec_ml = sum(sig2mat_ml);
+                    sig2mat_ml = sig2mat_ml ./ sig2tvec_ml;
+                    %plot(sig2mat_ml(:), sig2mat(:), '*'); hold on;  plot([0, 1], [0, 1]); xlabel('sig2mat, ML'); ylabel('sig2mat, MoM');
+                    sig2mat = sig2mat_ml;
+                    sig2tvec = sig2tvec_ml;
                   end
 
                   if iter>niter, break; end
@@ -361,7 +365,10 @@ for coli_ri=1:ncols_ri
             end
       
             if logLikflag
-                  logLikvec = FEMA_logLik(ymat_res,clusterinfo,sig2tvec,sig2mat,SingleOrDouble,RandomEffects); %ANDERS - doesn't currently work
+                logLikvec = nan(size(ymat_res,2), 1);
+                for coli=1:size(ymat_res, 2)
+                    logLikvec(coli) = FEMA_logLik(sig2tvec(coli) * sig2mat(:, coli), X, ymat_res, clusterinfo, Ss);
+                end
             else
                   logLikvec=[];
             end
