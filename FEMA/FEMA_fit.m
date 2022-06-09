@@ -164,8 +164,13 @@ if 0 % Old 2D version
   sig2gridl = cat(2,tmpmat1l(:),tmpmat2l(:));
   sig2gridu = cat(2,tmpmat1u(:),tmpmat2u(:));
 else % New ND version
-  sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},[1 length(RandomEffects)-1]));
-  sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},[1 length(RandomEffects)-1]));
+  if length(RandomEffects)==2
+    sig2gridl = colvec(binvals_edges(1:end-1));
+    sig2gridu = colvec(binvals_edges(2:end));
+  else
+    sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},[1 length(RandomEffects)-1]));
+    sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},[1 length(RandomEffects)-1]));
+  end
 end
 ivec_tmp = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
 sig2gridl = sig2gridl(ivec_tmp,:);
