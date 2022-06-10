@@ -25,7 +25,7 @@ loglike = 0;
 for fi = 1:length(clusterinfo)
   jvec_fam = clusterinfo{fi}.jvec_fam;
   Sigma_fam = full(Sigma(jvec_fam, jvec_fam));
-  X_fam = X(jvec_fam, :);
+  Sigma_fam = (Sigma_fam + Sigma_fam')/2;
   loglike = loglike + log(mvnpdf(double(yvec_res(jvec_fam)),0,Sigma_fam));
   
   % ReML adjustment would be like this:
@@ -34,5 +34,6 @@ for fi = 1:length(clusterinfo)
   % https://www.tandfonline.com/doi/pdf/10.1080/01621459.1988.10478693
   % 
   % Why does REML adjustment scale with X ?
+  % X_fam = X(jvec_fam, :);
   % loglike = loglike - 0.5 * log(det(X_fam' * pinv(Sigma_fam) * X_fam));  
 end
