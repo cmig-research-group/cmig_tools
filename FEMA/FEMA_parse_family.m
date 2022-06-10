@@ -20,6 +20,16 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
 %   outputEB <boolean>         :  default 0 --> will output exchangeability blocks for permutation testing
 
 
+% supported random effects
+% V_F - family - extended family effect
+% V_S - subject (longitudinal stability)
+% V_A - additive genetic similarity (pihat)
+% V_D - dominant (quadradic) genetic effects, V_A .^ 2
+% V_M - mama effect (same father ID)
+% V_P - papa effect (same mother ID)
+% V_H - home effect (fraction of time spend at the same address, currently defined as  V_M+V_P/2)
+% V_T - twins effect (same pregnancy ID)
+% V_E - environment
 
       if ~exist('pihatmat','var')
             pihatmat = [];
@@ -28,6 +38,9 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
       p = inputParser;
 addParamValue(p,'SingleOrDouble','single');
 addParamValue(p,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
+addParamValue(p,'FatherID',{}); % Father ID, ordered same as pihatmat
+addParamValue(p,'MotherID',{}); % Mother ID, ordered same as pihatmat
+addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
 parse(p,varargin{:})
 SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
@@ -98,12 +111,21 @@ for fi = 1:nfam
   else
     V_A = []; V_D = [];
   end
+
+  V_P = []; V_M = []; V_H = []; V_T = [];
+  if ~isempty(p.Results.FatherID), tmp = repmat(rowvec(p.Results.FatherID(subj_fam(si))), [length(jvec_fam), 1]); V_P = (tmp == tmp'); end
+  if ~isempty(p.Results.MotherID), tmp = repmat(rowvec(p.Results.MotherID(subj_fam(si))), [length(jvec_fam), 1]); V_M = (tmp == tmp'); end
+  if ~isempty(p.Results.FatherID) && ~isempty(p.Results.MotherID), V_H = (V_P  + V_M) / 2; end
+  if ~isempty(p.Results.PregID), tmp = repmat(rowvec(p.Results.PregID(subj_fam(si))), [length(jvec_fam), 1]); V_T = (tmp == tmp'); end
+
   for ji = 1:length(jvec_fam)
     jvec_tmp = jvecs_subj{IC_subj(jvec_fam(ji))};
     ivec_tmp = ismember(jvec_fam,jvec_tmp);
     V_S(ji,ivec_tmp) = true;
   end
-  clusterinfo{fi} = struct('V_E',V_E,'V_S',V_S,'V_F',V_F,'V_A',V_A,'V_D',V_D,'jvec_fam',jvec_fam);
+  clusterinfo{fi} = struct('V_E',V_E,'V_S',V_S,'V_F',V_F,'V_A',V_A,'V_D',V_D, ...
+                           'V_P',V_P,'V_M',V_M,'V_H',V_H,'V_T',V_T, ...
+                           'jvec_fam',jvec_fam);
   clusterinfo{fi}.famtype = famtypevec(fi);
 end
 nfamtypes = length(famtypelist);
