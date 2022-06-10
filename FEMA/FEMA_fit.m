@@ -93,6 +93,9 @@ addParamValue(p,'logLikflag',true);
 addParamValue(p,'nperms',0);
 addParamValue(p,'reverse_cols',1); % AMD in development
 addParamValue(p,'reverseinferenceflag',0); % AMD in development
+addParamValue(p,'FatherID',{}); % Father ID, ordered same as pihatmat
+addParamValue(p,'MotherID',{}); % Mother ID, ordered same as pihatmat
+addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
 
 parse(p,varargin{:})
 CovType = p.Results.CovType;
@@ -134,7 +137,8 @@ binvec = []; logLikvec = []; beta_hat_perm = []; beta_se_perm = []; zmat_perm = 
 
 %Parse family structure
 
-[clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_parse_family(iid,eid,fid,agevec,pihatmat,'RandomEffects',RandomEffects);
+[clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_parse_family(iid,eid,fid,agevec,pihatmat,'RandomEffects',RandomEffects,...
+  'FatherID',p.Results.FatherID,'MotherID',p.Results.MotherID,'PregID',p.Results.PregID);
 [iid_list IA IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
 [fid_list IA IC_fam] = unique(fid,'stable'); nfam = length(fid_list);
 nfamtypes = length(famtypelist);
