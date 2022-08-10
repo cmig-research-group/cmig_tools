@@ -25,9 +25,9 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
 % V_S - subject (longitudinal stability)
 % V_A - additive genetic similarity (pihat)
 % V_D - dominant (quadradic) genetic effects, V_A .^ 2
-% V_M - mama effect (same father ID)
-% V_P - papa effect (same mother ID)
-% V_H - home effect (fraction of time spend at the same address, currently defined as  V_M+V_P/2)
+% V_M - mama effect (same father ID - MoBa only)
+% V_P - papa effect (same mother ID - MoBa only)
+% V_H - home effect (same address ID)
 % V_T - twins effect (same pregnancy ID)
 % V_E - environment
 
@@ -41,6 +41,7 @@ addParamValue(p,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, an
 addParamValue(p,'FatherID',{}); % Father ID, ordered same as pihatmat
 addParamValue(p,'MotherID',{}); % Mother ID, ordered same as pihatmat
 addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
+addParamValue(p,'HomeID',{}); % Home effect (defined as same address ID), ordered same as pihatmat
 parse(p,varargin{:})
 SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
@@ -115,7 +116,8 @@ for fi = 1:nfam
   V_P = []; V_M = []; V_H = []; V_T = [];
   if ~isempty(p.Results.FatherID), tmp = repmat(rowvec(p.Results.FatherID(subj_fam(si))), [length(jvec_fam), 1]); V_P = (tmp == tmp'); end
   if ~isempty(p.Results.MotherID), tmp = repmat(rowvec(p.Results.MotherID(subj_fam(si))), [length(jvec_fam), 1]); V_M = (tmp == tmp'); end
-  if ~isempty(p.Results.FatherID) && ~isempty(p.Results.MotherID), V_H = (V_P  + V_M) / 2; end
+  % if ~isempty(p.Results.FatherID) && ~isempty(p.Results.MotherID), V_H = (V_P  + V_M) / 2; end % code for MoBa only
+  if ~isempty(p.Results.HomeID), tmp = repmat(rowvec(p.Results.HomeID(subj_fam(si))), [length(jvec_fam), 1]); V_H = (tmp == tmp'); end 
   if ~isempty(p.Results.PregID), tmp = repmat(rowvec(p.Results.PregID(subj_fam(si))), [length(jvec_fam), 1]); V_T = (tmp == tmp'); end
 
   for ji = 1:length(jvec_fam)
