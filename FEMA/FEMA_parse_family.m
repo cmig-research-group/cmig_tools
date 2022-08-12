@@ -17,6 +17,8 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
 %   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   nbins <num>                :  number of bins across Y for estimating random effects (default 20)
 %   pihatmat <num>             :  matrix of genetic relatedness --> already intersected to match X and Y sample
+%   PregID <num>               :  pregnancy ID (births from the same pregnancy have same value)
+%   HomeID <num>               :  home address ID (individuals with the same address have same value)
 %   outputEB <boolean>         :  default 0 --> will output exchangeability blocks for permutation testing
 
 
@@ -71,7 +73,7 @@ nfmemvec = NaN(1,nfam);
 for fi = 1:nfam
   jvec_fam = rowvec(find(IC_fam==fi)); % Identify all observations (rows) for a given family
   subj_fam = IC_subj(jvec_fam); % Subject number for each observation
-  subj_unique = unique(IC_subj(jvec_fam)); % List of unque subjects
+  subj_unique = unique(IC_subj(jvec_fam)); % List of unique subjects
   freq_jvec = NaN(size(jvec_fam)); freq_unique = NaN(size(subj_unique));
   for j = 1:length(subj_unique)
     freq_unique(j) = sum(IC_subj(jvec_fam)==subj_unique(j));
@@ -117,7 +119,7 @@ for fi = 1:nfam
   if ~isempty(p.Results.FatherID), tmp = repmat(rowvec(p.Results.FatherID(subj_fam(si))), [length(jvec_fam), 1]); V_P = (tmp == tmp'); end
   if ~isempty(p.Results.MotherID), tmp = repmat(rowvec(p.Results.MotherID(subj_fam(si))), [length(jvec_fam), 1]); V_M = (tmp == tmp'); end
   % if ~isempty(p.Results.FatherID) && ~isempty(p.Results.MotherID), V_H = (V_P  + V_M) / 2; end % code for MoBa only
-  if ~isempty(p.Results.HomeID), tmp = repmat(rowvec(p.Results.HomeID(subj_fam(si))), [length(jvec_fam), 1]); V_H = (tmp == tmp'); end 
+  if ~isempty(p.Results.HomeID), tmp = repmat(rowvec(p.Results.HomeID(subj_fam(si))), [length(jvec_fam), 1]); V_H = (strcmp(tmp,tmp')); end 
   if ~isempty(p.Results.PregID), tmp = repmat(rowvec(p.Results.PregID(subj_fam(si))), [length(jvec_fam), 1]); V_T = (tmp == tmp'); end
 
   for ji = 1:length(jvec_fam)
@@ -133,7 +135,7 @@ end
 nfamtypes = length(famtypelist);
 %toc
 
-% Should make list of random effects an optiuonal argument  -- change variable names to be consistent with equation (coordinate with Chun)
+% Should make list of random effects an optional argument  -- change variable names to be consistent with equation (coordinate with Chun)
 
 % Should modify code above and below to use arbitray list of clusterinfo{:}.Vs
 nnz_max = sum(nfmemvec.^2);
