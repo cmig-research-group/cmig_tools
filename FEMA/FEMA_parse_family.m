@@ -48,8 +48,8 @@ parse(p,varargin{:})
 SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
 
-[iid_list IA IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
-[fid_list IA IC_fam] = unique(fid,'stable'); nfam = length(fid_list);
+[iid_list IA_subj IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
+[fid_list IA_fam IC_fam] = unique(fid,'stable'); nfam = length(fid_list);
 
 iid_repeated_count = NaN(nobs,1);
 for i=1:nobs, iid_repeated_count(i)=sum(IC_subj==IC_subj(i)); end
@@ -63,6 +63,22 @@ for subji = 1:length(iid_list)
   [mv mi] = min(agevec(jvec_subj));
   jvecs_subj{subji} = jvec_subj;
 end
+
+if 0 % AMD: examine correspondence between FamID (from fid) and HomeID -- should convert to numeric and "impute" missing?
+  keyboard
+  FamID = fid(IA_subj);
+  PregID =  p.Results.PregID; % Note that sum(~isfinite(PregID))=2 
+  HomeID =  p.Results.HomeID; % This should be numerical
+  defvec = cellfun(@isstr,HomeID);
+  [dummy IA IC] = unique(HomeID(defvec),'stable');
+  HomeID = NaN(size(HomeID));
+  HomeID(defvec) = IC;
+  % Check concordance between FamID and HomeID
+  tmp_F = (FamID-FamID')==0;
+  tmp_H = (HomeID-HomeID')==0;
+  nancorr(tmp_F(:),tmp_H(:))
+end
+
 
 % Should classify each family as one of multiple types: # of subjects, # of observations each: sort subjects & observations in consistent manner
 logging('Parsing family structure');
@@ -109,7 +125,6 @@ for fi = 1:nfam
     if any(~isfinite(V_A(:))) % Impute missing values within families (assume all proper siblings => phat = 0.5)
       V_A(find(~isfinite(V_A))) = 0.5;
     end
-%    V_A = V_A - 0.5; % Re-center around 0.5 -- probably need to adjust the non-negativity constraint to make this work
     V_D = V_A.^2; % Should perhaps residualize linear component?
   else
     V_A = []; V_D = [];

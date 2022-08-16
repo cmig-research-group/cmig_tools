@@ -1,4 +1,4 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
 %
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
@@ -95,11 +95,14 @@ addParamValue(inputs,'niter',1);
 addParamValue(inputs,'nbins',20);
 addParamValue(inputs,'CovType','analytic');
 addParamValue(inputs,'FixedEstType','GLS');
+addParamValue(inputs,'RandomEstType','MoM');
 addParamValue(inputs,'GroupByFamType',true);
 addParamValue(inputs,'Parallelize',false);
 addParamValue(inputs,'NonnegFlag',true); % Perform lsqnonneg on random effects estimation
 addParamValue(inputs,'SingleOrDouble','double');
 addParamValue(inputs,'logLikflag',0);
+addParamValue(inputs,'Hessflag',false);
+addParamValue(inputs,'ciflag',false);
 addParamValue(inputs,'permtype','wildbootstrap');
 
 addParamValue(inputs,'reverse_cols',1); % AMD in development
@@ -139,6 +142,7 @@ fname_address = inputs.Results.address_file;
 fname_pregnancy = inputs.Results.preg_file;
 CovType = inputs.Results.CovType;
 FixedEstType = inputs.Results.FixedEstType;
+RandomEstType = inputs.Results.RandomEstType;
 GroupByFamType = inputs.Results.GroupByFamType;
 Parallelize = inputs.Results.Parallelize;
 NonnegFlag = inputs.Results.NonnegFlag;
@@ -146,6 +150,8 @@ SingleOrDouble = inputs.Results.SingleOrDouble;
 OLSflag = ismember(lower(FixedEstType),{'ols'});
 GLSflag = ismember(lower(FixedEstType),{'gls'});
 logLikflag = inputs.Results.logLikflag;
+Hessflag = inputs.Results.Hessflag;
+ciflag = inputs.Results.ciflag;
 nperms = inputs.Results.nperms;
 permtype = inputs.Results.permtype;
 mediation=inputs.Results.mediation;
@@ -250,11 +256,9 @@ for des=1:length(fname_design)
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       
       % FIT MODEL
-      
-      [beta_hat beta_se zmat logpmat sig2tvec sig2mat binvec logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
-            'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'permtype',permtype,...
-            'PregID',PregID,'HomeID',HomeID);
-
+      [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
+            'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
+            'permtype',permtype,'PregID',PregID,'HomeID',HomeID);
 
             if sum(~mask)>0
 
@@ -374,8 +378,6 @@ for des=1:length(fname_design)
             for j = 1:size(sig2mat,1)
                   vol_sig2(:,:,:,j) = single(fullvol(sig2mat(j,:),mask));
             end
-            vol_sig2bin = zeros([size(mask) 1]);
-            vol_sig2bin(ivec_mask) = binvec;
 
             
             % ============================================================================================================================

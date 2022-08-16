@@ -1,4 +1,4 @@
-function [beta_hat beta_se zmat logpmat sig2tvec sig2mat binvec logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins,pihatmat,varargin)
+function [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins,pihatmat,varargin)
 %
 % Function to fit fast and efficient linear mixed effects model
 %
@@ -79,6 +79,8 @@ if ~exist('pihatmat','var')
   pihatmat = []; 
 end
 
+% Should change to allow p to be passed in, so as to avoid having to duplicate input argument parsing in FEMA_wrapper and FEMA_fit
+
 p = inputParser;
 addParamValue(p,'CovType','analytic');
 addParamValue(p,'FixedEstType','GLS');
@@ -89,7 +91,9 @@ addParamValue(p,'Parallelize',false);
 addParamValue(p,'NonnegFlag',true); % Perform lsqnonneg on random effects estimation
 addParamValue(p,'SingleOrDouble','double');
 addParamValue(p,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
-addParamValue(p,'logLikflag',true);
+addParamValue(p,'logLikflag',false);
+addParamValue(p,'Hessflag',false);
+addParamValue(p,'ciflag',false);
 addParamValue(p,'nperms',0);
 addParamValue(p,'reverse_cols',1); % AMD in development
 addParamValue(p,'reverseinferenceflag',0); % AMD in development
@@ -112,6 +116,8 @@ GLSflag = ismember(lower(FixedEstType),{'gee' 'gls'});
 MoMflag = ismember(lower(RandomEstType),{'mom'});
 MLflag = ismember(lower(RandomEstType),{'ml'});
 logLikflag = p.Results.logLikflag;
+Hessflag = p.Results.Hessflag;
+ciflag = p.Results.ciflag;
 nperms = p.Results.nperms;
 PermType = p.Results.PermType;
 
@@ -132,7 +138,7 @@ logging('***Start***');
  
 fprintf(1,'ModelSingularityIndex = %g\n',cond(X'*X)/cond(diag(diag(X'*X)))); % Should perhaps report a more standard measure of model singularity?
 
-binvec = []; logLikvec = []; beta_hat_perm = []; beta_se_perm = []; zmat_perm = []; sig2tvec_perm = []; sig2mat_perm = []; logLikvec_perm = []; perms = []; % Make sure all output params are defined
+logLikvec = []; beta_hat_perm = []; beta_se_perm = []; zmat_perm = []; sig2tvec_perm = []; sig2mat_perm = []; logLikvec_perm = []; perms = []; % Make sure all output params are defined
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -207,6 +213,12 @@ if reverseinferenceflag
 
 betacon_hat = zeros(size(contrasts,1),size(ymat,2),class(ymat)); betacon_se = zeros(size(contrasts,1),size(ymat,2),class(ymat)); binvec = NaN(1,size(ymat,2),class(ymat));
 
+if Hessflag 
+  Hessmat = NaN([length(RandomEffects) length(RandomEffects) size(ymat,2)]); 
+else
+  Hessmat = [];
+end
+
 for coli_ri=1:ncols_ri
 
       if reverseinferenceflag
@@ -260,7 +272,7 @@ for coli_ri=1:ncols_ri
             for ci = 1:size(contrasts,1)
                   betacon_hat(ci,:) = contrasts(ci,:)*beta_hat; betacon_se(ci,:) = sqrt(contrasts(ci,:)*Cov_beta*contrasts(ci,:)'*sig2tvec);
             end
-            
+          
             for iter = 1:max(1,niter)
 
                   %  sig2tvec = mean(ymat_res.^2,1);
@@ -277,23 +289,82 @@ for coli_ri=1:ncols_ri
 
                   sig2mat = sig2mat ./ max(eps,sum(sig2mat,1));
 
+                  logLikvec = [];
                   if MLflag
-                    sig2mat_ml = nan(size(sig2mat));
+                    logLikvec = nan(1,size(ymat_res,2)); 
+                    sig2mat_ml = nan(size(sig2mat)); sig2mat_ll = nan(size(sig2mat)); sig2mat_ul = nan(size(sig2mat));
                     for coli=1:size(ymat_res, 2)
                       f = @(x) (-1 * FEMA_logLik(exp(x),X,ymat_res(:, coli),clusterinfo,Ss));
-                      %x0 = sig2mat(:, coli) * sig2tvec(coli);   % start from MoM estimate (the problem is that some of the estimates might be zero)
-                      x0 = sig2tvec(coli) * ones(length(RandomEffects), 1) / length(RandomEffects);
-                      sig2mat_ml(:, coli) = exp(fminsearch(f, log(x0), struct('Display', 'off', 'TolFun', 1e-2, 'TolX', 1e-2)));
+                      g = @(x) (-1 * FEMA_logLik(x,X,ymat_res(:, coli),clusterinfo,Ss));
+                      sig2vec0 = sig2mat(:, coli)*sig2tvec(coli);
+                      if 0 % Use original fminsearch
+                        [x_hat cost] = fminsearch(f, x0, struct('Display', 'final', 'TolFun', 1e-2));
+                      else % Use new fminunc
+                        fprintf(1,'Optimizing using fminunc\n');
+                        tic
+                        [sig2vec_hat cost] = fmincon(g,sig2vec0,[],[],[],[],0*ones(size(sig2vec0)));
+                        toc
+                        if Hessflag && permi==0
+                          fprintf(1,'Computing Hessian\n');
+                          tic 
+                          [sig2vec_hat cost exitflag output lambda grad H] = fmincon(g,sig2vec_hat,[],[],[],[],0*ones(size(sig2vec0)));
+                          toc
+                          Hessmat(:,:,coli) = H;
+                          if any(~isfinite(H(:))), keyboard; end
+                        end
+                        if ciflag % Compute confidence intervals on random effects?
+                          fprintf(1,'Computing Confidence Interval\n');
+                          tic
+                          loglikthresh = chi2inv(1-0.05/2,1)/2;
+                          sig2vec_ll = nan(size(sig2vec0)); sig2vec_ul = nan(size(sig2vec0));
+                          for ri = 1:length(sig2vec_hat)
+                            tmpfun = @(x) g(sig2vec_hat+(colvec([1:length(sig2vec_hat)])==ri)*x)-cost;
+                            dx0 = 0.01; y0 = tmpfun(dx0); dx1 = dx0*sqrt(2/y0); y1 = tmpfun(dx1); % Get scale
+                            x = [0 max([dx0 dx1])*[0.5 1]]; y = [0 tmpfun(x(2)) tmpfun(x(3))]; p = polyfit(x,y,2);
+                            xvec = linspace(0,max(x),101); yvec = polyval(p,xvec);
+%                            figure(coli*10); subplot(length(sig2vec_hat),2,(ri-1)*2+2); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
+                            ul = sig2vec_hat(ri) + (-p(2)+((p(2)^2-4*p(1)*(p(3)-loglikthresh)))^0.5)/(2*p(1));
+                            ll = 0;
+                            if sig2vec_hat(ri)>0.01
+                              if x(end)>sig2vec_hat(ri), x = x*sig2vec_hat(ri)/x(end); end 
+                              x = -x; y = [0 tmpfun(x(2)) tmpfun(x(3))]; p = polyfit(x,y,2); 
+                              xvec = linspace(min(x),max(x),101); yvec = polyval(p,xvec);
+%                              figure(coli*10);; subplot(length(sig2vec_hat),2,(ri-1)*2+1); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
+                              ll = max(0,sig2vec_hat(ri) + (-p(2)-((p(2)^2-4*p(1)*(p(3)-loglikthresh)))^0.5)/(2*p(1)));
+                            end 
+                            sig2vec_ll(ri) = ll;
+                            sig2vec_ul(ri) = ul;
+                          end
+                          toc
+                        end
+                      end
+                      disp(num2str(cost,'%0.6e') )
+                      sig2mat_ml(:, coli) = sig2vec_hat;
+                      if ciflag
+                        sig2mat_ll(:, coli) = sig2vec_ll;
+                        sig2mat_ul(:, coli) = sig2vec_ul;
+                      end
+                      disp(rowvec(sig2mat_ml(:, coli)/sum(sig2mat_ml(:, coli)))) 
 
                       logl_ml =  f(log(sig2mat_ml(:, coli)));
                       logl_mom = f(log(sig2mat(:, coli) * sig2tvec(coli)));
                       logging('pheno %i of %i, perm %i of %i: loglike(MoM)=%.2f, loglike(ML)=%.2f', coli, size(ymat_res, 2), permi, nperms, logl_mom, logl_ml);
+                      logLikvec(coli) = -logl_ml;
                     end
                     sig2tvec_ml = sum(sig2mat_ml);
                     sig2mat_ml = sig2mat_ml ./ sig2tvec_ml;
-                    %plot(sig2mat_ml(:), sig2mat(:), '*'); hold on;  plot([0, 1], [0, 1]); xlabel('sig2mat, ML'); ylabel('sig2mat, MoM');
+                    if ciflag
+                      sig2mat_ci = cat(3,sig2mat_ll,sig2mat_ul) ./ sig2tvec_ml;
+                    end
                     sig2mat = sig2mat_ml;
                     sig2tvec = sig2tvec_ml;
+                  end
+
+                  if logLikflag & ~MLflag
+                    logLikvec = nan(1,size(ymat_res,2));
+                    for coli=1:size(ymat_res, 2)
+                      logLikvec(coli) = FEMA_logLik(sig2tvec(coli) * sig2mat(:, coli), X, ymat_res(:, coli), clusterinfo, Ss);
+                    end
                   end
 
                   if iter>niter, break; end
@@ -371,15 +442,6 @@ for coli_ri=1:ncols_ri
                   ymat_res = ymat - ymat_hat;
             end
       
-            if logLikflag
-                logLikvec = nan(size(ymat_res,2), 1);
-                for coli=1:size(ymat_res, 2)
-                    logLikvec(coli) = FEMA_logLik(sig2tvec(coli) * sig2mat(:, coli), X, ymat_res, clusterinfo, Ss);
-                end
-            else
-                  logLikvec=[];
-            end
-
             if ~isempty(contrasts) % Handle non-empty betacon_hat
                   beta_hat = cat(1,betacon_hat,beta_hat);
                   beta_se = cat(1,betacon_se,beta_se);
@@ -450,6 +512,10 @@ end
 
 zmat = double(beta_hat)./double(beta_se); %CHECK WITH ANDERS
 logpmat = -sign(zmat).*log10(normcdf(-abs(zmat))*2); % Should look for normcdfln function
+
+if ciflag
+  sig2mat = cat(3,sig2mat,sig2mat_ci);
+end
 
 logging('***Done*** (%0.2f seconds)\n',(now-starttime)*3600*24);
 
