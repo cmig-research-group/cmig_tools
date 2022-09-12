@@ -319,7 +319,7 @@ for coli_ri=1:ncols_ri
                           sig2vec_ll = nan(size(sig2vec0)); sig2vec_ul = nan(size(sig2vec0));
                           for ri = 1:length(sig2vec_hat)
                             tmpfun = @(x) g(sig2vec_hat+(colvec([1:length(sig2vec_hat)])==ri)*x)-cost;
-                            dx0 = 0.01; y0 = tmpfun(dx0); dx1 = dx0*sqrt(2/y0); y1 = tmpfun(dx1); % Get scale
+                            dx0 = 0.01; y0 = tmpfun(dx0); dx1 = dx0*sqrt(max(0,2/y0)); y1 = tmpfun(dx1); % Get scale                            
                             x = [0 max([dx0 dx1])*[0.5 1]]; y = [0 tmpfun(x(2)) tmpfun(x(3))]; p = polyfit(x,y,2);
                             xvec = linspace(0,max(x),101); yvec = polyval(p,xvec);
 %                            figure(coli*10); subplot(length(sig2vec_hat),2,(ri-1)*2+2); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
