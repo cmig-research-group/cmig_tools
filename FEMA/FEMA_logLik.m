@@ -6,7 +6,7 @@ function loglike = FEMA_logLik(sig2vec,X,yvec_res,clusterinfo,Ss)
 % likelihood (aka cost function - lower is better).
 %
 % sig2vec         - vector of random effects (variance parameters) for a given phenotype;
-%                   typically, sig2vec = sig2mat(i, :) * sig2tvec(i), i - phenotype index
+%                   typically, sig2vec = sig2mat(:,i) * sig2tvec(i), i - phenotype index
 % yvec_res        - vector of residuals
 % clusterinfo, Ss - output of FEMA_parse_family
 %
