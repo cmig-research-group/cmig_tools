@@ -17,9 +17,21 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
 %   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   nbins <num>                :  number of bins across Y for estimating random effects (default 20)
 %   pihatmat <num>             :  matrix of genetic relatedness --> already intersected to match X and Y sample
+%   PregID <num>               :  pregnancy ID (births from the same pregnancy have same value)
+%   HomeID <num>               :  home address ID (individuals with the same address have same value)
 %   outputEB <boolean>         :  default 0 --> will output exchangeability blocks for permutation testing
 
 
+% supported random effects
+% V_F - family - extended family effect
+% V_S - subject (longitudinal stability)
+% V_A - additive genetic similarity (pihat)
+% V_D - dominant (quadradic) genetic effects, V_A .^ 2
+% V_M - mama effect (same father ID - MoBa only)
+% V_P - papa effect (same mother ID - MoBa only)
+% V_H - home effect (same address ID)
+% V_T - twins effect (same pregnancy ID)
+% V_E - environment
 
       if ~exist('pihatmat','var')
             pihatmat = [];
@@ -28,12 +40,16 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
       p = inputParser;
 addParamValue(p,'SingleOrDouble','single');
 addParamValue(p,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
+addParamValue(p,'FatherID',{}); % Father ID, ordered same as pihatmat
+addParamValue(p,'MotherID',{}); % Mother ID, ordered same as pihatmat
+addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
+addParamValue(p,'HomeID',{}); % Home effect (defined as same address ID), ordered same as pihatmat
 parse(p,varargin{:})
 SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
 
-[iid_list IA IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
-[fid_list IA IC_fam] = unique(fid,'stable'); nfam = length(fid_list);
+[iid_list IA_subj IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
+[fid_list IA_fam IC_fam] = unique(fid,'stable'); nfam = length(fid_list);
 
 iid_repeated_count = NaN(nobs,1);
 for i=1:nobs, iid_repeated_count(i)=sum(IC_subj==IC_subj(i)); end
@@ -48,6 +64,22 @@ for subji = 1:length(iid_list)
   jvecs_subj{subji} = jvec_subj;
 end
 
+if 0 % AMD: examine correspondence between FamID (from fid) and HomeID -- should convert to numeric and "impute" missing?
+  keyboard
+  FamID = fid(IA_subj);
+  PregID =  p.Results.PregID; % Note that sum(~isfinite(PregID))=2 
+  HomeID =  p.Results.HomeID; % This should be numerical
+  defvec = cellfun(@isstr,HomeID);
+  [dummy IA IC] = unique(HomeID(defvec),'stable');
+  HomeID = NaN(size(HomeID));
+  HomeID(defvec) = IC;
+  % Check concordance between FamID and HomeID
+  tmp_F = (FamID-FamID')==0;
+  tmp_H = (HomeID-HomeID')==0;
+  nancorr(tmp_F(:),tmp_H(:))
+end
+
+
 % Should classify each family as one of multiple types: # of subjects, # of observations each: sort subjects & observations in consistent manner
 logging('Parsing family structure');
 %tic
@@ -57,7 +89,7 @@ nfmemvec = NaN(1,nfam);
 for fi = 1:nfam
   jvec_fam = rowvec(find(IC_fam==fi)); % Identify all observations (rows) for a given family
   subj_fam = IC_subj(jvec_fam); % Subject number for each observation
-  subj_unique = unique(IC_subj(jvec_fam)); % List of unque subjects
+  subj_unique = unique(IC_subj(jvec_fam)); % List of unique subjects
   freq_jvec = NaN(size(jvec_fam)); freq_unique = NaN(size(subj_unique));
   for j = 1:length(subj_unique)
     freq_unique(j) = sum(IC_subj(jvec_fam)==subj_unique(j));
@@ -93,23 +125,32 @@ for fi = 1:nfam
     if any(~isfinite(V_A(:))) % Impute missing values within families (assume all proper siblings => phat = 0.5)
       V_A(find(~isfinite(V_A))) = 0.5;
     end
-%    V_A = V_A - 0.5; % Re-center around 0.5 -- probably need to adjust the non-negativity constraint to make this work
     V_D = V_A.^2; % Should perhaps residualize linear component?
   else
     V_A = []; V_D = [];
   end
+
+  V_P = []; V_M = []; V_H = []; V_T = [];
+  if ~isempty(p.Results.FatherID), tmp = repmat(rowvec(p.Results.FatherID(subj_fam(si))), [length(jvec_fam), 1]); V_P = (tmp == tmp'); end
+  if ~isempty(p.Results.MotherID), tmp = repmat(rowvec(p.Results.MotherID(subj_fam(si))), [length(jvec_fam), 1]); V_M = (tmp == tmp'); end
+  % if ~isempty(p.Results.FatherID) && ~isempty(p.Results.MotherID), V_H = (V_P  + V_M) / 2; end % code for MoBa only
+  if ~isempty(p.Results.HomeID), tmp = repmat(rowvec(p.Results.HomeID(subj_fam(si))), [length(jvec_fam), 1]); V_H = (strcmp(tmp,tmp')); end 
+  if ~isempty(p.Results.PregID), tmp = repmat(rowvec(p.Results.PregID(subj_fam(si))), [length(jvec_fam), 1]); V_T = (tmp == tmp'); end
+
   for ji = 1:length(jvec_fam)
     jvec_tmp = jvecs_subj{IC_subj(jvec_fam(ji))};
     ivec_tmp = ismember(jvec_fam,jvec_tmp);
     V_S(ji,ivec_tmp) = true;
   end
-  clusterinfo{fi} = struct('V_E',V_E,'V_S',V_S,'V_F',V_F,'V_A',V_A,'V_D',V_D,'jvec_fam',jvec_fam);
+  clusterinfo{fi} = struct('V_E',V_E,'V_S',V_S,'V_F',V_F,'V_A',V_A,'V_D',V_D, ...
+                           'V_P',V_P,'V_M',V_M,'V_H',V_H,'V_T',V_T, ...
+                           'jvec_fam',jvec_fam);
   clusterinfo{fi}.famtype = famtypevec(fi);
 end
 nfamtypes = length(famtypelist);
 %toc
 
-% Should make list of random effects an optiuonal argument  -- change variable names to be consistent with equation (coordinate with Chun)
+% Should make list of random effects an optional argument  -- change variable names to be consistent with equation (coordinate with Chun)
 
 % Should modify code above and below to use arbitray list of clusterinfo{:}.Vs
 nnz_max = sum(nfmemvec.^2);

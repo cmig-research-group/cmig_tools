@@ -16,6 +16,11 @@ function loglike = FEMA_logLik(sig2vec,X,yvec_res,clusterinfo,Ss)
 
 assert(length(sig2vec) == length(Ss));
 
+if any(sig2vec<0)
+  loglike = NaN;
+  return;
+end
+
 Sigma = sig2vec(1) * Ss{1};
 for ri = 2:length(Ss)
   Sigma = Sigma + sig2vec(ri) * Ss{ri};
@@ -25,15 +30,19 @@ loglike = 0;
 for fi = 1:length(clusterinfo)
   jvec_fam = clusterinfo{fi}.jvec_fam;
   Sigma_fam = full(Sigma(jvec_fam, jvec_fam));
-  Sigma_fam = (Sigma_fam + Sigma_fam')/2;
-  loglike = loglike + log(mvnpdf(double(yvec_res(jvec_fam)),0,Sigma_fam));
-  
+  X_fam = X(jvec_fam, :);
+  try
+%    loglike = loglike + log(mvnpdf(double(yvec_res(jvec_fam)),0,Sigma_fam));
+    loglike = loglike + mvnpdfln(double(yvec_res(jvec_fam)),0,Sigma_fam); % AMD: handle underflow
+  catch ME
+    loglike = NaN;
+  end
+
   % ReML adjustment would be like this:
   % Newton-Raphson and EM Algorithms for Linear Mixed-Effects Models for Repeated-Measures Data 
   % MARY J. LINDSTROM and DOUGLAS M. BATES
   % https://www.tandfonline.com/doi/pdf/10.1080/01621459.1988.10478693
   % 
   % Why does REML adjustment scale with X ?
-  % X_fam = X(jvec_fam, :);
   % loglike = loglike - 0.5 * log(det(X_fam' * pinv(Sigma_fam) * X_fam));  
 end

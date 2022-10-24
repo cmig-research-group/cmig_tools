@@ -1,4 +1,4 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
 %
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
@@ -29,6 +29,8 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %                                   error (E) - always required
 %                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (pihat) for this option
 %   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+%   preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
+%   address_file <char>        :  path to address data - default [] - only required if H random effect specified
 %   nperms <num>               :  default 0 --> if >0 will run and output permuted effects
 %   mediation <num>            :  default 0 --> if 1 will ensure same seed used for resampling of the two models used for a mediation analysis
 %   niter <num>                :  input for FEMA_fit - default 1
@@ -37,7 +39,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %   FixedEstType <char>        :  input for FEMA_fit - default 'GLS' --> other option: 'OLS'
 %   GroupByFamType <boolean>   :  input for FEMA_fit - default true
 %   Parallelize <boolean>      :  input for FEMA_fit - default false
-%   NonnegFlag <boolean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
+%   NonnegFlag <blooean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
 %   SingleOrDouble <char>      :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
 %   logLikflag <boolean>       :  input for FEMA_fit - default 0
 %   permtype <char>            :  input for FEMA_fit - options: 
@@ -45,7 +47,6 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
 %   tfce <num>                 :  default 0 --> if 1 will run TFCE
 %   colsinterest <num>         :  used to specify IVs of interest in design matrix (cols in X) for resampling output and tfce (default 1, i.e. 1st column of X) - only used if nperms>0
-%   lightSave <boolean>        :  whether to only save the *_perm variables to have lighter output files
 %
 % OUTPUTS
 %   fpaths_out                 :  results will be saved here in the specified format
@@ -66,7 +67,7 @@ rng shuffle %Set random number generator so different every time
 
 if nargin < 6
       logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,varargin)');
-      error('Incorrect number of imput arguments')
+      error('Incorrect number of input arguments')
 end
 
 if isdeployed
@@ -82,22 +83,26 @@ addParamValue(inputs,'synth',0); % AMD - put back synth option
 addParamValue(inputs,'ivnames','');
 addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
 addParamValue(inputs,'pihat_file',[]);
+addParamValue(inputs,'preg_file',[]);
+addParamValue(inputs,'address_file',[]);
 addParamValue(inputs,'nperms',0);
 addParamValue(inputs,'mediation',0);
 addParamValue(inputs,'tfce',0);
 addParamValue(inputs,'colsinterest',1);
-addParamValue(inputs,'lightSave',0); % whether to only save the *_perm variables to have lighter output files
 
 %FEMA_fit variable inputs
 addParamValue(inputs,'niter',1);
 addParamValue(inputs,'nbins',20);
 addParamValue(inputs,'CovType','analytic');
 addParamValue(inputs,'FixedEstType','GLS');
+addParamValue(inputs,'RandomEstType','MoM');
 addParamValue(inputs,'GroupByFamType',true);
 addParamValue(inputs,'Parallelize',false);
 addParamValue(inputs,'NonnegFlag',true); % Perform lsqnonneg on random effects estimation
 addParamValue(inputs,'SingleOrDouble','double');
 addParamValue(inputs,'logLikflag',0);
+addParamValue(inputs,'Hessflag',false);
+addParamValue(inputs,'ciflag',false);
 addParamValue(inputs,'permtype','wildbootstrap');
 
 addParamValue(inputs,'reverse_cols',1); % AMD in development
@@ -133,8 +138,11 @@ end
 
 RandomEffects = inputs.Results.RandomEffects;
 fname_pihat = inputs.Results.pihat_file;
+fname_address = inputs.Results.address_file;
+fname_pregnancy = inputs.Results.preg_file;
 CovType = inputs.Results.CovType;
 FixedEstType = inputs.Results.FixedEstType;
+RandomEstType = inputs.Results.RandomEstType;
 GroupByFamType = inputs.Results.GroupByFamType;
 Parallelize = inputs.Results.Parallelize;
 NonnegFlag = inputs.Results.NonnegFlag;
@@ -142,16 +150,17 @@ SingleOrDouble = inputs.Results.SingleOrDouble;
 OLSflag = ismember(lower(FixedEstType),{'ols'});
 GLSflag = ismember(lower(FixedEstType),{'gls'});
 logLikflag = inputs.Results.logLikflag;
+Hessflag = inputs.Results.Hessflag;
+ciflag = inputs.Results.ciflag;
 nperms = inputs.Results.nperms;
 permtype = inputs.Results.permtype;
 mediation=inputs.Results.mediation;
 synth=inputs.Results.synth;
 tfce=inputs.Results.tfce;
 colsinterest=inputs.Results.colsinterest;
-lightSave=inputs.Results.lightSave;
 
-reverse_cols=inputs.Results.reverse_cols; % AMD
-reverseinferenceflag=inputs.Results.reverseinferenceflag; % AMD
+reverse_cols=inputs.Results.reverse_cols; % AMD -- should replace this with colsinterest
+reverseinferenceflag=inputs.Results.reverseinferenceflag; % AMD -- should rename this swapdirectionflag
 
 
 if ~iscell(fname_design)
@@ -173,8 +182,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -217,7 +225,7 @@ end
 fpaths_out = {};
 for des=1:length(fname_design)
             
-      [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak);
+      [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address);
       if synth==1 % Make synthesized data
             [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
@@ -248,10 +256,9 @@ for des=1:length(fname_design)
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       
       % FIT MODEL
-      
-      [beta_hat beta_se zmat logpmat sig2tvec sig2mat binvec logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
-            'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'permtype',permtype);
-
+      [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
+            'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
+            'permtype',permtype,'PregID',PregID,'HomeID',HomeID);
 
             if sum(~mask)>0
 
@@ -340,12 +347,6 @@ for des=1:length(fname_design)
 
       save_params = struct('fstem_imaging',fstem_imaging,'datatype',datatype,'outdir',dirname_out{des},'synth',synth);
       base_variables_to_save = {'X','iid','eid','colnames_model','contrasts','datatype','inputs','zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec','save_params','mask'};
-      if lightSave==1
-            to_drop = ["beta_hat", "beta_se", "logpmat", "zmat"];
-            for item = to_drop
-                  base_variables_to_save = base_variables_to_save(base_variables_to_save ~= item);
-            end
-      end
 
       if ~exist(dirname_out{des},'dir'), mkdir(dirname_out{des}); end
 
@@ -354,6 +355,14 @@ for des=1:length(fname_design)
       elseif synth==1
             fpath_out = sprintf('%s/FEMA_wrapper_output_%s_%s_synth.mat',dirname_out{des},datatype,fstem_imaging);
       end
+
+      %write column names to json for DEAP
+      fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
+      out = struct('colnames_model',{colnames_model});
+      jsonStr = jsonencode(out);
+      fid = fopen(fname_col,'w');
+      fprintf(fid,'%s\n',jsonStr);
+      fclose(fid);
       
       % =========================================================================
       % Write VOXEL results (mat, nifti, or deap)
@@ -377,8 +386,6 @@ for des=1:length(fname_design)
             for j = 1:size(sig2mat,1)
                   vol_sig2(:,:,:,j) = single(fullvol(sig2mat(j,:),mask));
             end
-            vol_sig2bin = zeros([size(mask) 1]);
-            vol_sig2bin(ivec_mask) = binvec;
 
             
             % ============================================================================================================================
@@ -390,7 +397,7 @@ for des=1:length(fname_design)
                   elseif nperms>0 & tfce==1
                         save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','zmat_perm','beta_hat_perm','tfce_perm','colnames_interest','colsinterest','-v7.3');
                   elseif nperms==0
-                        save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','-v7.3');
+                        save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','logpmat','vol_sig2','vol_sig2t','-v7.3');
                   end
                   logging('Results written to %s',fpath_out);
 
@@ -400,14 +407,7 @@ for des=1:length(fname_design)
             % == NIFTI Output == FIXME: no longer used for DEAP
             if contains(outputFormat, 'nifti')
                   results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
-                  writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model)
-            end
-            
-            % ============================================================================================================================
-            % == DEAP Output ==
-            if contains(outputFormat, 'deap')
-                  results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
-                  writeDEAP(results, dirname_out{des},fstem_imaging, ivnames, colnames_model)
+                  writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model); 
             end
             
       % =========================================================================
@@ -429,25 +429,19 @@ for des=1:length(fname_design)
             end
             
             if contains(outputFormat, 'nifti') %FIXME: these are much smaller, so haven't added the same optimization as for voxelwise
-                  
+
+                  randomFields = {'sig2tvec', 'sig2mat'};
+
                   results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat);
                   fieldnamelist = fieldnames(results);
                   for fi = 1:length(fieldnamelist)
                         fieldname = fieldnamelist{fi};
                         fname_tmp = sprintf('%s/FEMA_results_vertexwise_%s_%s.nii',dirname_out{des},fstem_imaging,fieldname);
                         vol_nifti = reshape2nifti(getfield(results,fieldname)');
-                        niftiwrite(vol_nifti,fname_tmp);
+                        niftiwrite(vol_nifti,fname_tmp,'Compressed',true);
                         fprintf(1,'file %s written (dims = [%s])\n',fname_tmp,num2str(size(vol_nifti),'%d '));
                   end
-                  
-                  
-                  %write column names to json for DEAP
-                  fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
-                  out = struct('colnames_model',{colnames_model});
-                  jsonStr = jsonencode(out);
-                  fid = fopen(fname_col,'w');
-                  fprintf(fid,'%s\n',jsonStr);
-                  fclose(fid);
+
             end
             
       % =========================================================================
