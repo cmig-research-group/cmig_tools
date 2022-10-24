@@ -9,7 +9,6 @@
 % - https://github.com/andersonwinkler/PALM   
 %   (PALM is optional - you only needed it if you play with restricted exchangeability blocks)
 
-
 % setup parameters for FEMA_synthesize
 n = 30000;
 p = 5;
@@ -21,6 +20,9 @@ fid_int = ceil(iid_int / 5);                     % up to 5 individuals per famil
 iid = cell(size(iid_int)); for i=1:length(iid_int), iid{i}=sprintf('I%i', iid_int(i)); end
 fid = cell(size(fid_int)); for i=1:length(fid_int), fid{i}=sprintf('F%i', fid_int(i)); end
 clear('iid_int'); clear('fid_int');
+
+% shuffle observations to validate FEMA_reorder_by_families
+jvec = randperm(n); X = X(jvec, :); iid = iid(:, jvec); fid = fid(:, jvec);
 
 eid = ones(n, 1);                            % non needed
 agevec = zeros(n, 1);                        % not needed
@@ -46,6 +48,7 @@ RandomEffects = {'F', 'A', 'S', 'E'};
 [~, s_effect_idx] = ismember('S', RandomEffects);
 [~, e_effect_idx] = ismember('E', RandomEffects);
 
+[X,iid,eid,fid,agevec,~,pihatmat]=FEMA_reorder_by_families(X,iid,eid,fid,agevec,[],pihatmat);
 [ymat, sig2tvec_true, sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects);
 
 % output of FEMA_FEMA_synthesize :
