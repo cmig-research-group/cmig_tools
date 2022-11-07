@@ -168,7 +168,37 @@ Mi = single(pinv(M));
 %toc
 Cov_MoM = Mi*Mi'; % Variance  / covariance of MoM estimates, per unit of residual error variance
 
-[Mrows dummy Mindvec] = unique(M,'rows','stable'); nMrows= size(Mrows,1); % Should eliminate diagonal elements from M?; perfomr gridding of to handle continuous random effect weights (e.g., GRM)?
+if strcmpi('HMoM',RandomEstType)
+  [Mrows dummy Mindvec] = unique(M,'rows','stable'); nMrows= size(Mrows,1); % Should eliminate diagonal elements from M?; perfomr gridding of to handle continuous random effect weights (e.g., GRM)?
+  n  = 1e5; % Takes about 12s, with FSE model
+  tic
+  mu = [0 0];
+  morder = 4;
+  mumat = NaN(nMrows,nsig2bins,morder); covmat = NaN(nMrows,nsig2bins,morder,morder); X_tmp = NaN(n,morder);
+  for Mind = 1:nMrows
+    for sig2bini = 1:nsig2bins
+      rho = Mrows(Mind,end);
+      Sigma = [1 rho; rho 1];
+      ymat_tmp = sqrt(max(0,1-sum(sig2grid(sig2bini,:))))*mvnrnd(mu,Sigma,n);
+      for j = 1:size(sig2grid,2)
+        rho = Mrows(Mind,j);
+        Sigma = [1 rho; rho 1];
+        ymat_tmp = ymat_tmp + sqrt(sig2grid(sig2bini,j))*mvnrnd(mu,Sigma,n);
+      end
+% Make sure ymat_tmp in fact has unit variance, and correct covariance
+      LHS_tmp = ymat_tmp(:,1).*ymat_tmp(:,2);
+      fprintf(1,'%d %d: %f %f mu=%f\n',Mind,sig2bini,sig2grid(sig2bini,:),mean(LHS_tmp));
+      disp(cov(ymat_tmp))
+% Save distribution of LHS_tmp
+      for oi = 1:morder
+        X_tmp(:,oi) = LHS_tmp.^oi;
+      end
+      mumat(Mind,sig2bini,:) = mean(X_tmp);
+      covmat(Mind,sig2bini,:,:) = cov(X_tmp);
+    end
+  end
+  toc
+end
 
 logging('size(M) = [%d %d]',size(M));
 logging('Cov_MoM:'); disp(Cov_MoM);
@@ -282,7 +312,8 @@ for coli_ri=1:ncols_ri
                   %  sig2tvec = mean(ymat_res.^2,1);
                   sig2tvec = sum(ymat_res.^2,1)/(size(ymat_res,1)-size(X,2));  % Should we use  ymat_res' * inv(V) * ymat_res instead, as ymat_res ~ N(0, sig_t * V), with inv(V)=Vis, as defined in FEMA_sig2binseg_parfeval?
 
-                  LHS = ymat_res(subvec1,:).*ymat_res(subvec2,:); % Look into using subasgn?
+%                  LHS = ymat_res(subvec1,:).*ymat_res(subvec2,:);
+                  LHS = ymat_res(subvec1,:).*ymat_res(subvec2,:)./mean(ymat_res.^2,1); % use normalized residuals
                   
                   if ~NonnegFlag % Standard least squares and max(0,x)
                         tmp = Mi*LHS;
@@ -361,39 +392,7 @@ for coli_ri=1:ncols_ri
                     sig2tvec = sig2tvec_ml;
                   end
 
-keyboard
-
-% Perform this if strcmpi('HMoM',RandomEstType); move outside of loop (below computation of M)
-%                  n  = 1e6; % Could probably get away with much less
-                  n  = 1e5; % Takes about 12s, with FSE model
-                  tic
-                  mu = [0 0];
-                  morder = 4;
-                  mumat = NaN(nMrows,nsig2bins,morder); covmat = NaN(nMrows,nsig2bins,morder,morder); X_tmp = NaN(n,morder);
-                  for Mind = 1:nMrows
-                    for sig2bini = 1:nsig2bins
-                      ymat_tmp = (1-sum(sig2grid(sig2bini,:)))*randn([n 2]);
-                      for j = 1:size(sig2grid,2)
-                        rho = Mrows(Mind,j);
-                        Sigma = [1 rho; rho 1];
-                        ymat_tmp = ymat_tmp + sqrt(sig2grid(sig2bini,j))*mvnrnd(mu,Sigma,n);
-                      end
-% Make sure ymat_tmp in fact has unit variance, and correct covariance
-                      LHS_tmp = ymat_tmp(:,1).*ymat_tmp(:,2);
-% Save distribution of LHS_tmp
-                      for oi = 1:morder
-                        X_tmp(:,oi) = LHS_tmp.^oi;
-                      end
-                      mumat(Mind,sig2bini,:) = mean(X_tmp);
-                      covmat(Mind,sig2bini,:,:) = cov(X_tmp);
-                    end
-                  end
-                  toc
-
-% Perform this if strcmpi('HMoM',RandomEstType)
-%%%% Iterate this section
                   % Snap to random effects grid -- should copy to above
-                  binvec = NaN(size(sig2tvec));
                   nvec_bins = NaN(nsig2bins,1); tvec_bins = zeros(nsig2bins,1);
                   for sig2bini = 1:nsig2bins
                     tmpvec = true;
@@ -405,28 +404,44 @@ keyboard
                     binvec(ivec_bin) = sig2bini;
                   end
 
-                  % Improved MoM,  using higher-order moments -- should iterate with binning
-                  nsig2bins2 = nsig2bins;
-                  [sv si] = sort(nvec_bins,'descend'); si = si(sv>0); sv = sv(sv>0);
-                  for sig2bini = si
-                    tic
-                    costmat = zeros(nsig2bins2,nvec_bins(sig2bini));
-                    for Mind = 1:nMrows
-                      X_tmp = LHS(Mindvec==Mind,binvec==sig2bini); dims = size(X_tmp);
-                      X_tmp = colvec(X_tmp).^[1:morder];
-                      for sig2bini2 = 1:nsig2bins2 % Should only compute around neighborhood of current grid point
-                        costmat(sig2bini2,:) = costmat(sig2bini2,:) + sum(reshape(-mvnpdfln(X_tmp,rowvec(mumat(Mind,sig2bini2,:)),squeeze(covmat(Mind,sig2bini,:,:))),dims),1);
+                  if strcmpi('HMoM',RandomEstType)
+                    % Improved MoM,  using higher-order moments -- should iterate with binning
+                    nsig2bins2 = nsig2bins;
+                    [sv si] = sort(nvec_bins,'descend'); si = si(sv>0); sv = sv(sv>0);
+                    for sig2bini = si
+                      tic
+                      costmat = zeros(nsig2bins2,nvec_bins(sig2bini));
+                      for Mind = 1:nMrows
+                        LHS_tmp = LHS(Mindvec==Mind,binvec==sig2bini); dims = size(LHS_tmp);  LHS_tmp = colvec(LHS_tmp); X_tmp = NaN(length(LHS_tmp),morder);
+                        figure(Mind); clf; hist(colvec(LHS_tmp),100); drawnow;
+                        for oi = 1:morder
+                          X_tmp(:,oi) = LHS_tmp.^oi;
+                        end
+                        for sig2bini2 = 1:nsig2bins2 % Should only compute around neighborhood of current grid point
+                          costmat(sig2bini2,:) = costmat(sig2bini2,:) + sum(reshape(-mvnpdfln(X_tmp,rowvec(mumat(Mind,sig2bini2,:)),squeeze(covmat(Mind,sig2bini,:,:))),dims),1); 
+                        end
                       end
+                      toc
+                      [mv mi]  = min(costmat,[],1);
+                      disp(sig2grid(mode(mi),:)) % Random effects estimates are off ([0.1250    0.6750] vs. [0.0750    0.7750]) -- should double-check distributions, moments in simularion code, above
+                      disp(sig2grid(sig2bini,:)) 
+                      fprintf(1,'%d %d: [%f %f] [%s] [%s] [%s]\n',Mind,sig2bini,sig2grid(sig2bini,:),num2str(mean(X_tmp,1),' %f'),num2str(rowvec(mumat(Mind,sig2bini,:)),' %f'),num2str(rowvec(mumat(Mind,mode(mi),:)),' %f'));
                     end
-                    toc
-                    [mv mi]  = min(costmat,[],1);
-                    disp(sig2grid(mode(mi),:))
-                    disp(sig2grid(sig2bini,:))
-% Should check that distribution of LHS(:,binvec==sig2bini) is consistent with saved one, above
-                    figure; hist(colvec(LHS(:,binvec==sig2bini)),100) % Crazy wide distribution -- should check against simulated data
-%                    figure; imagesc(costmat); colormap(hot);
+                    % Re-compute grid of random effects
+                    for sig2bini = 1:nsig2bins
+                      tmpvec = true;
+                      for ri = 1:size(sig2mat,1)-1
+                        tmpvec = tmpvec & sig2mat(ri,:)>=sig2gridl(sig2bini,ri) & sig2mat(ri,:)<sig2gridu(sig2bini,ri);
+                      end
+                      ivec_bin = find(tmpvec);
+                      nvec_bins(sig2bini) = length(ivec_bin);
+                      binvec(ivec_bin) = sig2bini;
+                    end
                   end
-%%%%
+
+% ToDo
+%   Test with synthesized data
+%   Perform inverse rank normalization for each moment, or use other distribution shape parameters
 
                   if logLikflag & ~MLflag
                     logLikvec = nan(1,size(ymat_res,2));
