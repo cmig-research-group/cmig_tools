@@ -36,7 +36,7 @@ To visualize results:
 - for vertex data, use [`showSurf`](showSurf)
 
 ### Local setup
-If you want to run the [`FEMA_wrapper_demo.m`](DEMOS/FEMA_wrapper_demo.m), run [`abcdConfig.m`](utils/matlab/abcdConfig.m) to setup your local computer to find the path to the code and data directories (after they have been downloaded).
+If you want to run the [`FEMA_wrapper_demo.m`](ABCD_DEMOS/FEMA_wrapper_demo.m), run [`abcdConfig.m`](utils/matlab/abcdConfig.m) to setup your local computer to find the path to the code and data directories (after they have been downloaded).
 
 
 ## Usage
@@ -46,7 +46,7 @@ This section details the whole workflow. For FEMA specific instructions, jump [h
 FEMA expects the design matrix to be organized as follows:  
 ![design matrix structure](docs/pictures/design_matrix_structure.png)
 
-The subject ID, eventname, family ID and age columns must be included as the first 4 columns and in that order for use by FEMA to intersect with imaging data and calculate random effects. The columns indicated by 'all predictors' (from column 5 onwards) will be the exact design matrix used by FEMA. This means that if you wish to include age as a predictor in your model you need to make sure it is included in 'all predictors' as well as column4. FEMA will not check whether your design matrix is full rank and **will not add an intercept** to your design matrix if you wish to include one. The design matrix needs to be a **tab separated file** readable by Matlab's "readtable". We have created a function called [`makeDesign.R`](utils/r/makeDesign.R) which creates a tab seperated file with the exact structure expected by FEMA, checks for rank deficiency and automatically adds an intercept. If you wish to use this function (recommended) please see the example script [`makeDesign_demo.R`](DEMOS/makeDesign_demo.R). 
+The subject ID, eventname, family ID and age columns must be included as the first 4 columns and in that order for use by FEMA to intersect with imaging data and calculate random effects. The columns indicated by 'all predictors' (from column 5 onwards) will be the exact design matrix used by FEMA. This means that if you wish to include age as a predictor in your model you need to make sure it is included in 'all predictors' as well as column4. FEMA will not check whether your design matrix is full rank and **will not add an intercept** to your design matrix if you wish to include one. The design matrix needs to be a **tab separated file** readable by Matlab's "readtable". We have created a function called [`makeDesign.R`](utils/r/makeDesign.R) which creates a tab seperated file with the exact structure expected by FEMA, checks for rank deficiency and automatically adds an intercept. If you wish to use this function (recommended) please see the example script [`makeDesign_demo.R`](ABCD_DEMOS/makeDesign_demo.R). 
 
 ### FEMA
 
@@ -57,11 +57,11 @@ FEMA uses three main functions that are called internally within `FEMA_wrapper`:
 - `FEMA_intersect_design`: intersects imaging data with design matrix
 - `FEMA_fit`: algorithm to fit mixed effects model
 
-See [`FEMA_wrapper_demo.m`](DEMOS/FEMA_wrapper_demo.m) for full end-to-end demo for running FEMA calculation for voxel-wise and vertex-wise analyses.
+See [`FEMA_wrapper_demo.m`](ABCD_DEMOS/FEMA_wrapper_demo.m) for full end-to-end demo for running FEMA calculation for voxel-wise and vertex-wise analyses.
 
 Resampling methods (*e.g.* wild bootstrap) can also be run in `FEMA_wrapper` by specifying as an input. These will be used if the user wants to run Threshold Free Cluster Enhancement (TFCE) or the Sobel's test. This can also be specified as an input to `FEMA_wrapper`.
 
-When running many permutations, as they are independent, calls to `FEMA_wrapper` can be submitted as batch jobs on a cluster. See demo in [`FEMA_resampling_demo.m`](DEMOS/FEMA_resampling_demo.m), or jump to [this page for more info on tools to run on a cluster](docs/cluster.md).
+When running many permutations, as they are independent, calls to `FEMA_wrapper` can be submitted as batch jobs on a cluster. See demo in [`FEMA_resampling_demo.m`](ABCD_DEMOS/FEMA_resampling_demo.m), or jump to [this page for more info on tools to run on a cluster](docs/cluster.md).
 
 The below infographic outlines the structure of the FEMA package and how the different functions relate to one another. This flowchart will help you navigate through the FEMA functions and how to conduct mass univariate LME with imaging data using FEMA.
 
@@ -79,12 +79,12 @@ When running several thousand permutations the output files can get very large >
 
 
 ### Visualization
-- for voxel data, use [`showVol`](showVol) ([docs](showVol/README.md), [demo](DEMOS/FEMA_showVol_demo.m))
-- for vertex data, use [`showSurf`](showSurf) ([demo](DEMOS/FEMA_showSurf_demo.m))
+- for voxel data, use [`showVol`](showVol) ([docs](showVol/README.md), [demo](ABCD_DEMOS/FEMA_showVol_demo.m))
+- for vertex data, use [`showSurf`](showSurf) ([demo](ABCD_DEMOS/FEMA_showSurf_demo.m))
 
 ## Demos
 
-### Demo to run `FEMA_wrapper` using [`FEMA_wrapper_demo.m`](DEMOS/FEMA_wrapper_demo.m) (for ABCD Investigators)
+### Demo to run `FEMA_wrapper` using [`FEMA_wrapper_demo.m`](ABCD_DEMOS/FEMA_wrapper_demo.m) (for ABCD Investigators)
 
 This is an end-to-end demo that will produce developmental associations (age effects) with different imaging modalities
 - For the vertexwise data, this demo will produce age associations with cortical thickness.
@@ -116,7 +116,7 @@ To run `FEMA_wrapper_demo.m`
 
 Annotations in this demo script provide details about the different inputs used for `FEMA_wrapper` This can act as an example script for running `FEMA_wrapper` for different analyses.
 
-### Demo to visualize vertexwise FEMA results on the cortical surface using [`FEMA_showSurf_demo.m`](DEMOS/FEMA_showSurf_demo.m)
+### Demo to visualize vertexwise FEMA results on the cortical surface using [`FEMA_showSurf_demo.m`](ABCD_DEMOS/FEMA_showSurf_demo.m)
 
 This is an end-to-end demo designed to visualize the output from `FEMA_wrapper_demo.m`. `FEMA_showSurf_demo.m' plots the results from the vertexwise imaging demo on the cortical surface. This demo produces z statistics of the association between age and cortical thickness from 9-14 years.
 
@@ -143,7 +143,7 @@ The demo script has been annotated to describe the different options for plottin
  + For convoluted surface: `surf_lh_pial`, `surf_rh_pial`
  + For inflated surface: `surf_lh_inflated`, `surf_rh_inflated`
 
-### Demo to visualize voxelwise FEMA results across the whole-brain using [`FEMA_showVol_demo.m`](DEMOS/FEMA_showVol_demo.m)
+### Demo to visualize voxelwise FEMA results across the whole-brain using [`FEMA_showVol_demo.m`](ABCD_DEMOS/FEMA_showVol_demo.m)
 
 This is an end-to-end demo designed to visualize the output from `FEMA_wrapper_demo.m`. It plots the results from the voxelwise imaging demo in an interactive viewer that lets you explore across the brain. This demo produces z statistics of the association between age and restricted normalized isotropic diffusion from 9-14 years. The statistics plotted are thresholded using a Bonferonni correction.
 

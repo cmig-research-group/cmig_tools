@@ -39,7 +39,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %   FixedEstType <char>        :  input for FEMA_fit - default 'GLS' --> other option: 'OLS'
 %   GroupByFamType <boolean>   :  input for FEMA_fit - default true
 %   Parallelize <boolean>      :  input for FEMA_fit - default false
-%   NonnegFlag <blooean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
+%   NonnegFlag <boolean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
 %   SingleOrDouble <char>      :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
 %   logLikflag <boolean>       :  input for FEMA_fit - default 0
 %   permtype <char>            :  input for FEMA_fit - options: 
@@ -47,6 +47,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
 %   tfce <num>                 :  default 0 --> if 1 will run TFCE
 %   colsinterest <num>         :  used to specify IVs of interest in design matrix (cols in X) for resampling output and tfce (default 1, i.e. 1st column of X) - only used if nperms>0
+%   lightSave <boolean>        :  whether to only save the *_perm variables to have lighter output files
 %
 % OUTPUTS
 %   fpaths_out                 :  results will be saved here in the specified format
@@ -89,6 +90,7 @@ addParamValue(inputs,'nperms',0);
 addParamValue(inputs,'mediation',0);
 addParamValue(inputs,'tfce',0);
 addParamValue(inputs,'colsinterest',1);
+addParamValue(inputs,'lightSave',0); % whether to only save the *_perm variables to have lighter output files
 
 %FEMA_fit variable inputs
 addParamValue(inputs,'niter',1);
@@ -158,6 +160,7 @@ mediation=inputs.Results.mediation;
 synth=inputs.Results.synth;
 tfce=inputs.Results.tfce;
 colsinterest=inputs.Results.colsinterest;
+lightSave=inputs.Results.lightSave;
 
 reverse_cols=inputs.Results.reverse_cols; % AMD
 reverseinferenceflag=inputs.Results.reverseinferenceflag; % AMD
@@ -347,6 +350,12 @@ for des=1:length(fname_design)
 
       save_params = struct('fstem_imaging',fstem_imaging,'datatype',datatype,'outdir',dirname_out{des},'synth',synth);
       base_variables_to_save = {'X','iid','eid','colnames_model','contrasts','datatype','inputs','zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec','save_params','mask'};
+      if lightSave==1
+            to_drop = ["beta_hat", "beta_se", "logpmat", "zmat"];
+            for item = to_drop
+                  base_variables_to_save = base_variables_to_save(base_variables_to_save ~= item);
+            end
+      end
 
       if ~exist(dirname_out{des},'dir'), mkdir(dirname_out{des}); end
 
