@@ -1,4 +1,4 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
 %
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
@@ -29,6 +29,8 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %                                   error (E) - always required
 %                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (pihat) for this option
 %   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+%   preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
+%   address_file <char>        :  path to address data - default [] - only required if H random effect specified
 %   nperms <num>               :  default 0 --> if >0 will run and output permuted effects
 %   mediation <num>            :  default 0 --> if 1 will ensure same seed used for resampling of the two models used for a mediation analysis
 %   niter <num>                :  input for FEMA_fit - default 1
@@ -66,7 +68,7 @@ rng shuffle %Set random number generator so different every time
 
 if nargin < 6
       logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,varargin)');
-      error('Incorrect number of imput arguments')
+      error('Incorrect number of input arguments')
 end
 
 if isdeployed
@@ -82,6 +84,8 @@ addParamValue(inputs,'synth',0); % AMD - put back synth option
 addParamValue(inputs,'ivnames','');
 addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
 addParamValue(inputs,'pihat_file',[]);
+addParamValue(inputs,'preg_file',[]);
+addParamValue(inputs,'address_file',[]);
 addParamValue(inputs,'nperms',0);
 addParamValue(inputs,'mediation',0);
 addParamValue(inputs,'tfce',0);
@@ -93,11 +97,14 @@ addParamValue(inputs,'niter',1);
 addParamValue(inputs,'nbins',20);
 addParamValue(inputs,'CovType','analytic');
 addParamValue(inputs,'FixedEstType','GLS');
+addParamValue(inputs,'RandomEstType','MoM');
 addParamValue(inputs,'GroupByFamType',true);
 addParamValue(inputs,'Parallelize',false);
 addParamValue(inputs,'NonnegFlag',true); % Perform lsqnonneg on random effects estimation
 addParamValue(inputs,'SingleOrDouble','double');
 addParamValue(inputs,'logLikflag',0);
+addParamValue(inputs,'Hessflag',false);
+addParamValue(inputs,'ciflag',false);
 addParamValue(inputs,'permtype','wildbootstrap');
 
 addParamValue(inputs,'reverse_cols',1); % AMD in development
@@ -133,8 +140,11 @@ end
 
 RandomEffects = inputs.Results.RandomEffects;
 fname_pihat = inputs.Results.pihat_file;
+fname_address = inputs.Results.address_file;
+fname_pregnancy = inputs.Results.preg_file;
 CovType = inputs.Results.CovType;
 FixedEstType = inputs.Results.FixedEstType;
+RandomEstType = inputs.Results.RandomEstType;
 GroupByFamType = inputs.Results.GroupByFamType;
 Parallelize = inputs.Results.Parallelize;
 NonnegFlag = inputs.Results.NonnegFlag;
@@ -142,6 +152,8 @@ SingleOrDouble = inputs.Results.SingleOrDouble;
 OLSflag = ismember(lower(FixedEstType),{'ols'});
 GLSflag = ismember(lower(FixedEstType),{'gls'});
 logLikflag = inputs.Results.logLikflag;
+Hessflag = inputs.Results.Hessflag;
+ciflag = inputs.Results.ciflag;
 nperms = inputs.Results.nperms;
 permtype = inputs.Results.permtype;
 mediation=inputs.Results.mediation;
@@ -173,8 +185,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -217,7 +228,7 @@ end
 fpaths_out = {};
 for des=1:length(fname_design)
             
-      [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak);
+      [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address);
       if synth==1 % Make synthesized data
             [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
@@ -248,10 +259,9 @@ for des=1:length(fname_design)
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       
       % FIT MODEL
-      
-      [beta_hat beta_se zmat logpmat sig2tvec sig2mat binvec logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
-            'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'permtype',permtype);
-
+      [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
+            'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
+            'permtype',permtype,'PregID',PregID,'HomeID',HomeID);
 
             if sum(~mask)>0
 
@@ -377,8 +387,6 @@ for des=1:length(fname_design)
             for j = 1:size(sig2mat,1)
                   vol_sig2(:,:,:,j) = single(fullvol(sig2mat(j,:),mask));
             end
-            vol_sig2bin = zeros([size(mask) 1]);
-            vol_sig2bin(ivec_mask) = binvec;
 
             
             % ============================================================================================================================

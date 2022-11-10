@@ -1,4 +1,4 @@
-function [X,iid, eid, fid,agevec,ymat,contrasts, colnames_model, pihatmat] = FEMA_intersect_design(fname_design, ymat, iid_concat, eid_concat, varargin)
+function [X,iid, eid, fid,agevec,ymat,contrasts, colnames_model, pihatmat, PregID, HomeID] = FEMA_intersect_design(fname_design, ymat, iid_concat, eid_concat, varargin)
 %
 % FEMA_intersect_design intersect imaging data and design matrix - used internally by FEMA_wrapper
 %
@@ -11,6 +11,8 @@ function [X,iid, eid, fid,agevec,ymat,contrasts, colnames_model, pihatmat] = FEM
 % Optional inputs:
 %   contrasts <path>           :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   pihat                      :  pihat structure (output from FEMA_process_data)
+%   preg                       :  pregnancy IDs
+%   address                    :  address IDs
 %
 % OUTPUTS (inputs for FEMA_fit)
 %   X <num>                    :  design matrix (n x p)
@@ -34,10 +36,14 @@ logging('***Start***');
 p = inputParser;
 addParamValue(p,'contrasts',[]);
 addParamValue(p,'pihat',[]);
+addParamValue(p,'preg',[]);
+addParamValue(p,'address',[]);
 
 parse(p,varargin{:})
 contrasts = str2num_amd(p.Results.contrasts);
 pihat = p.Results.pihat;
+preg = p.Results.preg;
+address = p.Results.address;
 
   % Read in design matrix
   logging('Reading design matrix from %s',fname_design);
@@ -106,10 +112,28 @@ if length(eid) > sum(defvec), eid = eid(defvec); end
             [iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list);
             %[fid_list IA IC_fam] = unique(fids,'stable'); nfam = length(fid_list);
             [~, IA, IB_acs] = intersect(iid_list,pihat.iid_list,'stable'); % Why is setdiff(iid_list,tmp_pihat.iid_list) not empty?
-            pihatmat = NaN(nsubj,nsubj); pihatmat(IA,IA) = pihat.pihatmat(IB_acs,IB_acs); % Make genetic relatedness matrix consistent with iid_list
+            pihatmat = NaN(nsubj,nsubj); pihatmat(IA,IA) = pihat.GRM(IB_acs,IB_acs); % Make genetic relatedness matrix consistent with iid_list
       elseif isempty(pihat)
             pihatmat=[];
       end
+
+% get final list of pregnancy and address IDs
+if ~isempty(preg)
+  [iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list);
+  [~, IA, IB_acs] = intersect(iid_list,preg.pguid,'stable');
+  PregID = NaN([nsubj 1]); PregID(IA) = preg.pregnancyID(IB_acs); % creates PregID in same order as iid_list
+elseif isempty(preg)
+  PregID = [];
+end
+
+if ~isempty(address)
+  [iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list);
+  [~, IA, IB_acs] = intersect(iid_list,address.pguid,'stable');
+  HomeID(IA) = address.address_id(IB_acs); % creates HomeID in same order as iid_list
+  HomeID = transpose(HomeID); 
+elseif isempty(address)
+  HomeID = [];
+end
 
 logging('Final sample for analysis: %d observations',sum(defvec));
 

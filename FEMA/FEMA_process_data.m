@@ -1,4 +1,4 @@
-function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,varargin)
+function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,varargin)
 %
 % ABCD specific function to load and process imaging data from abcd-sync
 %      
@@ -13,6 +13,8 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat
 %   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
 %   ranknorm <boolean>         :  rank normalise imaging data (default 0)
 %   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+%   preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
+%   address_file <char>        :  path to address data - default [] - only required if H random effect specified
 %
 % OUTPUTS
 %   ymat                       :  matrix of imaging data (n x v)
@@ -33,12 +35,16 @@ p = inputParser;
 addParamValue(p,'ranknorm',0);
 addParamValue(p,'ico',5);
 addParamValue(p,'pihat_file',[]);
+addParamValue(p,'preg_file',[]);
+addParamValue(p,'address_file',[]);
 
 parse(p,varargin{:})
 ico = str2num_amd(p.Results.ico);
 icnum = ico + 1;
 ranknorm = str2num_amd(p.Results.ranknorm);
 fname_pihat = p.Results.pihat_file;
+fname_preg = p.Results.preg_file;
+fname_address = p.Results.address_file;
                 
                 
 if ~strcmpi(datatype,'external') %differences between releases not relevant for external data
@@ -323,6 +329,20 @@ if ~isempty(fname_pihat)
       pihat = load(fname_pihat);
 else     
       pihat=[];
+end
+
+if ~isempty(fname_preg)
+      logging('Reading PREGNANCY ID');
+      preg = readtable(fname_preg);
+else     
+      preg=[];
+end
+
+if ~isempty(fname_address)
+      logging('Reading HOME ID');
+      address = readtable(fname_address);
+else     
+      address=[];
 end
 
 if ranknorm==1
