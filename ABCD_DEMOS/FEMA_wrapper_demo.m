@@ -200,7 +200,7 @@ switch dataRelease
     atlasVersion = 'ABCD2_cor10';
     dirname_tabulated = fullfile(abcd_sync_path,'4.0','tabulated/released'); 
     fname_design = fullfile(abcd_sync_path,'4.0','support_files/design_matrices','FEMA_demo_rel4.0_designmatrix_age.txt');
-    fname_pihat = fullfile(abcd_sync_path, '4.0','genomics','ABCD_rel4.0_grm.mat');
+    fname_pihat = fullfile(abcd_sync_path, '4.0','genomics','ABCD_rel4.0_grm.mat'); 
 end
 
 [root,filename]=fileparts(fname_design);

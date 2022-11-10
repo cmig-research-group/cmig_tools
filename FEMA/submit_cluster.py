@@ -232,8 +232,6 @@ class Matlab:
     def create_command(self):
         """Create matlab command as string"""
         def add_value(mystr:str, value) -> str:
-            if isinstance(value, bool):
-                value = int(value)
             if isinstance(value, (int, float)) or str(value).startswith(('{', '[')):
                 mystr += str(f"{value},")
             else:
@@ -286,8 +284,7 @@ def main(analysis_args:Analysis,
          outdir:Path,
          cluster:str,
          mem_free:float,
-         run_time:str,
-         light_save:bool):
+         run_time:str):
     """Main function"""
     job_dir = outdir /  f'nperms-{nperms}_{analysis_args.recap()}'
     tmp_dir = job_dir / 'tmp'
@@ -325,7 +322,6 @@ def main(analysis_args:Analysis,
                 'tfce': analysis_args.tfce,
                 'pihat_file': pihat_path,
                 'nperms': job_nperms,
-                'lightSave': light_save
             }
         ).create_command()
         logging.debug(f"matlab_command={FEMA_wrapper}")
@@ -430,11 +426,6 @@ def parse_args():
         required=False)
     
     parse_submission = parser.add_argument_group('Cluster info', 'arguments relevant to the cluster submission')
-    parse_submission.add_argument('--light_save',
-        type=bool,
-        action=argparse.BooleanOptionalAction,
-        help='Whether to only save permutation data to save disk storage',
-        default=False)
     parse_submission.add_argument('--nperms','-n',
         type=int,
         help='Number of permutations to perform',
@@ -498,8 +489,7 @@ def parse_args():
         args.outdir.absolute(),
         args.cluster,
         args.mem_free,
-        args.run_time,
-        args.light_save
+        args.run_time
     )
 
 

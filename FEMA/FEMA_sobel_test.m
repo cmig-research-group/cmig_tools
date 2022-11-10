@@ -1,4 +1,4 @@
-function [fpath_out, mediation_tstat, mediation_pvals, mediation_effect, mediation_se, mediation_effect_CInorm, mediation_effect_CIprctile, save_params, mask]=FEMA_sobel_test(FEMA_outfile_reduced,FEMA_outfile_full,IVname,alpha, varargin)
+function [fpath_out, mediation_tstat, mediation_pvals, mediation_effect, mediation_se, mediation_effect_CInorm, mediation_effect_CIprctile, save_params, mask] = FEMA_sobel_test(FEMA_outfile_reduced,FEMA_outfile_full,IVname,alpha, varargin)
 
 % Runs a mediation analysis (Sobel's test) on nested models using output from FEMA_wrapper.m (Sobel, 1990)
 % The mediation effect is calculated as (τ – τ'). This is the change in the magnitude of the effect that
@@ -73,6 +73,10 @@ mask = sobel_inputs.Results.mask;
       end   
 
       logging('Calculating sobel test statistic...');
+
+      if isempty(IVname) && length(model_full.colnames_interest)==1
+        IVname = model_full.colnames_interest{1};
+      end
 
       if isfield(model_red, 'colnames_interest')
             DVind_red=find(~cellfun('isempty',regexp(IVname,model_red.colnames_interest,'match')));
@@ -166,13 +170,9 @@ mask = sobel_inputs.Results.mask;
       elseif isempty(save_params)
             fpath_out=[];
       end
+
+keyboard
+save('~/FEMA_sobel_test_snap.mat');
+
 end
-
-
-
-
-
-
-
-
 

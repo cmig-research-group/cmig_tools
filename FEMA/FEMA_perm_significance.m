@@ -2,7 +2,7 @@
 function [fpath_out, rank_log10pval_uncorr, rank_log10pval_fwecorr, extrap_log10pval_uncorr, extrap_log10pval_fwecorr, ecdf_log10pval_uncorr, ecdf_log10pval_fwecorr, save_params, mask]=FEMA_perm_significance(statmat_perm, stattype, colnames_interest, varargin)
 
 % This function computes uncorrected and corrected log10 p-values based on the resampled
-% empirical null distribution output from FEMA_fit. This function can be used to estimate
+% empirical null distrbution output from FEMA_fit. This function can be used to estimate
 % p-values from any matrix of permuted statistics e.g. zmat_perm, tfce_perm
 
 % Uncorrected p-values are estimated by determining the rank of the observed (unpermuted)
@@ -220,7 +220,7 @@ for colsinteresti = 1:ncols
                         pl = max(0.99,1-1/(length(statvec)/1000));
                         pu = max(0.999,1-1/(length(statvec)/2));
                   elseif strcmpi(lower(stattype), 'tfce')
-                        %Fit gamma distribution only to the tail of the distribution of permuted statistics to extrapolate p-value
+                        %Fit gamma distribution only to the tail of the distirbution of permuted statistics to extrapolate p-value
                         pl = max(0.99,1-1/(length(statvec)/100));
                         pu = max(0.999,1-1/(length(statvec)/2));
                   end
