@@ -393,6 +393,7 @@ for coli_ri=1:ncols_ri
                   end
 
                   % Snap to random effects grid -- should copy to above
+
                   nvec_bins = NaN(nsig2bins,1); tvec_bins = zeros(nsig2bins,1);
                   for sig2bini = 1:nsig2bins
                     tmpvec = true;
