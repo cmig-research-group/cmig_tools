@@ -1,9 +1,9 @@
-function [beta_hat, beta_se, tStats, pValues] = FEMA_sig2binseg_parfeval_GWAS(genovec,    ymat,             clusterinfo,     ...
-                                                                              binvec,     sig2tvec,         GroupByFamType,  ...
-                                                                              famtypevec, OLSflag,          Vs_fam,          ...
-                                                                              Vs_famtype, Ws_fam,           Ws_famtype,      ...
-                                                                              df,         SingleOrDouble,   pValType,        ...
-                                                                              saveName,   Chr,              SNPID)
+function [beta_hat, beta_se, tStats, logpValues] = FEMA_sig2binseg_parfeval_GWAS(genovec,   ymat,             clusterinfo,     ...
+                                                                              binvec,       sig2tvec,         GroupByFamType,  ...
+                                                                              famtypevec,   OLSflag,          Vs_fam,          ...
+                                                                              Vs_famtype,   Ws_fam,           Ws_famtype,      ...
+                                                                              df,           SingleOrDouble,   pValType,        ...
+                                                                              saveName,     Chr,              SNPID,    basePair)
 % Function to estimate the effect of each (residualized) SNP on 
 % (residualized) phenotype using OLS or GLS
 %% Inputs:
@@ -46,6 +46,9 @@ function [beta_hat, beta_se, tStats, pValues] = FEMA_sig2binseg_parfeval_GWAS(ge
 % 
 % SNPID:            [m x 1]     cell type of SNP IDs for m SNPs
 %
+% basePair:         [m x 1]     cell type having base pair coordinates
+%                               for the m SNPs
+%
 %% Outputs:
 % beta_hat:         [m x v]     estimated beta coefficients for m SNPs and
 %                               v phenotypes
@@ -55,13 +58,13 @@ function [beta_hat, beta_se, tStats, pValues] = FEMA_sig2binseg_parfeval_GWAS(ge
 %
 % tStats:           [m x v]     ratio of beta_hat and beta_se
 %
-% pValues:          [m x v]     p values for m SNPs and v phenotypes
+% logpValues:       [m x v]     -log10 p values for m SNPs and v phenotypes
 
 %% Initialize
 beta_hat     = zeros(size(genovec,2), size(ymat,2), class(ymat)); 
 beta_se      = zeros(size(beta_hat),  class(ymat));
 tStats       = zeros(size(beta_hat),  class(ymat));
-pValues      = zeros(size(beta_hat),  class(ymat));
+logpValues   = zeros(size(beta_hat),  class(ymat));
 binLoc       = 1;
 
 % Cast genovec as double precision, if required
@@ -149,13 +152,13 @@ for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
     % Calculate p value
     switch pValType
         case 't'
-            pValues(:,ivec_bin) = 2 * tcdf(-abs(tStats(:,ivec_bin)), df);
+            logpValues(:,ivec_bin) = -log10(2 * tcdf(-abs(tStats(:,ivec_bin)), df));
     
         case 'z'
-            pValues(:,ivec_bin) = 2 * normcdf(-abs(tStats(:,ivec_bin)), 0, 1);
+            logpValues(:,ivec_bin) = -log10(2 * normcdf(-abs(tStats(:,ivec_bin)), 0, 1));
             
         case 'chi'
-            pValues(:,ivec_bin) = chi2cdf(tStats(:,ivec_bin).^2, 1, 'upper');
+            logpValues(:,ivec_bin) = -log10(chi2cdf(tStats(:,ivec_bin).^2, 1, 'upper'));
     end
     
     % Update binLoc
@@ -165,9 +168,9 @@ end
 % Save variables
 % Get an estimate of size of the variables
 tmpInfo = whos;
-if sum([tmpInfo(ismember({tmpInfo(:).name}', {'beta_hat', 'beta_se', 'tStats', 'pValues', 'df', 'Chr', 'SNPID'})).bytes]) > 2^31
-    save([saveName, '.mat'], 'beta_hat', 'beta_se', 'tStats', 'pValues', 'df', 'Chr', 'SNPID', '-v7.3');
+if sum([tmpInfo(ismember({tmpInfo(:).name}', {'beta_hat', 'beta_se', 'tStats', 'pValues', 'df', 'Chr', 'SNPID', 'basePair'})).bytes]) > 2^31
+    save([saveName, '.mat'], 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Chr', 'SNPID', 'basePair', '-v7.3');
 else
-    save([saveName, '.mat'], 'beta_hat', 'beta_se', 'tStats', 'pValues', 'df', 'Chr', 'SNPID');
+    save([saveName, '.mat'], 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Chr', 'SNPID', 'basePair');
 end
 end
