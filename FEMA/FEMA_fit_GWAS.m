@@ -1,7 +1,7 @@
 function [beta_hat,          beta_se,          zmat,            logpmat,        sig2tvec,      sig2mat,      Hessmat,         ...
           logLikvec,         beta_hat_perm,    beta_se_perm,    zmat_perm,      sig2tvec_perm, sig2mat_perm, logLikvec_perm,  ...
-          snp_beta_hat,      snp_beta_se,      snp_tStats,      snp_pValue,                                                   ...
-          snp_beta_hat_perm, snp_beta_se_perm, snp_tStats_perm, snp_pValue_perm] =                                            ...
+          snp_beta_hat,      snp_beta_se,      snp_tStats,      snp_logpValue,                                                ...
+          snp_beta_hat_perm, snp_beta_se_perm, snp_tStats_perm, snp_logpValue_perm] =                                         ...
           FEMA_fit_GWAS(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, pihatmat, bFile, outDir, varargin)
 % Function to fit fast and efficient linear mixed effects model and conduct 
 % GWAS analyses across a series of phenotypes
@@ -75,7 +75,7 @@ function [beta_hat,          beta_se,          zmat,            logpmat,        
 %   snp_beta_hat               :  estimated beta coefficients for SNPs (g x v)
 %   snp_beta_se                :  estimated beta standard errors for SNPs (g x v)
 %   snp_tStats:                :  one sample t-test statistics for SNPs (g x v)
-%   snp_pValue:                :  p value for the test statistics (g x v)
+%   snp_logpValue:             :  -log10 p value for the test statistics (g x v)
 
 % This software is Copyright (c) 2021 The Regents of the University of California. All Rights Reserved.
 % See LICENSE.
@@ -232,7 +232,7 @@ nfam              = length(fid_list);
 nfamtypes         = length(famtypelist);
 
 %% Ensure that SNP data exists for all IIDs
-[~, ~, ~, check] = FEMA_parse_PLINK(bFile, iid, true);
+[~, ~, ~, ~, check] = FEMA_parse_PLINK(bFile, iid, true);
 if ~check
     error('One or more IIDs not found in PLINK files');
 end
@@ -668,17 +668,17 @@ for coli_ri=1:ncols_ri
             logging('Finished estimating random effects and fixed effects; starting estimation of coefficients for SNPs');
             
             % Read genotype information
-            gTic                  = tic;
-            [genomat, Chr, SNPID] = FEMA_parse_PLINK(bFile, iid, false, gStdType, gImpute);
+            gTic                            = tic;
+            [genomat, Chr, SNPID, basePair] = FEMA_parse_PLINK(bFile, iid, false, gStdType, gImpute);
             logging(['Finished reading genotype file in ', num2str(toc(gTic), '%.2fs')]);
             
             % Initialize a few variables
             numSNPs = size(genomat, 2);
-            [snp_beta_hat, snp_beta_se, snp_tStats, snp_pValue] = deal(zeros(numSNPs, numYvars));
+            [snp_beta_hat, snp_beta_se, snp_tStats, snp_logpValue] = deal(zeros(numSNPs, numYvars));
             if nperms > 0
-                [snp_beta_hat_perm, snp_beta_se_perm, snp_tStats_perm, snp_pValue_perm] = deal(zeros(numSNPs, numYvars, nperms, class(ymat)));
+                [snp_beta_hat_perm, snp_beta_se_perm, snp_tStats_perm, snp_logpValue_perm] = deal(zeros(numSNPs, numYvars, nperms, class(ymat)));
             else
-                [snp_beta_hat_perm, snp_beta_se_perm, snp_tStats_perm, snp_pValue_perm] = deal(NaN);
+                [snp_beta_hat_perm, snp_beta_se_perm, snp_tStats_perm, snp_logpValue_perm] = deal(NaN);
             end
             
             % Residualize phenotype - already computed as ymat_res
@@ -716,6 +716,7 @@ for coli_ri=1:ncols_ri
                         splitInfo{chromo}.Genomat    = genomat(:, tmpLocs);
                         splitInfo{chromo}.chrNumber  = Chr(tmpLocs);
                         splitInfo{chromo}.SNPList    = SNPID(tmpLocs);
+                        splitInfo{chromo}.basePair   = basePair(tmpLocs);
                         splitInfo{chromo}.outName    = fullfile(outDir, ['Estimates_Chr', num2str(chr{chromo}, '%02d')]);
                     end
                 else
@@ -733,6 +734,7 @@ for coli_ri=1:ncols_ri
                         splitInfo{chunk}.Genomat    = genomat(:, tmpLocs);
                         splitInfo{chunk}.chrNumber  = Chr(tmpLocs);
                         splitInfo{chunk}.SNPList    = SNPID(tmpLocs);
+                        splitInfo{chunk}.basePair   = basePair(tmpLocs);
                         splitInfo{chunk}.outName    = fullfile(outDir, ['Estimates_Chunk', num2str(chunk, '%05d')]);
                     end
                 end
@@ -757,8 +759,10 @@ for coli_ri=1:ncols_ri
                                                   Ws_fam, Ws_famtype, df,               ...
                                                   SingleOrDouble, pValType,             ...
                                                   splitInfo{parts}.outName,             ...
-                                                  splitInfo{parts}.chrNumber, splitInfo{parts}.SNPList);
-                                              
+                                                  splitInfo{parts}.chrNumber,           ...
+                                                  splitInfo{parts}.SNPList,             ...
+                                                  splitInfo{parts}.basePair);
+
                     % Update user
                     logging(['Finished part: ', num2str(parts), ' of ', num2str(numParts), ' in ' num2str(toc(partTic), '%.2fs')]);
                 end
@@ -767,11 +771,11 @@ for coli_ri=1:ncols_ri
                 temp_Chr   = cell(numSNPs, 1);
                 temp_SNPID = cell(numSNPs, 1);
                 for parts  = 1:numParts
-                    temp   = load([splitInfo{parts}.outName, '.mat'], 'beta_hat', 'beta_se', 'tStats', 'pValues', 'Chr', 'SNPID');
+                    temp   = load([splitInfo{parts}.outName, '.mat'], 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Chr', 'SNPID');
                     snp_beta_hat(splitInfo{parts}.tmpLocs, :) = temp.beta_hat;
                     snp_beta_se(splitInfo{parts}.tmpLocs,  :) = temp.beta_se;
                     snp_tStats(splitInfo{parts}.tmpLocs,   :) = temp.tStats;
-                    snp_pValue(splitInfo{parts}.tmpLocs,   :) = temp.pValues;
+                    snp_logpValue(splitInfo{parts}.tmpLocs,:) = temp.logpValues;
                     temp_Chr(splitInfo{parts}.tmpLocs,     :) = temp.Chr;
                     temp_SNPID(splitInfo{parts}.tmpLocs,   :) = temp.SNPID;
                     clear temp
@@ -779,11 +783,11 @@ for coli_ri=1:ncols_ri
                 
                 % Ensure that SNPIDs are aligned with original order
                 if sum(strcmpi(SNPID, temp_SNPID)) ~= numSNPs
-                    [~, tmpOrd]  = ismember(SNPID, temp_SNPID);
-                    snp_beta_hat = snp_beta_hat(tmpOrd, :);
-                    snp_beta_se  = snp_beta_se(tmpOrd,  :);
-                    snp_tStats   = snp_tStats(tmpOrd,   :);
-                    snp_pValue   = snp_pValue(tmpOrd,   :);
+                    [~, tmpOrd]   = ismember(SNPID, temp_SNPID);
+                    snp_beta_hat  = snp_beta_hat(tmpOrd, :);
+                    snp_beta_se   = snp_beta_se(tmpOrd,  :);
+                    snp_tStats    = snp_tStats(tmpOrd,   :);
+                    snp_logpValue = snp_logpValue(tmpOrd,:);
                 end
             else
                 % Split into chunks
@@ -809,34 +813,32 @@ for coli_ri=1:ncols_ri
 
                     % Find estimates
                     [snp_beta_hat(tmpLocs,:), snp_beta_se(tmpLocs,:),               ...
-                     snp_tStats(tmpLocs,  :), snp_pValue(tmpLocs, :)] =             ...
+                     snp_tStats(tmpLocs,  :), snp_logpValue(tmpLocs, :)] =          ...
                      FEMA_sig2binseg_parfeval_GWAS(genomat(:,tmpLocs), ymat_res,    ...
                                                    clusterinfo, binvec, sig2tvec,   ...
                                                    GroupByFamType, famtypevec,      ...
                                                    OLSflag, Vs_fam, Vs_famtype,     ...
                                                    Ws_fam, Ws_famtype, df,          ...
                                                    SingleOrDouble, pValType,        ...
-                                                   outName, Chr(tmpLocs), SNPID(tmpLocs));
-                                               
+                                                   outName, Chr(tmpLocs),           ...
+                                                   SNPID(tmpLocs), basePair(tmpLocs));
+
                     % Update user
                     logging(['Finished part: ', num2str(chunk), ' of ', num2str(numChunks), ' in ' num2str(toc(chunkTic), '%.2fs')]);
                 end
             end
             
             % Write out formatted GWAS table for every phenotype
-            if strcmpi(SingleOrDouble, 'double')
-                fmt = '%s \t %s \t %d \t %.15f \t %.15f \t %.15f \t %.15f \t %d \t %s \n';
-            else
-                fmt = '%s \t %s \t %d \t %.7f \t %.7f \t %.7f \t %.7f \t %d \t %s \n';
-            end
-            GWASvarNames = {'Chromosome', 'SNPID', 'SampleSize', 'Beta', 'SE', 'TStatistics', 'pValue', 'DF', 'pValueType'};
+            fmt = '%s \t %s \t %s \t %d \t %g \t %g \t %g \t %g \t %d \t %s \n';
+            GWASvarNames = {'Chromosome', 'SNPID', 'BasePair', 'SampleSize', 'Beta', 'SE', 'TStatistics', 'log10pValue', 'DF', 'pValueType'};
             for phen = 1:numYvars
                 % Prepare table
                 GWASTable           = cell(numSNPs, length(GWASvarNames));
                 GWASTable(:, 1)     = Chr;
                 GWASTable(:, 2)     = SNPID;
-                GWASTable(:, 3:8)   = num2cell([repmat(nobs, numSNPs, 1), snp_beta_hat(:,phen), snp_beta_se(:,phen), snp_tStats(:,phen), snp_pValue(:,phen), repmat(df, numSNPs, 1)]);
-                GWASTable(:, 9)     = repmat(cellstr(pValType), numSNPs, 1);
+                GWASTable(:, 3)     = basePair;
+                GWASTable(:, 4:9)   = num2cell([repmat(nobs, numSNPs, 1), snp_beta_hat(:,phen), snp_beta_se(:,phen), snp_tStats(:,phen), snp_logpValue(:,phen), repmat(df, numSNPs, 1)]);
+                GWASTable(:, 10)    = repmat(cellstr(pValType), numSNPs, 1);
                 GWASTable           = GWASTable';
                 
                 % Write out the formatted GWAS table
@@ -870,7 +872,8 @@ for coli_ri=1:ncols_ri
                                                   SingleOrDouble, pValType,        ...
                                                   [splitInfo{parts}.outName, '_Permi_', num2str(permi, '%03d')], ...
                                                   splitInfo{parts}.chrNumber,      ...
-                                                  splitInfo{parts}.SNPList);
+                                                  splitInfo{parts}.SNPList,        ...
+                                                  splitInfo{parts}.basePair);
 
                     % Update user
                     logging(['Finished part: ', num2str(parts), ' of ', num2str(numParts), ' in ' num2str(toc(partTic), '%.2fs')]);
@@ -892,15 +895,16 @@ for coli_ri=1:ncols_ri
                     outName = fullfile(outDir, ['Estimates_Chunk', num2str(chunk, '%05d'), '_Permi_', num2str(permi, '%03d')]);
 
                     % Find estimates
-                    [snp_beta_hat_perm(tmpLocs, :, permi), snp_beta_se_perm(tmpLocs, :, permi),     ...
-                     snp_tStats_perm(tmpLocs,   :, permi), snp_pValue_perm(tmpLocs,  :, permi)] =   ...
+                    [snp_beta_hat_perm(tmpLocs, :, permi), snp_beta_se_perm(tmpLocs, :, permi),         ...
+                     snp_tStats_perm(tmpLocs,   :, permi), snp_logpValue_perm(tmpLocs,  :, permi)] =    ...
                      FEMA_sig2binseg_parfeval_GWAS(genomat(:,tmpLocs), ymat_res,    ...
                                                    clusterinfo, binvec, sig2tvec,   ...
                                                    GroupByFamType, famtypevec,      ...
                                                    OLSflag, Vs_fam, Vs_famtype,     ...
                                                    Ws_fam, Ws_famtype, df,          ...
                                                    SingleOrDouble, pValType,        ...
-                                                   outName, Chr(tmpLocs), SNPID(tmpLocs));
+                                                   outName, Chr(tmpLocs),           ...
+                                                   SNPID(tmpLocs), basePair(tmpLocs));
 
                     % Update user
                     logging(['Finished (permutation ', num2str(permi)', ') chunk: ', num2str(chunk), ' of ', num2str(numChunks), ' in ' num2str(toc(chunkTic), '%.2fs')]);
@@ -952,12 +956,12 @@ if ciflag
 end
 
 % Save variables - use v7.3
-save(fullfile(outDir, 'Variables_FEMA.mat'), 'beta_hat',          'beta_se',          'zmat',            'logpmat',     ...
-                                             'sig2tvec',          'sig2mat',          'Hessmat',                        ...
-                                             'logLikvec',         'beta_hat_perm',    'beta_se_perm',    'zmat_perm',   ...
-                                             'sig2tvec_perm',     'sig2mat_perm',     'logLikvec_perm',                 ...
-                                             'snp_beta_hat',      'snp_beta_se',      'snp_tStats',      'snp_pValue',  ...
-                                             'snp_beta_hat_perm', 'snp_beta_se_perm', 'snp_tStats_perm', 'snp_pValue_perm', '-v7.3');
+save(fullfile(outDir, 'Variables_FEMA.mat'), 'beta_hat',          'beta_se',          'zmat',            'logpmat',         ...
+                                             'sig2tvec',          'sig2mat',          'Hessmat',                            ...
+                                             'logLikvec',         'beta_hat_perm',    'beta_se_perm',    'zmat_perm',       ...
+                                             'sig2tvec_perm',     'sig2mat_perm',     'logLikvec_perm',                     ...
+                                             'snp_beta_hat',      'snp_beta_se',      'snp_tStats',      'snp_logpValue',   ...
+                                             'snp_beta_hat_perm', 'snp_beta_se_perm', 'snp_tStats_perm', 'snp_logpValue_perm', '-v7.3');
 
 logging('***Done*** (%0.2f seconds)\n',(now-starttime)*3600*24);
 
