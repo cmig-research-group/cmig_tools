@@ -1,4 +1,4 @@
-function [genomat, Chr, SNPID, check] = FEMA_parse_PLINK(bFile, iid, onlyCheck, stdType, meanImputeNaN)
+function [genomat, Chr, SNPID, basePair, check] = FEMA_parse_PLINK(bFile, iid, onlyCheck, stdType, meanImputeNaN)
 % Function to parse PLINK files
 %% Inputs:
 % bFile:            character       full path to a PLINK file (no extension)
@@ -26,6 +26,9 @@ function [genomat, Chr, SNPID, check] = FEMA_parse_PLINK(bFile, iid, onlyCheck, 
 %                                   the m SNPs (character type inside)
 %
 % SNPID:            [m x 1]         cell type having SNP ID for the m SNPs
+%
+% basePair:         [m x 1]         cell type having base pair coordinates
+%                                   for the m SNPs
 %
 % check:            logical         true if all IDs in IID are present in
 %                                   the PLINK files; if check fails and
@@ -81,9 +84,10 @@ else
 end
 
 if onlyCheck
-    genomat = [];
-    Chr     = [];
-    SNPID   = [];
+    genomat  = [];
+    Chr      = [];
+    SNPID    = [];
+    basePair = [];
     return;
 end
 
@@ -95,9 +99,10 @@ else
     bim_file = textscan(fhandle, '%s %s %s %s %s %s');
     fclose(fhandle);
     
-    % Chromosome number is bim{1} and rsID is bim{2}
-    Chr     = bim_file{1};
-    SNPID   = bim_file{2};
+    % Chromosome number is bim{1}, rsID is bim{2}, and basePair is bim{4}
+    Chr      = bim_file{1};
+    SNPID    = bim_file{2};
+    basePair = bim_file{4};
     
     % Read bed file
     genomat = PlinkRead_binary2(length(fam_file{2}), 1:length(bim_file{1}), bFile);
