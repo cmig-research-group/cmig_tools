@@ -112,7 +112,7 @@ if readFile
         case 'fema'
             Chr      = fileData.Chromosome;
             bpLoc    = fileData.BasePair;
-            logpVals = -log10(fileData.log10pValue);
+            logpVals = fileData.log10pValue;
             
         case 'gcta'
             Chr      = fileData.CHR;
