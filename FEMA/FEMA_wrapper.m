@@ -227,10 +227,11 @@ for des=1:length(fname_design)
             
       [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address);
       if synth==1 % Make synthesized data
-            [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
+            [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'nbins',nbins,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
 %            sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
-
+      else
+        sig2tvec_true = []; sig2mat_true = [];
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -254,11 +255,13 @@ for des=1:length(fname_design)
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      
+
+      synthstruct = struct('sig2tvec_true',sig2tvec_true,'sig2mat_true',sig2mat_true);
+
       % FIT MODEL
       [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
             'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
-            'permtype',permtype,'PregID',PregID,'HomeID',HomeID);
+            'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
 
             if sum(~mask)>0
 
@@ -358,12 +361,12 @@ for des=1:length(fname_design)
 
       %write column names to json for DEAP
       fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
-      out = struct('colnames_model',{colnames_model});
+      out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
       jsonStr = jsonencode(out);
       fid = fopen(fname_col,'w');
       fprintf(fid,'%s\n',jsonStr);
       fclose(fid);
-      
+
       % =========================================================================
       % Write VOXEL results (mat, nifti, or deap)
       % =========================================================================
