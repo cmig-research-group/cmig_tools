@@ -18,8 +18,8 @@ if exist('icsurf','var')
   surf_rh.vertices = surf_rh.vertices(1:nverts,:);
   surf_lh.faces = icsurf.faces;
   surf_rh.faces = icsurf.faces;
-  if size(vertvals_lh,1)==1, vertvals_lh = vertvals_lh'; end
-  if size(vertvals_rh,1)==1, vertvals_rh = vertvals_rh'; end
+  if size(vertvals_lh,1)==1 | size(vertvals_lh,1)==3, vertvals_lh = vertvals_lh'; end
+  if size(vertvals_rh,1)==1 | size(vertvals_rh,1)==3, vertvals_rh = vertvals_rh'; end
   if length(vertvals_lh)>nverts
     vertvals_lh = vertvals_lh(1:nverts,:);
     vertvals_rh = vertvals_rh(1:nverts,:);
