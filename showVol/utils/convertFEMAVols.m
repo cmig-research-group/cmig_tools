@@ -68,7 +68,7 @@ if ~exist('method','var') || isempty(method)
 end
 
 template_vol = atlas_T1(atlasVersion); %used only to get the geometry metadata right
-keyboard;
+
 if exist('rgb')
     assert(length(rgb)==3,'Argument rgb must have length 3.');
     vols = template_vol;
