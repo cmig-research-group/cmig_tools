@@ -136,7 +136,8 @@ if ~isempty(ivnames) || isdeployed
       logging('%d IVs specified (%s)',length(ivnames), inputs.Results.ivnames);
 end
 
-RandomEffects = inputs.Results.RandomEffects;
+RandomEffects = rowvec(split(strrep(strrep(inputs.Results.RandomEffects,'{',''),'}','')));
+disp(RandomEffects)
 fname_pihat = inputs.Results.pihat_file;
 fname_address = inputs.Results.address_file;
 fname_pregnancy = inputs.Results.preg_file;
@@ -144,23 +145,23 @@ CovType = inputs.Results.CovType;
 FixedEstType = inputs.Results.FixedEstType;
 RandomEstType = inputs.Results.RandomEstType;
 GroupByFamType = inputs.Results.GroupByFamType;
-Parallelize = inputs.Results.Parallelize;
-NonnegFlag = inputs.Results.NonnegFlag;
+Parallelize = str2num_amd(inputs.Results.Parallelize);
+NonnegFlag = str2num_amd(inputs.Results.NonnegFlag);
 SingleOrDouble = inputs.Results.SingleOrDouble;
 OLSflag = ismember(lower(FixedEstType),{'ols'});
 GLSflag = ismember(lower(FixedEstType),{'gls'});
-logLikflag = inputs.Results.logLikflag;
-Hessflag = inputs.Results.Hessflag;
-ciflag = inputs.Results.ciflag;
-nperms = inputs.Results.nperms;
+logLikflag = str2num_amd(inputs.Results.logLikflag);
+Hessflag = str2num_amd(inputs.Results.Hessflag);
+ciflag = str2num_amd(inputs.Results.ciflag);
+nperms = str2num_amd(inputs.Results.nperms);
 permtype = inputs.Results.permtype;
-mediation=inputs.Results.mediation;
-synth=inputs.Results.synth;
-tfce=inputs.Results.tfce;
-colsinterest=inputs.Results.colsinterest;
+mediation = str2num_amd(inputs.Results.mediation);
+synth = str2num_amd(inputs.Results.synth);
+tfce = str2num_amd(inputs.Results.tfce);
+colsinterest = str2num_amd(inputs.Results.colsinterest);
 
-reverse_cols=inputs.Results.reverse_cols; % AMD -- should replace this with colsinterest
-reverseinferenceflag=inputs.Results.reverseinferenceflag; % AMD -- should rename this swapdirectionflag
+reverse_cols = str2num_amd(inputs.Results.reverse_cols); % AMD -- should replace this with colsinterest
+reverseinferenceflag = str2num_amd(inputs.Results.reverseinferenceflag); % AMD -- should rename this swapdirectionflag
 
 
 if ~iscell(fname_design)
@@ -227,10 +228,11 @@ for des=1:length(fname_design)
             
       [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address);
       if synth==1 % Make synthesized data
-            [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
+            [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'nbins',nbins,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
 %            sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
-
+      else
+        sig2tvec_true = []; sig2mat_true = [];
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -254,11 +256,13 @@ for des=1:length(fname_design)
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      
+
+      synthstruct = struct('sig2tvec_true',sig2tvec_true,'sig2mat_true',sig2mat_true);
+
       % FIT MODEL
       [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
             'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'Parallelize',Parallelize,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
-            'permtype',permtype,'PregID',PregID,'HomeID',HomeID);
+            'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
 
             if sum(~mask)>0
 
@@ -433,14 +437,6 @@ for des=1:length(fname_design)
                   randomFields = {'sig2tvec', 'sig2mat'};
 
                   results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat);
-                  fieldnamelist = fieldnames(results);
-                  for fi = 1:length(fieldnamelist)
-                        fieldname = fieldnamelist{fi};
-                        fname_tmp = sprintf('%s/FEMA_results_vertexwise_%s_%s.nii',dirname_out{des},fstem_imaging,fieldname);
-                        vol_nifti = reshape2nifti(getfield(results,fieldname)');
-                        niftiwrite(vol_nifti,fname_tmp,'Compressed',true);
-                        fprintf(1,'file %s written (dims = [%s])\n',fname_tmp,num2str(size(vol_nifti),'%d '));
-                  end
 
             end
             
