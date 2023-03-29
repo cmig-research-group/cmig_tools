@@ -102,6 +102,8 @@ addParamValue(p,'MotherID',{}); % Mother ID, ordered same as pihatmat
 addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
 addParamValue(p,'HomeID',{}); % Home effect (defined as same address ID), ordered same as pihatmat
 
+addParamValue(p,'synthstruct',''); % True / synthesized random effects
+
 parse(p,varargin{:})
 CovType = p.Results.CovType;
 FixedEstType = p.Results.FixedEstType;
@@ -120,6 +122,8 @@ Hessflag = p.Results.Hessflag;
 ciflag = p.Results.ciflag;
 nperms = p.Results.nperms;
 PermType = p.Results.PermType;
+
+synthstruct = p.Results.synthstruct;
 
 reverse_cols=p.Results.reverse_cols; % AMD
 reverseinferenceflag=p.Results.reverseinferenceflag; % AMD
@@ -158,8 +162,24 @@ S_sum = Ss{1};
 for i = 2:length(Ss)
   S_sum = S_sum + Ss{i};
 end
-[subvec1 subvec2] = find(tril(S_sum));
+[subvec1 subvec2] = find(S_sum); % Use full matrix, to simplify IGLS -- should be possible to limit to tril
+%[subvec1 subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
 indvec = sub2ind([nobs nobs],subvec1,subvec2);
+
+F_num = S_sum; 
+for fi = 1:nfam
+  F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
+end
+fnumvec = F_num(indvec);
+
+for fi = 1:nfam
+  jvec_tmp = clusterinfo{fi}.jvec_fam; [sv si] = sort(jvec_tmp);
+  I_tmp = reshape([1:length(jvec_tmp)^2],length(jvec_tmp)*[1 1]);
+  ivec_fam = find(fnumvec==fi); ivec_fam = ivec_fam(colvec(I_tmp(si,si)));
+%  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
+  clusterinfo{fi}.ivec_fam = ivec_fam;
+end
+
 M = zeros(length(indvec),length(Ss));
 for i = 1:length(Ss)
   M(:,i) = Ss{i}(indvec);
@@ -168,63 +188,47 @@ Mi = single(pinv(M));
 %toc
 Cov_MoM = Mi*Mi'; % Variance  / covariance of MoM estimates, per unit of residual error variance
 
-if strcmpi('HMoM',RandomEstType)
-  [Mrows dummy Mindvec] = unique(M,'rows','stable'); nMrows= size(Mrows,1); % Should eliminate diagonal elements from M?; perfomr gridding of to handle continuous random effect weights (e.g., GRM)?
-  n  = 1e5; % Takes about 12s, with FSE model
-  tic
-  mu = [0 0];
-  morder = 4;
-  mumat = NaN(nMrows,nsig2bins,morder); covmat = NaN(nMrows,nsig2bins,morder,morder); X_tmp = NaN(n,morder);
-  for Mind = 1:nMrows
-    for sig2bini = 1:nsig2bins
-      rho = Mrows(Mind,end);
-      Sigma = [1 rho; rho 1];
-      ymat_tmp = sqrt(max(0,1-sum(sig2grid(sig2bini,:))))*mvnrnd(mu,Sigma,n);
-      for j = 1:size(sig2grid,2)
-        rho = Mrows(Mind,j);
-        Sigma = [1 rho; rho 1];
-        ymat_tmp = ymat_tmp + sqrt(sig2grid(sig2bini,j))*mvnrnd(mu,Sigma,n);
-      end
-% Make sure ymat_tmp in fact has unit variance, and correct covariance
-      LHS_tmp = ymat_tmp(:,1).*ymat_tmp(:,2);
-      fprintf(1,'%d %d: %f %f mu=%f\n',Mind,sig2bini,sig2grid(sig2bini,:),mean(LHS_tmp));
-      disp(cov(ymat_tmp))
-% Save distribution of LHS_tmp
-      for oi = 1:morder
-        X_tmp(:,oi) = LHS_tmp.^oi;
-      end
-      mumat(Mind,sig2bini,:) = mean(X_tmp);
-      covmat(Mind,sig2bini,:,:) = cov(X_tmp);
-    end
-  end
-  toc
-end
-
 logging('size(M) = [%d %d]',size(M));
 logging('Cov_MoM:'); disp(Cov_MoM);
 logging('Mi*M:'); disp(Mi*M);
 
 % Create grid of normalized random effects -- currently supports only FSE models -- should generalize to arbitrary set of random effects
-binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = binvals_edges(end)+0.0001;
-if 0 % Old 2D version
-  [tmpmat1l tmpmat2l] = ndgrid(binvals_edges(1:end-1),binvals_edges(1:end-1));
-  [tmpmat1u tmpmat2u] = ndgrid(binvals_edges(2:end),binvals_edges(2:end));
-  sig2gridl = cat(2,tmpmat1l(:),tmpmat2l(:));
-  sig2gridu = cat(2,tmpmat1u(:),tmpmat2u(:));
-else % New ND version
-  if length(RandomEffects)==2
-    sig2gridl = colvec(binvals_edges(1:end-1));
-    sig2gridu = colvec(binvals_edges(2:end));
-  else
-    sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},[1 length(RandomEffects)-1]));
-    sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},[1 length(RandomEffects)-1]));
+%binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = binvals_edges(end)+0.0001; % Should adjust max to include all values above sig2gridl
+binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = inf;
+if length(RandomEffects)==2 % Why is this needed? -- N-d version, below, should work for 2-d?
+  sig2gridi = colvec(1:length(binvals_edges)-1);
+  sig2gridl = colvec(binvals_edges(1:end-1));
+  sig2gridu = colvec(binvals_edges(2:end));
+else
+  sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1},[1 length(RandomEffects)-1]));
+  sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},[1 length(RandomEffects)-1]));
+  sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},[1 length(RandomEffects)-1]));
+end
+%sig2grid = (sig2gridl+sig2gridu)/2; % Should make sig2gridl+1/nbins
+sig2grid = sig2gridl+(0.5/nbins);
+sig2grid_ivec = find(sum(sig2grid,2)<=1-0.5/nbins); % Get rid of "impossible" bins -- use middle of bin instead 
+sig2gridl = sig2gridl(sig2grid_ivec,:);
+sig2gridu = sig2gridu(sig2grid_ivec,:);
+sig2grid = sig2grid(sig2grid_ivec,:);
+sig2gridi = sig2gridi(sig2grid_ivec,:);
+sig2gridind = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
+nsig2bins = size(sig2grid,1); % Should handle case of no binning
+
+if ~isempty(synthstruct)
+  sig2mat_true = synthstruct.sig2mat_true;
+  sig2tvec_true = synthstruct.sig2tvec_true;
+
+  nvec_bins_true = NaN(nsig2bins,1); binvec_true = NaN(1,size(ymat,2));
+  for sig2bini = 1:nsig2bins
+    tmpvec = true;
+    for ri = 1:size(sig2mat_true,1)-1
+      tmpvec = tmpvec & sig2mat_true(ri,:)>=sig2gridl(sig2bini,ri) & sig2mat_true(ri,:)<sig2gridu(sig2bini,ri);
+    end
+    ivec_bin = find(tmpvec);
+    nvec_bins_true(sig2bini) = length(ivec_bin);
+    binvec_true(ivec_bin) = sig2bini;
   end
 end
-ivec_tmp = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
-sig2gridl = sig2gridl(ivec_tmp,:);
-sig2gridu = sig2gridu(ivec_tmp,:);
-sig2grid = (sig2gridl+sig2gridu)/2;
-nsig2bins = size(sig2gridl,1); % Should handle case of no binning
 
 Vs_famtype = cell(1,nfamtypes); Vis_famtype = cell(1,nfamtypes); Ws_famtype = cell(1,nfamtypes);
 Vs_fam = cell(1,nfam); Vis_fam = cell(1,nfam); Ws_fam = cell(1,nfam);
@@ -232,20 +236,20 @@ Vs_fam = cell(1,nfam); Vis_fam = cell(1,nfam); Ws_fam = cell(1,nfam);
 beta_hat = zeros(size(X,2),size(ymat,2),class(ymat)); beta_se = zeros(size(beta_hat),class(ymat)); zmat = zeros(size(beta_hat),class(ymat)); ymat_hat = zeros(size(ymat),class(ymat)); ymat_res = zeros(size(ymat),class(ymat)); 
 
 if reverseinferenceflag
-      ncols_ri = size(ymat,2);
-      X_bak_ri = X;
-      ymat_bak_ri = ymat;
-      beta_hat_perm_ri = NaN([size(beta_hat) nperms+1],class(ymat));
-      beta_se_perm_ri = NaN([size(beta_se) nperms+1],class(ymat));
-      zmat_perm_ri = NaN([size(zmat) nperms+1],class(ymat));
-      sig2mat_perm_ri = [];
-      sig2tvec_perm_ri = [];
-      logLikvec_perm_ri = [];
-    else
-      ncols_ri = 1;
-    end
+  ncols_ri = size(ymat,2);
+  X_bak_ri = X;
+  ymat_bak_ri = ymat;
+  beta_hat_perm_ri = NaN([size(beta_hat) nperms+1],class(ymat));
+  beta_se_perm_ri = NaN([size(beta_se) nperms+1],class(ymat));
+  zmat_perm_ri = NaN([size(zmat) nperms+1],class(ymat));
+  sig2mat_perm_ri = [];
+  sig2tvec_perm_ri = [];
+  logLikvec_perm_ri = [];
+else
+  ncols_ri = 1;
+end
 
-betacon_hat = zeros(size(contrasts,1),size(ymat,2),class(ymat)); betacon_se = zeros(size(contrasts,1),size(ymat,2),class(ymat)); binvec = NaN(1,size(ymat,2),class(ymat));
+betacon_hat = zeros(size(contrasts,1),size(ymat,2),class(ymat)); betacon_se = zeros(size(contrasts,1),size(ymat,2),class(ymat)); binvec = NaN(1,size(ymat,2));
 
 if Hessflag 
   Hessmat = NaN([length(RandomEffects) length(RandomEffects) size(ymat,2)]); 
@@ -316,19 +320,19 @@ for coli_ri=1:ncols_ri
                   LHS = ymat_res(subvec1,:).*ymat_res(subvec2,:)./mean(ymat_res.^2,1); % use normalized residuals
                   
                   if ~NonnegFlag % Standard least squares and max(0,x)
-                        tmp = Mi*LHS;
-                        sig2mat = max(0,tmp); % Variances must be non-negative
+                    tmp = Mi*LHS;
+                    sig2mat = max(0,tmp); % Variances must be non-negative
                   else % Use new version of lsqnonneg_amd to enfoce non-negative variances  
-                        sig2mat = lsqnonneg_amd2(M,LHS);
+                    sig2mat = lsqnonneg_amd2(M,LHS); % This doesn't actually ensure non-negative values! -- problem with complex ymat / LHS
+                    sig2mat = max(0,sig2mat); % This shouldn't be needed
                   end
 
                   sig2mat = sig2mat ./ max(eps,sum(sig2mat,1)); % Is this different from dividing by sig2tvec?
 
-                  sig2mat_bak = sig2mat;
+                  sig2mat_mom = sig2mat;
 
                   logLikvec = [];
-                  if MLflag
-% Phenotypes should be pre-normalized! -- now, scale is all over the place
+                  if MLflag % Phenotypes should be pre-normalized! -- now, scale is all over the place
                     options_fmincon = optimoptions('fmincon','Display','off');
                     logLikvec = nan(1,size(ymat_res,2)); 
                     sig2mat_ml = nan(size(sig2mat)); sig2mat_ll = nan(size(sig2mat)); sig2mat_ul = nan(size(sig2mat));
@@ -362,14 +366,14 @@ for coli_ri=1:ncols_ri
                           dx1 = dx0*sqrt(2/y0); y1 = tmpfun(dx1); % Get scale -- should increase dx0, if y0 is too small (or negative)
                           x = [0 max([dx0 dx1])*[0.5 1]]; y = [0 tmpfun(x(2)) tmpfun(x(3))]; p = polyfit(x,y,2);
                           xvec = linspace(0,max(x),101); yvec = polyval(p,xvec);
-                          % figure(coli*10); subplot(length(sig2vec_hat),2,(ri-1)*2+2); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
+                          figure(coli*10); subplot(length(sig2vec_hat),2,(ri-1)*2+2); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
                           ul = sig2vec_hat(ri) + (-p(2)+((p(2)^2-4*p(1)*(p(3)-loglikthresh)))^0.5)/(2*p(1));
                           ll = 0;
                           if sig2vec_hat(ri)>0.01*sum(sig2vec_hat)
                             if x(end)>sig2vec_hat(ri), x = x*sig2vec_hat(ri)/x(end); end 
                             x = -x; y = [0 tmpfun(x(2)) tmpfun(x(3))]; p = polyfit(x,y,2); 
                             xvec = linspace(min(x),max(x),101); yvec = polyval(p,xvec);
-                            % figure(coli*10);; subplot(length(sig2vec_hat),2,(ri-1)*2+1); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
+                            figure(coli*10);; subplot(length(sig2vec_hat),2,(ri-1)*2+1); plot(xvec,yvec,x,y,'*','lineWidth',2); drawnow;
                             ll = max(0,sig2vec_hat(ri) + (-p(2)-((p(2)^2-4*p(1)*(p(3)-loglikthresh)))^0.5)/(2*p(1)));
                           end 
                           sig2vec_ll(ri) = ll;
@@ -377,7 +381,6 @@ for coli_ri=1:ncols_ri
                           fprintf(1,'ri=%d: ll=%f ul=%f (%s)\n',ri,ll,ul,datestr(now));
                           if ~isreal(ll+ul) || ~isfinite(ll+ul) % Stop if result is imaginary or not finite
                             fprintf(1,'Invalid confidence interval estimates\n');
-                            keyboard
                           end
                         end
                         toc
@@ -403,7 +406,7 @@ for coli_ri=1:ncols_ri
                     sig2tvec = sig2tvec_ml;
                   end
 
-                  % Snap to random effects grid -- should copy to above
+                  % Snap to random effects grid -- should make this a script
                   nvec_bins = NaN(nsig2bins,1); tvec_bins = zeros(nsig2bins,1);
                   for sig2bini = 1:nsig2bins
                     tmpvec = true;
@@ -415,29 +418,6 @@ for coli_ri=1:ncols_ri
                     binvec(ivec_bin) = sig2bini;
                   end
 
-                  if strcmpi('HMoM',RandomEstType)
-                    % Improved MoM,  using higher-order moments -- should iterate with binning
-                    nsig2bins2 = nsig2bins;
-                    [sv si] = sort(nvec_bins,'descend'); si = si(sv>0); sv = sv(sv>0);
-                    for sig2bini = si
-                      tic
-                      costmat = zeros(nsig2bins2,nvec_bins(sig2bini));
-                      for Mind = 1:nMrows
-                        LHS_tmp = LHS(Mindvec==Mind,binvec==sig2bini); dims = size(LHS_tmp);  LHS_tmp = colvec(LHS_tmp); X_tmp = NaN(length(LHS_tmp),morder);
-                        figure(Mind); clf; hist(colvec(LHS_tmp),100); drawnow;
-                        for oi = 1:morder
-                          X_tmp(:,oi) = LHS_tmp.^oi;
-                        end
-                        for sig2bini2 = 1:nsig2bins2 % Should only compute around neighborhood of current grid point
-                          costmat(sig2bini2,:) = costmat(sig2bini2,:) + sum(reshape(-mvnpdfln(X_tmp,rowvec(mumat(Mind,sig2bini2,:)),squeeze(covmat(Mind,sig2bini,:,:))),dims),1); 
-                        end
-                      end
-                      toc
-                      [mv mi]  = min(costmat,[],1);
-                      disp(sig2grid(mode(mi),:)) % Random effects estimates are off ([0.1250    0.6750] vs. [0.0750    0.7750]) -- should double-check distributions, moments in simularion code, above
-                      disp(sig2grid(sig2bini,:)) 
-                      fprintf(1,'%d %d: [%f %f] [%s] [%s] [%s]\n',Mind,sig2bini,sig2grid(sig2bini,:),num2str(mean(X_tmp,1),' %f'),num2str(rowvec(mumat(Mind,sig2bini,:)),' %f'),num2str(rowvec(mumat(Mind,mode(mi),:)),' %f'));
-                    end
                     % Re-compute grid of random effects
                     for sig2bini = 1:nsig2bins
                       tmpvec = true;
@@ -449,10 +429,6 @@ for coli_ri=1:ncols_ri
                       binvec(ivec_bin) = sig2bini;
                     end
                   end
-
-% ToDo
-%   Test with synthesized data
-%   Perform inverse rank normalization for each moment, or use other distribution shape parameters
 
                   if logLikflag & ~MLflag
                     logLikvec = nan(1,size(ymat_res,2));
@@ -556,7 +532,6 @@ for coli_ri=1:ncols_ri
         beta_se_perm_ri(reverse_cols,coli_ri,:) = beta_se_perm(reverse_cols,1:length(reverse_cols),:);
         zmat_perm_ri(reverse_cols,coli_ri,:) = zmat_perm(reverse_cols,1:length(reverse_cols),:);
       end
-end
 
 if reverseinferenceflag
   beta_hat_perm = beta_hat_perm_ri;

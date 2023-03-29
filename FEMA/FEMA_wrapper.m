@@ -136,7 +136,8 @@ if ~isempty(ivnames) || isdeployed
       logging('%d IVs specified (%s)',length(ivnames), inputs.Results.ivnames);
 end
 
-RandomEffects = inputs.Results.RandomEffects;
+RandomEffects = rowvec(split(strrep(strrep(inputs.Results.RandomEffects,'{',''),'}','')));
+disp(RandomEffects)
 fname_pihat = inputs.Results.pihat_file;
 fname_address = inputs.Results.address_file;
 fname_pregnancy = inputs.Results.preg_file;
@@ -144,23 +145,23 @@ CovType = inputs.Results.CovType;
 FixedEstType = inputs.Results.FixedEstType;
 RandomEstType = inputs.Results.RandomEstType;
 GroupByFamType = inputs.Results.GroupByFamType;
-Parallelize = inputs.Results.Parallelize;
-NonnegFlag = inputs.Results.NonnegFlag;
+Parallelize = str2num_amd(inputs.Results.Parallelize);
+NonnegFlag = str2num_amd(inputs.Results.NonnegFlag);
 SingleOrDouble = inputs.Results.SingleOrDouble;
 OLSflag = ismember(lower(FixedEstType),{'ols'});
 GLSflag = ismember(lower(FixedEstType),{'gls'});
-logLikflag = inputs.Results.logLikflag;
-Hessflag = inputs.Results.Hessflag;
-ciflag = inputs.Results.ciflag;
-nperms = inputs.Results.nperms;
+logLikflag = str2num_amd(inputs.Results.logLikflag);
+Hessflag = str2num_amd(inputs.Results.Hessflag);
+ciflag = str2num_amd(inputs.Results.ciflag);
+nperms = str2num_amd(inputs.Results.nperms);
 permtype = inputs.Results.permtype;
-mediation=inputs.Results.mediation;
-synth=inputs.Results.synth;
-tfce=inputs.Results.tfce;
-colsinterest=inputs.Results.colsinterest;
+mediation = str2num_amd(inputs.Results.mediation);
+synth = str2num_amd(inputs.Results.synth);
+tfce = str2num_amd(inputs.Results.tfce);
+colsinterest = str2num_amd(inputs.Results.colsinterest);
 
-reverse_cols=inputs.Results.reverse_cols; % AMD -- should replace this with colsinterest
-reverseinferenceflag=inputs.Results.reverseinferenceflag; % AMD -- should rename this swapdirectionflag
+reverse_cols = str2num_amd(inputs.Results.reverse_cols); % AMD -- should replace this with colsinterest
+reverseinferenceflag = str2num_amd(inputs.Results.reverseinferenceflag); % AMD -- should rename this swapdirectionflag
 
 
 if ~iscell(fname_design)
@@ -436,14 +437,48 @@ for des=1:length(fname_design)
                   randomFields = {'sig2tvec', 'sig2mat'};
 
                   results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat);
-                  fieldnamelist = fieldnames(results);
-                  for fi = 1:length(fieldnamelist)
-                        fieldname = fieldnamelist{fi};
-                        fname_tmp = sprintf('%s/FEMA_results_vertexwise_%s_%s.nii',dirname_out{des},fstem_imaging,fieldname);
-                        vol_nifti = reshape2nifti(getfield(results,fieldname)');
-                        niftiwrite(vol_nifti,fname_tmp,'Compressed',true);
-                        fprintf(1,'file %s written (dims = [%s])\n',fname_tmp,num2str(size(vol_nifti),'%d '));
-                  end
+                  % Write out in FreeSurfer curv format, with naming consistent with volumes
+                    fieldnamelist = setdiff(fieldnames(results),randomFields);
+                    icnum = ico+1;
+                    load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
+                    S = struct;
+                    S.nverts = 2*size(icsurfs{icnum}.vertices,1);
+                    S.nfaces = 2*size(icsurfs{icnum}.faces,1);
+                    S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
+                    % parse IVs
+                    if isempty(ivnames)
+                      excludeCol = strmatch('mri_info_',colnames_model);
+                      nCol = length(colnames_model);
+                      ivCol = setdiff(1:nCol, excludeCol);
+                    else
+                      [~,ivCol,~] = intersect(colnames_model,ivnames);
+                    end
+                    if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
+                    % write out the fixed effects
+                    for fi = 1:length(fieldnamelist)
+                      fieldname = fieldnamelist{fi};
+                      vol_nifti = results.(fieldname);
+                      for iv = ivCol(:)'
+                        colname = sprintf('FE%02d',iv);
+                        valvec = vol_nifti(iv,:);
+                        fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
+                        fs_write_curv(fname_out,valvec,S.nfaces); 
+                        fprintf(1,'file %s written\n',fname_out);
+                      end
+                    end
+                    % write out the random effects
+                    fieldnamelist = randomFields;
+                    for fi = 1:length(fieldnamelist)
+                      fieldname = fieldnamelist{fi};
+                      vol_nifti = results.(fieldname);
+                      for iv = 1:size(vol_nifti,4)
+                        colname = sprintf('RE%02d',iv);
+                        valvec = vol_nifti(iv,:);
+                        fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
+                        fs_write_curv(fname_out,valvec,S.nfaces);
+                        fprintf(1,'file %s written\n',fname_out);
+                      end
+                    end
 
             end
             
