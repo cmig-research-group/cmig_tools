@@ -1,5 +1,5 @@
-function fig = FEMA_imageMosaic(volData, cbarTxt, maskBinary, orientation, slices, ...
-                                cmap,    climits, cLocation,  bgColor,     interp)
+function [fig, allH] = FEMA_imageMosaic(volData, cbarTxt, maskBinary, orientation, slices, ...
+                                        cmap,    climits, cLocation,  bgColor,     interp)
 % Function that presents voxel-wise FEMA-derived statistics - fixed or 
 % random effcts as a mosaic - sagittal, coronal, transverse, or multi-view 
 % with all three orientations
@@ -41,6 +41,8 @@ function fig = FEMA_imageMosaic(volData, cbarTxt, maskBinary, orientation, slice
 % fig:          handle to the figure containing all the slices; the figure
 %               handle can then be used for further customization or saving
 %               as an image
+%
+% allH:         axis handles to each slice
 %
 %% Notes:
 % The 'orientation' variable controls which of the three views are shown as
@@ -324,7 +326,7 @@ switch orientation
 end
 
 %% Initialize figure
-fig         = figure('Units', 'centimeters', 'Position', [10 10 16 12], 'Color', bgColor);
+fig         = figure('Units', 'centimeters', 'Position', [10 10 16 12], 'Color', bgColor, 'InvertHardcopy', 'off');
 fgap        = 0.02;
 leftMargin  = 0.01;
 topMargin   = 0.01;
@@ -467,9 +469,10 @@ else
 end
 
 % Customize colorbar
-cbar.FontSize         = 10;
 cbar.Label.String     = cbarTxt;
 cbar.Label.FontSize   = 12;
+cbar.FontSize         = 10;
+cbar.Box              = 'off';
 cbar.Label.FontWeight = 'bold';
 
 % In case of black background, make the font white
@@ -479,9 +482,9 @@ end
 end
 
 function doSagittal(h, slicedData, slicedMask, cmap, climits, lrLims, udLims, interp)
-if isempty(find(slicedData, 1))
-    delete(h);
-else
+% if isempty(find(slicedData, 1))
+%     delete(h);
+% else
     im = imagesc(h, slicedData, 'AlphaData', slicedMask, climits);
     im.Interpolation = interp;
     colormap(h, cmap);
@@ -492,13 +495,13 @@ else
     xticks(h, []);
     yticks(h, []);
     axis(h, 'off');
-end
+% end
 end
 
 function doCoronal(h, slicedData, slicedMask, cmap, climits, lrLims, udLims, interp)
-if isempty(find(slicedData, 1))
-    delete(h);
-else
+% if isempty(find(slicedData, 1))
+%     delete(h);
+% else
     im = imagesc(h, slicedData, 'AlphaData', slicedMask, climits);
     im.Interpolation = interp;
     colormap(h, cmap);
@@ -509,13 +512,13 @@ else
     xticks(h, []);
     yticks(h, []);
     axis(h, 'off');
-end
+% end
 end
 
 function doTransverse(h, slicedData, slicedMask, cmap, climits, lrLims, udLims, interp)
-if isempty(find(slicedData, 1))
-    delete(h);
-else
+% if isempty(find(slicedData, 1))
+%     delete(h);
+% else
     im = imagesc(h, slicedData, 'AlphaData', slicedMask, climits);
     im.Interpolation = interp;
     colormap(h, cmap);
@@ -526,7 +529,7 @@ else
     xticks(h, []);
     yticks(h, []);
     axis(h', 'off');
-end
+% end
 end
 
 %% The following code section is work in progress for displaying an underlay image
