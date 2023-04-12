@@ -1,5 +1,5 @@
 function writeNIFTI(results, dirname_out, fstem_imaging, ivnames, colnames_model)
-% writeNifti write voxelwise data to nifti, called from FEMA_wrapper
+% writeNifti write voxelwise data to nifti, called from SSE_wrapper
 %
 %   writeNifti(results, dirname_out, fstem_imaging, ivnames, colnames_model)
 %
@@ -40,8 +40,17 @@ for fi = 1:length(fieldnamelist)
     colname = sprintf('%02d',iv);
     vol_nifti_col = vol_nifti(:,:,:,iv); M_tmp = M_atl_sub;
 %    vol_nifti_col = upsample_volume(vol_nifti_col); M_tmp = M_atl; % Optionally, upsample volume to full resolution
-    fname_nii = sprintf('%s/FEMA_results_voxelwise_%s_%s_%s.nii.gz',dirname_out,fstem_imaging,fieldname,colname);
-    niftiwrite_amd(vol_nifti_col,fname_nii,M_tmp);
+% Should optionally upsample volume?
+    if 0
+      fname_nii = sprintf('%s/SSE_results_voxelwise_%s_%s_%s.nii',dirname_out,fstem_imaging,fieldname,colname);
+      niftiwrite(vol_nifti_col,fname_nii,'Compressed',true); % Should find a way to save geometry info with niftiwrite -- use fs_save_mgh / mri_convert hack for now
+    else
+      fname_mgh = sprintf('%s/SSE_results_voxelwise_%s_%s_%s.mgh',dirname_out,fstem_imaging,fieldname,colname); fname_nii = strrep(fname_mgh,'.mgh','.nii.gz');
+      fs_save_mgh(vol_nifti_col,fname_mgh,M_tmp);
+      cmd = sprintf('mri_convert %s %s',fname_mgh,fname_nii);
+      [s r e] = jsystem(cmd); fname_vol_z_nii = fname_nii;
+      delete(fname_mgh);
+    end
     fprintf(1,'File %s written (dims = [%s])\n',fname_nii,num2str(size(vol_nifti_col),'%d '));
   end
 end
@@ -56,8 +65,16 @@ for fi = 1:length(fieldnamelist)
     colname = sprintf('%02d',iv);
     vol_nifti_col = vol_nifti(:,:,:,iv); M_tmp = M_atl_sub;
 %    vol_nifti_col = upsample_volume(vol_nifti_col); M_tmp = M_atl; % Optionally, upsample volume to full resolution
-    fname_nii = sprintf('%s/FEMA_results_voxelwise_%s_%s_%s.nii.gz',dirname_out,fstem_imaging,fieldname,colname);
-    niftiwrite_amd(vol_nifti_col,fname_nii,M_tmp);
+    if 0
+      fname_nii = sprintf('%s/SSE_results_voxelwise_%s_%s_%s.nii',dirname_out,fstem_imaging,fieldname,colname);
+      niftiwrite(vol_nifti_col,fname_nii);
+    else
+      fname_mgh = sprintf('%s/SSE_results_voxelwise_%s_%s_%s.mgh',dirname_out,fstem_imaging,fieldname,colname); fname_nii = strrep(fname_mgh,'.mgh','.nii.gz');
+      fs_save_mgh(vol_nifti_col,fname_mgh,M_tmp);
+      cmd = sprintf('mri_convert %s %s',fname_mgh,fname_nii);
+      [s r e] = jsystem(cmd); fname_vol_z_nii = fname_nii;
+      delete(fname_mgh);
+    end
     fprintf(1,'File %s written (dims = [%s])\n',fname_nii,num2str(size(vol_nifti_col),'%d '));
   end
 end
