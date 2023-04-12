@@ -358,12 +358,12 @@ for des=1:length(fname_design)
 
       %write column names to json for DEAP
       fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
-      out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
+      out = struct('colnames_model',{colnames_model});
       jsonStr = jsonencode(out);
       fid = fopen(fname_col,'w');
       fprintf(fid,'%s\n',jsonStr);
       fclose(fid);
-
+      
       % =========================================================================
       % Write VOXEL results (mat, nifti, or deap)
       % =========================================================================
