@@ -56,16 +56,7 @@ load(fname_results) % load FEMA output
 
 dataRelease='4.0'; % ABCD data release
 
-% 2) Specify visual preferences for plotting
-
-legendPosition = 'South'; % 'South' or 'East'
-title = 1; % whether to include title at top of plot
-cm = blueblackred(); % set colormap (preferred: blueblackred or fire)
-curvcontrast = [0.2 0.2]; % contrast of gyri/sulci
-bgcol = [0 0 0]; % change to [1 1 1] for white background
-polarity = 2; % set to 1 for unipolar values e.g. values that range 0 to 1
-
-% 3) Load surface templates for plotting
+% 2) Load surface templates for plotting
 
 % In order to plot statistics on a cortical surface, we require a template
 % of the cortical surface to project the results onto.  Below we load these
@@ -76,7 +67,7 @@ ico=5; % ico number
 icnum=ico+1; % index for ico number (icnum = ico + 1)
 icnvert = size(icsurfs{icnum}.vertices,1); % indices of vertices for specified icosahedral order
 
-% 4) Plot surface-wise statistics for different IVs of interest
+% 3) Plot surface-wise statistics for different IVs of interest
 
 % The demo below will produce figures for the IVs (columns of X) from
 % the FEMA analysis specfiied by `ncoeff`
@@ -89,88 +80,37 @@ for coeffnum = ncoeff
       vertvals = zmat(coeffnum,:); % specify statistics to plot
       vertvals_lh = vertvals(1:icnvert); % divide statistics by hemisphere for plotting
       vertvals_rh = vertvals(icnvert+[1:icnvert]);
-      
+    
       % specify limits for plot based on vertvals
-      fmax = min(300,max(abs(vertvals))); % max limit for plotting purposes
-      fmin = 0.0; % min limit for plotting purposes
-      fmid = fmax/2; % middle value for plotting purposes
-      fvals = [fmin fmid fmax]; % this will be passed to the SurfView_show_new function
-
-      % set colorbar limits - usually [fmin fmax] or [-fmax fmax]
-      clim = [-fmax fmax]; 
+      fmax = min(300,max(abs(vertvals))); % max limit for colorbar
+      fmin = 0.0; % min limit of colorbar
+      fmid = fmax/2; % middle of colorbar
+      fvals = [fmin fmid fmax];
+      clim = [-fmax fmax]; % set colorbar limits
       
-      if strcmp(legendPosition, 'South')
-          fh   = figure('Units', 'centimeters', 'Position', [10 10 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
-          if(title)
-              allH = tight_subplot(2, 2, [0.02 0.02], [0.12 0.08], [0.02 0.02]);
-              hold(allH(:), 'on');
-          else          
-              allH = tight_subplot(2, 2, [0.02 0.02], [0.12 0.01], [0.02 0.02]);
-              hold(allH(:), 'on');
-          end
-      end
+      cm = blueblackred(); % set colormap
 
-      if strcmp(legendPosition, 'East')
-          fh   = figure('Units', 'centimeters', 'Position', [10 10 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
-          if(title)
-              allH = tight_subplot(2, 2, [0.02 0.02], [0.018 0.08], [0.02 0.138]);
-              hold(allH(:), 'on');
-          else          
-              allH = tight_subplot(2, 2, [0.02 0.02], [0.018 0.018], [0.02 0.138]);
-              hold(allH(:), 'on');
-          end
-      end
+      curvcontrast = [0.2 0.2]; % contrast of gyri/sulci
 
-      if 0
-          fh = figure(coeffnum + 100*(str2num(dataRelease(1))-3)); clf; % number matlab figure window
-          set(fh,'Color',bgcol); fh.InvertHardcopy = 'off';
-      end
-
-      axes(allH(1)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
-      axes(allH(2)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
-      axes(allH(3)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
-      axes(allH(4)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
+      bgcol = [0 0 0]; % change to [1 1 1] for white background
       
-      if(title)
-          titleAx = axes;
-          set(titleAx,'position',[0 0 1 1],'units','normalized');axis off;
-          text(titleAx, 0.5,1,sprintf('%s ~ %s [%s]', fstem_imaging, colnames_model{coeffnum}, statname),'color','w','fontweight','bold','interpreter','none','verticalalignment','top','horizontalalignment','center','fontsize',14)
-      end
-
+      fh = figure(coeffnum + 100*(str2num(dataRelease(1))-3)); clf; % number matlab figure window
+      set(fh,'Color',bgcol); fh.InvertHardcopy = 'off';
+      subplot(2,2,1); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},[],curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
+      subplot(2,2,2); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},[],curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
+      subplot(2,2,3); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},[],curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
+      subplot(2,2,4); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},[],curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
+      titleAx = axes;
+      set(titleAx,'position',[0 0 1 1],'units','normalized');axis off;
+      text(titleAx, 0.5,1,sprintf('%s ~ %s [%s]', fstem_imaging, colnames_model{coeffnum}, statname),'color','w','fontweight','bold','interpreter','none','verticalalignment','top','horizontalalignment','center','fontsize',14)
+      
       % Set colorbar
       colormap(cm);
       cb = colorbar('color', 'w');
+      % cb.Label.Interpreter = 'latex';
       cb.Label.String = strcat('z-score');
-      cb.Label.FontSize = 12;
-      cb.FontSize = 10;
+      cb.Label.FontSize = 10;
       cb.Box = 'off';
-
-      if strcmp(legendPosition,'South')
-          cb.Location         = 'south';
-          if(title)
-              cb.Position(1)      = allH(1).Position(1);
-              cb.Position(2)      = cb.Position(2) - 0.02;
-              cb.Position(3)      = allH(1).Position(3)*2 + 0.02;
-          else
-              cb.Position(1)      = allH(1).Position(1);
-              cb.Position(2)      = cb.Position(2) - 0.12;
-              cb.Position(3)      = allH(1).Position(3)*2 + 0.02;
-          end
-      end
-
-      if strcmp(legendPosition,'East')
-          cb.Location         = 'eastoutside';
-          if(title)
-              cb.Position(1)      = allH(4).Position(1) + allH(4).Position(3) + 0.01; % cb.Position(1) + 0.1;
-              cb.Position(2)      = allH(3).Position(2);
-              cb.Position(4)      = allH(1).Position(4)*2 + 0.02;
-          else
-              cb.Position(1)      = allH(4).Position(1) + allH(4).Position(3) + 0.16; % cb.Position(1) + 0.1;
-              cb.Position(2)      = allH(3).Position(2);
-              cb.Position(4)      = allH(1).Position(4)*2 + 0.02;
-          end
-      end
-
+      cb.Position = [.92 .08 .02 .8150];
       caxis(clim);
-      
 end
