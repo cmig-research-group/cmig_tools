@@ -428,7 +428,6 @@ for coli_ri=1:ncols_ri
                       nvec_bins(sig2bini) = length(ivec_bin);
                       binvec(ivec_bin) = sig2bini;
                     end
-                  end
 
                   if logLikflag & ~MLflag
                     logLikvec = nan(1,size(ymat_res,2));
