@@ -412,49 +412,6 @@ for des=1:length(fname_design)
             if contains(outputFormat, 'nifti')
                   results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
                   writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model); 
-
-                  % Write out in FreeSurfer curv format, with naming consistent with volumes
-                  fieldnamelist = setdiff(fieldnames(results),randomFields);
-                  icnum = ico+1;
-                  load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
-                  S = struct;
-                  S.nverts = 2*size(icsurfs{icnum}.vertices,1);
-                  S.nfaces = 2*size(icsurfs{icnum}.faces,1);
-                  S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
-                  % parse IVs
-                  if isempty(ivnames)
-                        excludeCol = strmatch('mri_info_',colnames_model);
-                        nCol = length(colnames_model);
-                        ivCol = setdiff(1:nCol, excludeCol);
-                        else
-                        [~,ivCol,~] = intersect(colnames_model,ivnames);
-                  end
-                  if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
-                  % write out the fixed effects
-                  for fi = 1:length(fieldnamelist)
-                        fieldname = fieldnamelist{fi};
-                        vol_nifti = results.(fieldname);
-                        for iv = ivCol(:)'
-                              colname = sprintf('FE%02d',iv);
-                              valvec = vol_nifti(iv,:);
-                              fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
-                              fs_write_curv(fname_out,valvec,S.nfaces); 
-                              fprintf(1,'file %s written\n',fname_out);
-                        end
-                  end
-                  % write out the random effects
-                  fieldnamelist = randomFields;
-                  for fi = 1:length(fieldnamelist)
-                        fieldname = fieldnamelist{fi};
-                        vol_nifti = results.(fieldname);
-                        for iv = 1:size(vol_nifti,4)
-                              colname = sprintf('RE%02d',iv);
-                              valvec = vol_nifti(iv,:);
-                              fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
-                              fs_write_curv(fname_out,valvec,S.nfaces);
-                              fprintf(1,'file %s written\n',fname_out);
-                        end
-                  end
             end
             
       % =========================================================================
@@ -480,48 +437,6 @@ for des=1:length(fname_design)
                   randomFields = {'sig2tvec', 'sig2mat'};
 
                   results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat);
-                  % Write out in FreeSurfer curv format, with naming consistent with volumes
-                    fieldnamelist = setdiff(fieldnames(results),randomFields);
-                    icnum = ico+1;
-                    load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
-                    S = struct;
-                    S.nverts = 2*size(icsurfs{icnum}.vertices,1);
-                    S.nfaces = 2*size(icsurfs{icnum}.faces,1);
-                    S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
-                    % parse IVs
-                    if isempty(ivnames)
-                      excludeCol = strmatch('mri_info_',colnames_model);
-                      nCol = length(colnames_model);
-                      ivCol = setdiff(1:nCol, excludeCol);
-                    else
-                      [~,ivCol,~] = intersect(colnames_model,ivnames);
-                    end
-                    if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
-                    % write out the fixed effects
-                    for fi = 1:length(fieldnamelist)
-                      fieldname = fieldnamelist{fi};
-                      vol_nifti = results.(fieldname);
-                      for iv = ivCol(:)'
-                        colname = sprintf('FE%02d',iv);
-                        valvec = vol_nifti(iv,:);
-                        fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
-                        fs_write_curv(fname_out,valvec,S.nfaces); 
-                        fprintf(1,'file %s written\n',fname_out);
-                      end
-                    end
-                    % write out the random effects
-                    fieldnamelist = randomFields;
-                    for fi = 1:length(fieldnamelist)
-                      fieldname = fieldnamelist{fi};
-                      vol_nifti = results.(fieldname);
-                      for iv = 1:size(vol_nifti,4)
-                        colname = sprintf('RE%02d',iv);
-                        valvec = vol_nifti(iv,:);
-                        fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
-                        fs_write_curv(fname_out,valvec,S.nfaces);
-                        fprintf(1,'file %s written\n',fname_out);
-                      end
-                    end
 
             end
             
