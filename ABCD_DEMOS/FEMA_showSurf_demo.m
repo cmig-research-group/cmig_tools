@@ -99,45 +99,32 @@ for coeffnum = ncoeff
       % set colorbar limits - usually [fmin fmax] or [-fmax fmax]
       clim = [-fmax fmax]; 
       
-      % Create figure
-      % The first two position arguments specify where the figure will
-      % appear on the screen; the next two arguments (16 and 10) specify
-      % the size of the figure in centimeters - 16 cm wide and 10 cm long
-      % is a reasonable choice for an A4 sized paper
-      fh = figure('Units', 'centimeters', 'Position', [10 10 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
-      
-      % If user wants to number the figure, these two lines should suffice
-      % fh = figure(coeffnum + 100*(str2double(dataRelease(1))-3));
-      % set(fh, 'Units', 'centimeters', 'Position', [10 10 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
-      
-      % Define spacing for axes
-      % hvgap controls the horizontal and vertical spaces between the axes
-      % btgap controls the space from the bottom of the figure and the top
-      % of the figure respectively
-      % lrgap controls the space from the left of the figure and the right
-      % of the figure respectively
-      hvgap = [0.02 0.02];
-      if strcmpi(legendPosition, 'south')
-          lrgap = [0.02 0.02];
-          if title
-              btgap = [0.12 0.08];
-          else
-              btgap = [0.12 0.01];
-          end
-      else
-          if strcmpi(legendPosition, 'east')
-              lrgap = [0.02 0.138];
-              if title
-                  btgap = [0.018 0.08];
-              else
-                  btgap = [0.018 0.018];
-              end
+      if strcmp(legendPosition, 'South')
+          fh   = figure('Units', 'centimeters', 'Position', [10 10 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
+          if(title)
+              allH = tight_subplot(2, 2, [0.02 0.02], [0.12 0.08], [0.02 0.02]);
+              hold(allH(:), 'on');
+          else          
+              allH = tight_subplot(2, 2, [0.02 0.02], [0.12 0.01], [0.02 0.02]);
+              hold(allH(:), 'on');
           end
       end
-      
-      % Create axes
-      allH = tight_subplot(2, 2, hvgap, btgap, lrgap);
-      hold(allH(:), 'on');
+
+      if strcmp(legendPosition, 'East')
+          fh   = figure('Units', 'centimeters', 'Position', [10 10 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
+          if(title)
+              allH = tight_subplot(2, 2, [0.02 0.02], [0.018 0.08], [0.02 0.138]);
+              hold(allH(:), 'on');
+          else          
+              allH = tight_subplot(2, 2, [0.02 0.02], [0.018 0.018], [0.02 0.138]);
+              hold(allH(:), 'on');
+          end
+      end
+
+      if 0
+          fh = figure(coeffnum + 100*(str2num(dataRelease(1))-3)); clf; % number matlab figure window
+          set(fh,'Color',bgcol); fh.InvertHardcopy = 'off';
+      end
 
       axes(allH(1)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
       axes(allH(2)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
@@ -152,37 +139,38 @@ for coeffnum = ncoeff
 
       % Set colorbar
       colormap(cm);
-      cb                    = colorbar('color', 'w');
-      cb.FontSize           = 10;
-      cb.Label.String       = strcat('z-score');
-      cb.Label.FontSize     = 12;
-      cb.Label.FontWeight   = 'bold';   
-      cb.Box                = 'off';
+      cb = colorbar('color', 'w');
+      cb.Label.String = strcat('z-score');
+      cb.Label.FontSize = 12;
+      cb.FontSize = 10;
+      cb.Box = 'off';
 
-      if strcmpi(legendPosition, 'south')
-          cb.Location = 'south';
-          if title
+      if strcmp(legendPosition,'South')
+          cb.Location         = 'south';
+          if(title)
               cb.Position(1)      = allH(1).Position(1);
-              cb.Position(2)      = cb.Position(2) - hvgap(1);
-              cb.Position(3)      = allH(1).Position(3)*2 + hvgap(1);
+              cb.Position(2)      = cb.Position(2) - 0.02;
+              cb.Position(3)      = allH(1).Position(3)*2 + 0.02;
           else
               cb.Position(1)      = allH(1).Position(1);
-              cb.Position(2)      = cb.Position(2) - btgap(1);
-              cb.Position(3)      = allH(1).Position(3)*2 + hvgap(1);
-          end
-      else
-          if strcmpi(legendPosition, 'east')
-              cb.Location = 'eastoutside';
-              if title
-                  cb.Position(1)      = allH(4).Position(1) + allH(4).Position(3) + 0.01;
-                  cb.Position(2)      = allH(3).Position(2);
-                  cb.Position(4)      = allH(1).Position(4)*2 + hvgap(1);
-              else
-                  cb.Position(1)      = allH(4).Position(1) + allH(4).Position(3) + 0.16;
-                  cb.Position(2)      = allH(3).Position(2);
-                  cb.Position(4)      = allH(1).Position(4)*2 + hvgap(1);
-              end
+              cb.Position(2)      = cb.Position(2) - 0.12;
+              cb.Position(3)      = allH(1).Position(3)*2 + 0.02;
           end
       end
-      caxis(clim);   
+
+      if strcmp(legendPosition,'East')
+          cb.Location         = 'eastoutside';
+          if(title)
+              cb.Position(1)      = allH(4).Position(1) + allH(4).Position(3) + 0.01; % cb.Position(1) + 0.1;
+              cb.Position(2)      = allH(3).Position(2);
+              cb.Position(4)      = allH(1).Position(4)*2 + 0.02;
+          else
+              cb.Position(1)      = allH(4).Position(1) + allH(4).Position(3) + 0.16; % cb.Position(1) + 0.1;
+              cb.Position(2)      = allH(3).Position(2);
+              cb.Position(4)      = allH(1).Position(4)*2 + 0.02;
+          end
+      end
+
+      caxis(clim);
+      
 end
