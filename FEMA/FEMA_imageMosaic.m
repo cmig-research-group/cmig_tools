@@ -64,8 +64,8 @@ function [fig, allH] = FEMA_imageMosaic(volData, cbarTxt, maskBinary, orientatio
 % written for ABCD images and assumes that the first dimension of the 
 % volume indexes the transverse slices, the second dimension of the volume 
 % indexes the sagittal slices, and the third dimension of the volume 
-% indexes the coronal slices. Further, it assumes that coronal slices need
-% to be rotated clockwise by 90 degrees before visualization
+% indexes the coronal slices. Further, it assumes that transverse slices 
+% need to be rotated clockwise by 90 degrees before visualization
 %
 % If the background mask and the volData size do not match, the maskBinary
 % is either upsampled or downsampled - volData is untouched
