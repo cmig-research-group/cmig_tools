@@ -551,6 +551,12 @@ for coli_ri = 1:ncols_ri
 
         zmat = beta_hat ./ beta_se;
 
+        % Return residuals
+        if nperms == 0
+            ymat_res_bak = ymat_res;
+        end
+
+
         if nperms > 0
 
             if permi == 0
