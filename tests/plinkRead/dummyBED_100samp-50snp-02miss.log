@@ -1,0 +1,36 @@
+PLINK v2.00a3.7 64-bit (24 Oct 2022)
+Options in effect:
+  --dummy 100 50 0.2 acgt
+  --make-bed
+  --out /Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss
+
+Hostname: Praveshs-MBP
+Working directory: /Users/praveshp
+Start time: Sat Apr 15 09:06:23 2023
+
+Random number seed: 1681542383
+16384 MiB RAM detected; reserving 8192 MiB for main workspace.
+Using up to 10 threads (change this with --threads).
+Dummy data (100 samples, 50 SNPs) written to
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss-temporary.pgen
++
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss-temporary.pvar
++
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss-temporary.psam
+.
+100 samples (100 females, 0 males; 100 founders) loaded from
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss-temporary.psam.
+50 variants loaded from
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss-temporary.pvar.
+1 binary phenotype loaded (46 cases, 54 controls).
+Writing
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss.fam
+... done.
+Writing
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss.bim
+... done.
+Writing
+/Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead/dummyBED_100samp-50snp-02miss.bed
+... done.
+
+End time: Sat Apr 15 09:06:23 2023

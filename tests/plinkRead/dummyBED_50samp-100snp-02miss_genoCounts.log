@@ -1,0 +1,22 @@
+PLINK v2.00a3.7 64-bit (24 Oct 2022)
+Options in effect:
+  --bfile dummyBED_50samp-100snp-02miss
+  --geno-counts
+  --out dummyBED_50samp-100snp-02miss_genoCounts
+
+Hostname: Praveshs-MacBook-Pro.local
+Working directory: /Applications/Projects/2023-04-12_codeBase-GWAS/tests/plinkRead
+Start time: Mon Apr 17 11:24:20 2023
+
+Random number seed: 1681723460
+16384 MiB RAM detected; reserving 8192 MiB for main workspace.
+Using up to 10 threads (change this with --threads).
+50 samples (50 females, 0 males; 50 founders) loaded from
+dummyBED_50samp-100snp-02miss.fam.
+100 variants loaded from dummyBED_50samp-100snp-02miss.bim.
+1 binary phenotype loaded (24 cases, 26 controls).
+Calculating allele frequencies... done.
+--geno-counts: Genotype counts written to
+dummyBED_50samp-100snp-02miss_genoCounts.gcount .
+
+End time: Mon Apr 17 11:24:20 2023
