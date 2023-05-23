@@ -1,4 +1,4 @@
-function fig = FEMA_plotQQ(fileName, outDir, strTitle, fileFlag, pVals)
+function fig = FEMA_plotQQ(fileName, outDir, strTitle, fileFlag, h_ax, pVals)
 % Function that reads a GWAS summary file and creates a QQ plot
 %% Inputs:
 % fileName:     full path to a GWAS summary file
@@ -17,6 +17,10 @@ function fig = FEMA_plotQQ(fileName, outDir, strTitle, fileFlag, pVals)
 %                   * 'GCTA'    (assumes fastGWA output)
 %                   * 'Regenie'
 %                   * 'PLINK'   (assumes PLINK 2)
+%
+% h_ax:         handle to a figure axis that should be used for plotting
+%               (optional input; use this for creating plots that should 
+%               be added to the same figure)
 % 
 % The following input can be used instead of a fileName to create a
 % plot from some custom/pre-read GWAS summary file (ignored if fileName is 
@@ -82,6 +86,18 @@ if writeFile
     end
 end
 
+% Check h_ax
+if ~exist('h_ax', 'var') || isempty(h_ax)
+    createFig = true;
+else
+    if ishandle(h_ax)
+        createFig = false;
+    else
+        createFig = true;
+        warning('Invalid axis handle provided; ignoring h_ax as input');
+    end
+end
+
 %% Read file, if required
 if readFile
     fileData = readtable(fileName, 'FileType', 'text');
@@ -109,14 +125,19 @@ if readFile
 end
 
 %% Create figure
-fig = figure('Units', 'centimeters', 'Position', [10 10 10 10]);
-if doTitle
-    tight_subplot(1, 1, 0, [0.11 0.06], [0.1 0.02]);
+if createFig
+    fig = figure('Units', 'centimeters', 'Position', [10 10 10 10]);
+    if doTitle
+        tight_subplot(1, 1, 0, [0.11 0.06], [0.1 0.02]);
+    else
+        tight_subplot(1, 1, 0, [0.11 0.01], [0.1 0.02]);
+    end
+    h_ax = gca;
 else
-    tight_subplot(1, 1, 0, [0.11 0.01], [0.1 0.02]);
+    fig = h_ax.Parent;
 end
-ax = gca;
-hold(ax, 'on');
+
+hold(h_ax, 'on');
 
 % Define colour - 3-class Dark2 [colorbrewer2.org]
 colTrue  = [217, 95, 2]./255;
@@ -132,45 +153,47 @@ maxVal = max(-log10(p_observed));
 p_expected = (1:length(p_observed)) / length(p_observed);
 
 % Plot p values
-plot(-log10(p_expected), -log10(p_observed), '.', 'Color', colTrue);
+plot(h_ax, -log10(p_expected), -log10(p_observed), '.', 'Color', colTrue);
 
 % Plot null
-plot([0, maxVal], [0, maxVal], 'Color', [0 0 0], 'LineStyle', '--', 'LineWidth', 1);
+plot(h_ax, [0, maxVal], [0, maxVal], 'Color', [0 0 0], 'LineStyle', '--', 'LineWidth', 1);
 
 % Round up maxVal
 maxVal = ceil(maxVal);
 
 % Customize axes limits
-xlim([0  maxVal+0.1]);
-ylim([0  maxVal+0.1]);
+xlim(h_ax, [0  maxVal+0.1]);
+ylim(h_ax, [0  maxVal+0.1]);
 
 % Place ticks and tick labels
 if maxVal > 6
-    xticks(0:2:maxVal);
-    yticks(0:2:maxVal);
-    xticklabels(0:2:maxVal);
-    yticklabels(0:2:maxVal);
+    xticks(h_ax,      0:2:maxVal);
+    yticks(h_ax,      0:2:maxVal);
+    xticklabels(h_ax, 0:2:maxVal);
+    yticklabels(h_ax, 0:2:maxVal);
 else
-    xticks(0:1:maxVal);
-    yticks(0:1:maxVal);
-    xticklabels(0:1:maxVal);
-    yticklabels(0:1:maxVal);
+    xticks(h_ax,      0:1:maxVal);
+    yticks(h_ax,      0:1:maxVal);
+    xticklabels(h_ax, 0:1:maxVal);
+    yticklabels(h_ax, 0:1:maxVal);
 end
 
 % Change font size for the tick labels
-ax.FontSize = 8;
+h_ax.FontSize = 8;
 
 % Label the axes
-xlabel('Expected -log_{10} \itp', 'Interpreter', 'tex', 'FontSize', 10);
-ylabel('Observed -log_{10} \itp', 'Interpreter', 'tex', 'FontSize', 10);
+xlabel(h_ax, 'Expected -log_{10} \itp', 'Interpreter', 'tex', 'FontSize', 10);
+ylabel(h_ax, 'Observed -log_{10} \itp', 'Interpreter', 'tex', 'FontSize', 10);
 
 % Put a title, if user wants
 if doTitle
-    title(strTitle, 'FontSize', 11);
+    title(h_ax, strTitle, 'FontSize', 11);
 end
 
 %% Print figure, if required
 if writeFile
     print(fullfile(outDir, outName), '-dpng', '-r600');
-    close(fig);
+    if createFig
+        close(fig);
+    end
 end
