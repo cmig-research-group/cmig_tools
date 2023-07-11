@@ -1,7 +1,7 @@
-function [beta_hat,  beta_se,       zmat,          logpmat,          ...
-          sig2tvec,  sig2mat,       binvec,        ymat_res_bak,     ...
-          Hessmat,   logLikvec,     beta_hat_perm, beta_se_perm,     ...
-          zmat_perm, sig2tvec_perm, sig2mat_perm,  logLikvec_perm] = ...
+function [beta_hat,      beta_se,        zmat,       logpmat,        ...
+          sig2tvec,      sig2mat,        Hessmat,    logLikvec,      ...
+          beta_hat_perm, beta_se_perm,   zmat_perm,  sig2tvec_perm,  ...
+          sig2mat_perm,  logLikvec_perm, reusableVars] =             ...
           FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, pihatmat, varargin)
 
 % Function to fit fast and efficient linear mixed effects model
@@ -53,7 +53,7 @@ function [beta_hat,  beta_se,       zmat,          logpmat,          ...
 %   logpmat                    :  log10 p-values (p x v)
 %   sig2tvec                   :  total residual error of model at each vertex/voxel (1 x v)
 %   sig2mat                    :  normalized random effect variances (length(random_effects) x v)
-%
+%   reusableVars               :  structure type containing variables that can be reused by FEMA GWAS
 % 
 %
 % This software is Copyright (c) 2021 The Regents of the University of California. All Rights Reserved.
@@ -137,6 +137,12 @@ if ~isempty(setdiff(RandomEffects,{'F' 'S' 'E'}))
     GroupByFamType = false;
 end
 
+% Save some variables for later
+reusableVars.GroupByFamType = GroupByFamType;
+reusableVars.RandomEffects  = RandomEffects;
+reusableVars.SingleOrDouble = SingleOrDouble;
+reusableVars.OLSflag        = OLSflag;
+
 starttime = now(); %#ok<*TNOW1>
 logging('***Start***');
  
@@ -158,6 +164,10 @@ fprintf(1,'ModelSingularityIndex = %g\n',cond(X'*X)/cond(diag(diag(X'*X))));
 [iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
 [fid_list, IA, IC_fam]  = unique(fid,'stable'); nfam = length(fid_list);
 nfamtypes = length(famtypelist);
+
+% Save some variables for later use
+reusableVars.famtypevec  = famtypevec;
+reusableVars.famtypelist = famtypelist;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -186,6 +196,9 @@ for fi = 1:nfam
     %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
     clusterinfo{fi}.ivec_fam = ivec_fam;
 end
+
+% Save clusterinfo for later use
+reusableVars.clusterinfo = clusterinfo;
 
 M = zeros(length(indvec),length(Ss));
 for i = 1:length(Ss)
@@ -318,6 +331,10 @@ for coli_ri = 1:ncols_ri
         sig2tvec     = sum(ymat_res.^2, 1)/(size(ymat_res, 1) - size(X, 2)); % Adjust for the number of estimated parameters -- should use effective DOF instead?
         Cov_beta     = Xi * Xi';
         beta_se      = sqrt(diag(Cov_beta) * sig2tvec);
+
+        % Save OLS variables for later use
+        reusableVars.ymat_hat_ols = ymat_hat_ols;
+        reusableVars.ymat_res_ols = ymat_res_ols;
 
         for ci = 1:size(contrasts, 1)
             betacon_hat(ci,:) = contrasts(ci,:)      * beta_hat;
@@ -487,6 +504,10 @@ for coli_ri = 1:ncols_ri
             sig2mat_save  = sig2mat; % Ugly hack to save resampled random effects estimates
             sig2tvec_save = sig2tvec;
             binvec_save   = binvec;
+
+            % Save bin info
+            reusableVars.binvec = binvec_save;
+
             if permi > 0
                 sig2tvec = sig2tvec_bak;
                 sig2mat  = sig2mat_bak;
@@ -542,6 +563,10 @@ for coli_ri = 1:ncols_ri
 
             ymat_hat = X * beta_hat;
             ymat_res = ymat - ymat_hat;
+
+            % Save GLS variables
+            reusableVars.ymat_hat_gls = ymat_hat;
+            reusableVars.ymat_res_gls = ymat_res;
         end
 
         if ~isempty(contrasts) % Handle non-empty betacon_hat
@@ -556,9 +581,7 @@ for coli_ri = 1:ncols_ri
             ymat_res_bak = ymat_res;
         end
 
-
         if nperms > 0
-
             if permi == 0
                 beta_hat_perm   = NaN([size(beta_hat)  nperms + 1], class(beta_hat));
                 beta_se_perm    = NaN([size(beta_se)   nperms + 1], class(beta_se));
