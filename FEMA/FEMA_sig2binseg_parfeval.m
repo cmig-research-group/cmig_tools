@@ -81,7 +81,7 @@ for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
         if doLSQ
             Bi = lsqminnorm(B, eye(size(B)));
         else
-            Bi = pinv(XtW * X); % Note that Cov_beta = Bi = pinv(XtWVsWtX)*XtWVsWt*pinv(XtWVsWtX)
+            Bi = pinv(B); % Note that Cov_beta = Bi = pinv(XtWVsWtX)*XtWVsWt*pinv(XtWVsWtX)
         end
     else
         Bi = B \ eye(size(B));
