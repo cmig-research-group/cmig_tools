@@ -23,11 +23,6 @@ function [beta_hat, beta_se, tStats, logpValues] = ...
 %                               intercept term; the same set of basis
 %                               functions are used for all bins
 %
-% timeMatrix:       [n x h]     matrix of time variables to use as fixed
-%                               effects; for example, this could be a
-%                               vector of age/time; if empty, the main
-%                               effect of time is ignored
-%
 % sex:              [n x 2]     dummy coded two-column variable indicating
 %                               the sex for every observation (used if
 %                               snp*sex interaction is required)
@@ -155,7 +150,6 @@ function [beta_hat, beta_se, tStats, logpValues] = ...
 %
 %% Defaults:
 % basisFunction:    intercept only (standard GWAS)
-% timeMatrix        []
 % sex               []
 % OLSflag:          false
 % SingleOrDouble:   double
@@ -194,7 +188,6 @@ end
 p = inputParser;
 
 % Add parameters to parsed inputs, if they are missing
-% p.addParameter('timeMatrix',     cell(numBins, 1));
 p.addParameter('bfSNP',          ones(size(genoMat, 1), 1));
 p.addParameter('sex',            []);
 p.addParameter('pValType',       'z');
@@ -218,7 +211,6 @@ parse(p, varargin{:});
 
 % Assign values to optional inputs
 bfSNP           = p.Results.bfSNP;
-% timeMatrix      = p.Results.timeMatrix;
 sex             = p.Results.sex;
 pValType        = p.Results.pValType;
 df              = p.Results.df;
@@ -331,14 +323,15 @@ end
 %% Initialize
 [numObs, numSNPs] = size(genoMat);
 numYvars          = size(ymat, 2);
-numBasisFunc      = size(bfSNP, 2);
-% numTimeFunc       = size(timeMatrix, 2);
-totalColumns      = numBasisFunc;
+
+% Update basis function, if required
 if interactSex
-    totalColumns  = totalColumns * 2;
+    bfSNP = [bfSNP .* sex(:,1), bfSNP .* sex(:,2)];
 end
-if totalColumns > 1
-    beta_hat      = zeros(numSNPs, totalColumns, numYvars, class(ymat));
+numBasisFunc      = size(bfSNP, 2);
+
+if numBasisFunc > 1
+    beta_hat      = zeros(numSNPs, numBasisFunc, numYvars, class(ymat));
 else
     beta_hat      = zeros(numSNPs, numYvars, class(ymat));
 end
@@ -355,10 +348,11 @@ beta_se           = zeros(size(beta_hat), class(ymat));
 % function (beyond the intercept). Since q + h = totalColumns, the updated
 % df is simply df - totalColums + 1. Note that this is only relevant for
 % calculating p values when using t distribution
-df = df - totalColumns + 1;
+% df = df - totalColumns + 1;
+df = df - numBasisFunc + 1;
 
 %% Handle the case of only one total column (standard GWAS)
-if totalColumns == 1
+if numBasisFunc == 1
     binLoc       = 1;
     for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
         ivec_bin = find(binvec==sig2bini);
@@ -473,21 +467,9 @@ else
         else
             if ~classicalSolution
                 % Use basis function to create new genotype matrix for this bin
-                if interactSex
-                    tmpGenotype   = zeros(numObs, totalColumns, numSNPs);
-                    count         = 1;
-                    for sx        = 1:2
-                        for basis = 1:numBasisFunc
-                            tmp   = genoMat .* bfSNP(:, basis);
-                            tmpGenotype(:, count, :) = tmp .* sex(:,sx);
-                            count = count + 1;
-                        end
-                    end
-                else
-                    tmpGenotype = zeros(numObs, numBasisFunc, numSNPs);
-                    for basis   = 1:numBasisFunc
-                        tmpGenotype(:, basis, :) = genoMat .* bfSNP(:, basis);
-                    end
+                tmpGenotype = zeros(numObs, numBasisFunc, numSNPs);
+                for basis   = 1:numBasisFunc
+                    tmpGenotype(:, basis, :) = genoMat .* bfSNP(:, basis);
                 end
 
                 % Reorder tmpGenotype such that for each SNP, the SNP*basisFucntion
@@ -514,8 +496,8 @@ else
                 % Figure out locations in genoMat that need to be handled
                 % together; essentially, these are X variables that should be
                 % considered together
-                beginLocs  = 1:totalColumns:size(genoMat,2);
-                endLocs    = totalColumns:totalColumns:size(genoMat,2);
+                beginLocs  = 1:numBasisFunc:size(genoMat,2);
+                endLocs    = numBasisFunc:numBasisFunc:size(genoMat,2);
             end
         end
                 
@@ -532,13 +514,8 @@ else
 
             if useShortcut
                 % Prepare matrix of X variables
-                % tmpX = [genovec(:, snps) .* bfSNP, currTimeMatrix];
-                tmpX = genoMat(:, snps) .* bfSNP;
-
-                % Interaction with sex
-                if interactSex
-                    tmpX = [tmpX .* sex(:,1), tmpX .* sex(:,2)];
-                end
+                % tmpX = genoMat(:, snps) .* bfSNP;
+                tmpX   = genoMat(currJVec, snps) .* bfSNP;
             else
                 if ~classicalSolution
                     tmpX = genoMat(:, beginLocs(snps):endLocs(snps));
@@ -555,6 +532,7 @@ else
                 term1 = tmpX' * tmpX;
 
                 % Inverse of term1
+                % iterm1 = term1 \ I;
                 I = eye(size(term1));
                 if useLSQ
                     iterm1 = lsqminnorm(term1, I);
@@ -570,11 +548,12 @@ else
                 beta_hat(snps, :, ivec_bin) = iterm1 * (tmpX' * ymat(:,ivec_bin));
 
                 % Calculate standard error
-                beta_se(:, ivec_bin) = sqrt(diag(iterm1) * sig2tvec(ivec_bin));
+                beta_se(snps, :, ivec_bin) = sqrt(diag(iterm1) * sig2tvec(ivec_bin));
             else
                 % Prepare XtW
                 if useShortcut
-                    XtW = tmpX(currJVec, :)' * currWsTerm;
+                    % XtW = tmpX(currJVec, :)' * currWsTerm;
+                    XtW = tmpX' * currWsTerm;
 
                     % XtW is already transposed
                     term1 = XtW * tmpX;
@@ -599,7 +578,11 @@ else
                 end
 
                 % Calculate inverse of term1
-                I = eye(size(term1));
+                % Since term1 dimensionality will typically be small
+                % (numBasisFunc * numBasisFunc), it might be more 
+                % efficient to use backslash instead of lsqminnorm
+                I       = eye(size(term1));
+                % iterm1  = term1 \ I;
                 if useLSQ
                     iterm1 = lsqminnorm(term1, I);
                 else
