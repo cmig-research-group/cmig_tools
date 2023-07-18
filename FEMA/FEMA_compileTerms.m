@@ -33,7 +33,7 @@ function [Ws_famtype, Ws_fam, allWsTerms, allJVec, useShortcut] =       ...
 % Notes below)
 %
 %% Notes:
-% Whether a not a shortcut (faster alternate) can be used in
+% Whether or not a shortcut (faster alternate) can be used in
 % FEMA_sig2bin_parfeval_GWAS_bf is determined when compiling terms; a
 % simple try-catch run is performed, trying to initialize:
 %                   zeros(numObs, numObs); 
@@ -54,11 +54,15 @@ end
 
 %% Determine if shortcut can be used
 try
-    tmp         = zeros(numObs, numObs); %#ok<PREALL>
+    allWsFam   = zeros(numObs, numObs);
     useShortcut = true;
-    clear tmp
 catch
-    useShortcut = false;
+    try
+        allWsFam    = spalloc(numObs, numObs, numObs);
+        useShortcut = true;
+    catch
+        useShortcut = false;
+    end
 end
 
 %% Initialize
