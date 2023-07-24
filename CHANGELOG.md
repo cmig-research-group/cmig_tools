@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added ``CHANGELOG.md``
 
 ### Changed
-* _add your changes here_
+* ``cmig_tools_utils/r/makeDEAPdemos.R``: updated for the ABCD Study 5.0 data release
 
 ### Fixed
 
