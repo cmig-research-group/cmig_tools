@@ -63,7 +63,6 @@ alldems<-join(alldems,lt_site)
 
 if (!isempty(grep('5.0',datapath))) {
   deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age')])
-  deap_demos$sex=recode(as.factor(alldems$demo_sex_v2), "1" = "M","2" = "F", "3" = "I")
 } else if (!isempty(grep('4.0',datapath))){
   deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age','sex','sched_delay','sched_hybrid')])
 } else if (!isempty(grep('3.0',datapath))){
@@ -75,7 +74,11 @@ if (!isempty(grep('5.0',datapath))) {
 
 deap_demos$abcd_site = alldems$site_id_l #site_id_l is in longitudianl tracking instrument
 
-if (isempty(grep('5.0',datapath))) {
+if (!isempty(grep('5.0',datapath))) {
+  sextmp = data.frame(alldems[alldems$eventname=='baseline_year_1_arm_1',c('src_subject_id','demo_sex_v2')])
+  sextmp$sex = recode(as.factor(sextmp$demo_sex_v2), "1" = "M","2" = "F", "3" = "I") 
+  deap_demos<-join(deap_demos,sextmp[,c('src_subject_id','sex')], by='src_subject_id', match = "all")
+} else {
   deap_demos$sex[which(deap_demos$sex=="")]=NA
   deap_demos$sex=factor( deap_demos$sex, levels= c("F","M"))
 }
@@ -175,8 +178,8 @@ if (isempty(grep('5.0',datapath))){
   raceind<-which(colnames(alldems) %in% race_cols)
   alldems<-alldems[,-c(raceind)]
 
-  alldems<-join(alldems, racedf, by=c('src_subject_id', 'eventname')) 
-  racedf<-alldems[,match(c('src_subject_id','eventname',race_cols), names(alldems))]
+  alldems<-join(alldems, racedf[racedf$eventname=='baseline_year_1_arm_1',], by='src_subject_id', match = "all") 
+  # racedf<-alldems[,match(c('src_subject_id','eventname',race_cols), names(alldems))]
 }
 
 raceind<-which(colnames(alldems) %in% race_cols)
@@ -292,9 +295,9 @@ if (!isempty(acsfile)){
   deap_demos$rel_group_id<-factor(deap_demos$rel_group_id)
 
 } else{
-  famtmp<-data.frame(alldems[,c('src_subject_id','eventname','rel_family_id','rel_birth_id')])
+  famtmp<-data.frame(alldems[alldems$eventname=='baseline_year_1_arm_1',c('src_subject_id','rel_family_id','rel_birth_id')])
 
-  deap_demos<-join(deap_demos,famtmp)
+  deap_demos<-join(deap_demos,famtmp, by='src_subject_id', match = "all")
 
   deap_demos$rel_birth_id<-factor(deap_demos$rel_birth_id)
 
