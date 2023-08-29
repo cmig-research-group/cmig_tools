@@ -54,12 +54,16 @@ end
 
 %% Determine if shortcut can be used
 try
-    allWsFam   = zeros(numObs, numObs);
+    allWsFam    = zeros(numObs, numObs);
     useShortcut = true;
+    count       = 1;
+    JVec        = zeros(numObs, 1);
 catch
     try
         allWsFam    = spalloc(numObs, numObs, numObs);
         useShortcut = true;
+        count       = 1;
+        JVec        = zeros(numObs, 1);
     catch
         useShortcut = false;
     end
@@ -88,19 +92,9 @@ for sig2bini = unique(binvec(isfinite(binvec)),'stable')
     ivec_bin = find(binvec==sig2bini);
     sig2vec  = mean(sig2mat(:,ivec_bin), 2);
 
-    if useShortcut
-        count    = 1;
-        if GroupByFamType
-            JVec     = [];
-            allWsFam = [];
-        else
-            JVec     = zeros(numObs, 1);
-            allWsFam = zeros(numObs, numObs);
-        end
-    end
-
     if ~isempty(ivec_bin)
         if GroupByFamType % Compute Vs and Vis by family type
+            tmpClusterinfo = cell2mat(clusterinfo);
             for fi = 1:nfamtypes
                 ivec = find(famtypevec==fi);
                 Vs_famtype{binLoc, fi} = 0;
@@ -116,11 +110,12 @@ for sig2bini = unique(binvec(isfinite(binvec)),'stable')
                 end
 
                 if useShortcut
-                    currIDX                     = clusterinfo{ivec(1)}.jvec_fam;
-                    tmpLen                      = length(currIDX);
-                    JVec(count:count+tmpLen-1)  = currIDX;
-                    allWsFam(currIDX, currIDX)  = Ws_famtype{binLoc, fi};
-                    count                       = count + tmpLen;
+                    currIDX                     = horzcat(tmpClusterinfo(ivec(:)).jvec_fam);
+                    temp                        = repmat(Ws_famtype(binLoc, fi), 1, length(ivec));
+                    allWsFam(currIDX, currIDX)  = blkdiag(temp{:});
+                    if fi == nfamtypes
+                        JVec = [tmpClusterinfo.jvec_fam]';
+                    end
                 end
             end
         else % Compute Vs and Vis for each family
