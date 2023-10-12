@@ -84,7 +84,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                         visitid_concat = tmp_volinfo.visitidvec;
                         datenumlist_concat = datenum(tmp_volinfo.datevec,'yyyymmdd');
                         corrmat_concat = tmp_volinfo.corrmat;
-                  case '4.0'
+                  case {'4.0','5.0'}
                         dirlist = tmp_volinfo.dirlist;
                         subjidvec = cell(size(dirlist)); sitevec = cell(size(dirlist)); datevec = cell(size(dirlist)); visitidvec = cell(size(dirlist));
                               for diri = 1:length(dirlist)
@@ -167,7 +167,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                   switch dataRelease
                         case '3.0'
                               tmp = regexp(dirlist{diri}, '^FSURF_(?<site>\w+)_(?<SubjID>\w+)_(?<date>\d+)_', 'names'); % 3.0 directory naming convention
-                        case '4.0'
+                        case {'4.0', '5.0'}
                               tmp = regexp(dirlist{diri}, '^[^_]*_(?<site>\w+)_(?<SubjID>\w+)_(?<event>[^_]*)_(?<date>\d+).(?<time>[^_]+)_', 'names'); % 4.0 directory naming convention (with 3.0 data, tmp.event has duplicate of date
                   end
 
@@ -183,7 +183,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                   switch dataRelease
                         case '3.0'
                               visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.date);
-                        case '4.0'
+                        case {'4.0', '5.0'}
                               visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
                   end
             end
@@ -247,7 +247,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                   imgtable=imgtable(IB,:);
                   ymat=ymat(IA,:);
           
-            case '4.0'
+            case {'4.0', '5.0'}
                   tic
                   files=dir([dirname_tabulated '/abcd_mri01*']);
                   fname_tabulated=[dirname_tabulated '/' files.name];
@@ -296,10 +296,11 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       if strcmpi(datatype,'voxel')
             corrvec=mean(corrmat_concat(IA,:),2);
             thresh = 0.8;
-            if strcmpi(dataRelease,'3.0')
-                  defvec=find(corrvec>=thresh);
-            elseif strcmpi(dataRelease,'4.0')
-                  defvec=find(corrvec>=thresh & imgtable.imgincl_dmri_include==1 & imgtable.imgincl_t1w_include==1);      
+            switch dataRelease
+                  case '3.0'
+                        defvec=find(corrvec>=thresh);
+                  case {'4.0', '5.0'}
+                        defvec=find(corrvec>=thresh & imgtable.imgincl_dmri_include==1 & imgtable.imgincl_t1w_include==1);
             end
             ymat=ymat(defvec,:);
             idevent=idevent(defvec,:);

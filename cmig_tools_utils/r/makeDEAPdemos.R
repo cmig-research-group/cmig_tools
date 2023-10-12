@@ -18,29 +18,36 @@ library(data.table)
     warning('Files in datapath not csv or txt files. Script will not read files correctly.')
   }
   
-  
   acsfile<-files[grep('acspsw03',files)]
   basedemsfile<-files[grep('pdem02',files)]
   longdemsfile<-files[grep('abcd_lpds01',files)]
   ltsitefile<-files[grep('abcd_lt01',files)]
   
-  if (ext=='csv'){
-    acsdems<-read.table(paste0(datapath,'/',acsfile), header=T, sep=",")
-    basedems<-read.table(paste0(datapath,'/',basedemsfile), header=T, sep=",")
-    longdems<-read.table(paste0(datapath,'/',longdemsfile), header=T, sep=",")
-    lt_site<-read.table(paste0(datapath,'/',ltsitefile), header=T, sep=",")
-  } else if (ext=='txt'){
-    acsdems<-loadtxt(paste0(datapath,'/',acsfile))
-    acsdems<-acsdems[,-c(which(colnames(acsdems) %in% c('collection_id','dataset_id')))]
-    basedems<-loadtxt(paste0(datapath,'/',basedemsfile))
-    basedems<-basedems[,-c(which(colnames(basedems) %in% c('collection_id','dataset_id')))]
-    longdems<-loadtxt(paste0(datapath,'/',longdemsfile))
-    longdems<-longdems[,-c(which(colnames(longdems) %in% c('collection_id','dataset_id')))]
-    lt_site<-loadtxt(paste0(datapath,'/',ltsitefile))
-    lt_site<-lt_site[,-c(which(colnames(lt_site) %in% c('collection_id','dataset_id')))]
-  }
+  longdems5.0file <- files[grep('abcd_p_demo',files)]
+  ltsite5.0file <- files[grep('abcd_y_lt',files)]
 
-  alldems<-join(longdems,basedems)
+  if (!isempty(grep('5.0',datapath))){
+    alldems <- read.table(paste0(datapath,'/',longdems5.0file), header=T, sep=",")
+    lt_site<-read.table(paste0(datapath,'/',ltsite5.0file), header=T, sep=",")
+  } else {
+    if (ext=='csv'){
+        acsdems<-read.table(paste0(datapath,'/',acsfile), header=T, sep=",")
+        basedems<-read.table(paste0(datapath,'/',basedemsfile), header=T, sep=",")
+        longdems<-read.table(paste0(datapath,'/',longdemsfile), header=T, sep=",")
+        lt_site<-read.table(paste0(datapath,'/',ltsitefile), header=T, sep=",")
+      } else if (ext=='txt'){
+        acsdems<-loadtxt(paste0(datapath,'/',acsfile))
+        acsdems<-acsdems[,-c(which(colnames(acsdems) %in% c('collection_id','dataset_id')))]
+        basedems<-loadtxt(paste0(datapath,'/',basedemsfile))
+        basedems<-basedems[,-c(which(colnames(basedems) %in% c('collection_id','dataset_id')))]
+        longdems<-loadtxt(paste0(datapath,'/',longdemsfile))
+        longdems<-longdems[,-c(which(colnames(longdems) %in% c('collection_id','dataset_id')))]
+        lt_site<-loadtxt(paste0(datapath,'/',ltsitefile))
+        lt_site<-lt_site[,-c(which(colnames(lt_site) %in% c('collection_id','dataset_id')))]
+      }
+
+    alldems<-join(longdems,basedems)
+  }
 
 alldems[,'demo_prnt_ed_p']<-coalesce(alldems$demo_prnt_ed_v2,alldems$demo_prnt_ed_v2_l)
 alldems[,'demo_prnt_ed_p']<-coalesce(alldems$demo_prnt_ed_p,alldems$demo_prnt_ed_v2_2yr_l)
@@ -54,7 +61,9 @@ alldems[,'demo_prnt_marital_p']<-coalesce(alldems$demo_prnt_marital_v2, alldems$
 
 alldems<-join(alldems,lt_site)
 
-if (!isempty(grep('4.0',datapath))){
+if (!isempty(grep('5.0',datapath))) {
+  deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age')])
+} else if (!isempty(grep('4.0',datapath))){
   deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age','sex','sched_delay','sched_hybrid')])
 } else if (!isempty(grep('3.0',datapath))){
   deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age','sex')])
@@ -65,8 +74,14 @@ if (!isempty(grep('4.0',datapath))){
 
 deap_demos$abcd_site = alldems$site_id_l #site_id_l is in longitudianl tracking instrument
 
-deap_demos$sex[which(deap_demos$sex=="")]=NA
-deap_demos$sex=factor( deap_demos$sex, levels= c("F","M"))
+if (!isempty(grep('5.0',datapath))) {
+  sextmp = data.frame(alldems[alldems$eventname=='baseline_year_1_arm_1',c('src_subject_id','demo_sex_v2')])
+  sextmp$sex = recode(as.factor(sextmp$demo_sex_v2), "1" = "M","2" = "F", "3" = "I") 
+  deap_demos<-join(deap_demos,sextmp[,c('src_subject_id','sex')], by='src_subject_id', match = "all")
+} else {
+  deap_demos$sex[which(deap_demos$sex=="")]=NA
+  deap_demos$sex=factor( deap_demos$sex, levels= c("F","M"))
+}
 
 ### Household income
 household.income = alldems$demo_comb_income_p
@@ -84,6 +99,31 @@ household.income[alldems$demo_comb_income_p == "777"] = NA
 household.income[alldems$demo_comb_income_p == "999"] = NA
 household.income[household.income %in% c(NA, "999", "777")] = NA
 deap_demos$household.income = factor( household.income, levels= 1:3, labels = c("[<50K]", "[>=50K & <100K]", "[>=100K]") )
+
+### Household income (continuous) - assign value based on middle of category
+household.income_cont = alldems$demo_comb_income_p
+household.income_cont[alldems$demo_comb_income_p == "1"] = 2500 # Less than $5,000
+household.income_cont[alldems$demo_comb_income_p == "2"] = 8500 # $5,000 through $11,999
+household.income_cont[alldems$demo_comb_income_p == "3"] = 14000 # $12,000 through $15,999
+household.income_cont[alldems$demo_comb_income_p == "4"] = 20500 # $16,000 through $24,999
+household.income_cont[alldems$demo_comb_income_p == "5"] = 30000 # $25,000 through $34,999;
+household.income_cont[alldems$demo_comb_income_p == "6"] = 42500 # $35,000 through $49,999
+household.income_cont[alldems$demo_comb_income_p == "7"] = 62500 # $50,000 through $74,999
+household.income_cont[alldems$demo_comb_income_p == "8"] = 87500 # $75,000 through $99,999
+household.income_cont[alldems$demo_comb_income_p == "9"] = 150000 # $100,000 through $199,999
+household.income_cont[alldems$demo_comb_income_p == "10"] = 250000 # $200,000 and greater
+household.income_cont[alldems$demo_comb_income_p == "777"] = NA # Refuse to answer
+household.income_cont[alldems$demo_comb_income_p == "999"] = NA # Don't know
+household.income_cont[household.income_cont %in% c(NA, "999", "777")] = NA
+deap_demos$household.income_cont = household.income_cont
+
+# Household income (10 level)
+household.income_10level = alldems$demo_comb_income_p
+household.income_10level[alldems$demo_comb_income_p == "777"] = NA # Refuse to answer
+household.income_10level[alldems$demo_comb_income_p == "999"] = NA # Don't know
+household.income_10level[household.income_10level %in% c(NA, "999", "777")] = NA
+deap_demos$household.income_10level = household.income_10level
+
 #highest education: 5 different levels. These levels correspond to the numbers published by the American Community Survey (ACS). 
 high.educ1 = alldems$demo_prnt_ed_p
 high.educ2 = alldems$demo_prtnr_ed_p
@@ -107,7 +147,7 @@ high.educ[idx] = 5 # "Post Graduate Degree"
 high.educ[which(high.educ == "999")]=NA
 high.educ[which(high.educ == "777")]=NA
 deap_demos$high.educ = factor( high.educ, levels= 1:5, labels = c("< HS Diploma","HS Diploma/GED","Some College","Bachelor","Post Graduate Degree") )
-### Marrital status
+### Marital status
 married = rep(NA, length(alldems$demo_prnt_marital_p))
 married[alldems$demo_prnt_marital_p == 1] = 1
 married[alldems$demo_prnt_marital_p %in% 2:6] = 0
@@ -126,12 +166,21 @@ race_cols = c("demo_ethn_v2", "demo_race_a_p___10", "demo_race_a_p___11","demo_r
               "demo_race_a_p___18", "demo_race_a_p___19", "demo_race_a_p___20", "demo_race_a_p___21", "demo_race_a_p___22","demo_race_a_p___23",
               "demo_race_a_p___24", "demo_race_a_p___25",
               "demo_race_a_p___77", "demo_race_a_p___99")
-racedf<-basedems[,match(c('src_subject_id','eventname',race_cols), names(basedems))]
+if (isempty(grep('5.0',datapath))){
+  racedf<-basedems[,match(c('src_subject_id','eventname',race_cols), names(basedems))]
+  raceind<-which(colnames(alldems) %in% race_cols)
+  alldems<-alldems[,-c(raceind)]
 
-raceind<-which(colnames(alldems) %in% race_cols)
-alldems<-alldems[,-c(raceind)]
+  alldems<-merge(alldems, racedf, by.x = 'src_subject_id', by.y = 'src_subject_id')
+  racedf<-basedems[,match(c('src_subject_id','eventname',race_cols), names(basedems))] # OLD - from 4.0 and prior
+} else {
+  racedf<-alldems[,match(c('src_subject_id','eventname',race_cols), names(alldems))]
+  raceind<-which(colnames(alldems) %in% race_cols)
+  alldems<-alldems[,-c(raceind)]
 
-alldems<-merge(alldems, racedf, by.x = 'src_subject_id', by.y = 'src_subject_id')
+  alldems<-join(alldems, racedf[racedf$eventname=='baseline_year_1_arm_1',], by='src_subject_id', match = "all") 
+  # racedf<-alldems[,match(c('src_subject_id','eventname',race_cols), names(alldems))]
+}
 
 raceind<-which(colnames(alldems) %in% race_cols)
 dat = data.table(alldems[,raceind])
@@ -222,7 +271,12 @@ dat$hisp<- factor(dat$hisp,
                   labels= c("No","Yes"))
 
 dat$src_subject_id<-alldems$src_subject_id
-dat$eventname<-alldems$eventname.x
+
+if (isempty(grep('5.0',datapath))) {
+  dat$eventname<-alldems$eventname.x
+} else {
+  dat$eventname<-alldems$eventname
+}
 
 racetmp<-data.frame(dat[,c('src_subject_id','eventname','race.4level','race.6level','hisp')])
 
@@ -231,15 +285,23 @@ deap_demos<-join(deap_demos,racetmp)
 ############################################ 
 
 #Replicating family ID over all time points
+if (!isempty(acsfile)){
+  alldems<-merge(alldems, acsdems[acsdems$eventname=='baseline_year_1_arm_1',c('src_subject_id','rel_family_id','rel_group_id')])
+  alldems$eventname<-alldems$eventname.x
+  famtmp<-data.frame(alldems[,c('src_subject_id','eventname','rel_family_id','rel_group_id')])
 
-alldems<-merge(alldems, acsdems[acsdems$eventname=='baseline_year_1_arm_1',c('src_subject_id','rel_family_id','rel_group_id')])
-alldems$eventname<-alldems$eventname.x
+  deap_demos<-join(deap_demos,famtmp)
 
-famtmp<-data.frame(alldems[,c('src_subject_id','eventname','rel_family_id','rel_group_id')])
+  deap_demos$rel_group_id<-factor(deap_demos$rel_group_id)
 
-deap_demos<-join(deap_demos,famtmp)
+} else{
+  famtmp<-data.frame(alldems[alldems$eventname=='baseline_year_1_arm_1',c('src_subject_id','rel_family_id','rel_birth_id')])
 
-deap_demos$rel_group_id<-factor(deap_demos$rel_group_id)
+  deap_demos<-join(deap_demos,famtmp, by='src_subject_id', match = "all")
+
+  deap_demos$rel_birth_id<-factor(deap_demos$rel_birth_id)
+
+}
 
 return(deap_demos)
 }

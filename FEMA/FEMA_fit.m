@@ -428,7 +428,6 @@ for coli_ri=1:ncols_ri
                       nvec_bins(sig2bini) = length(ivec_bin);
                       binvec(ivec_bin) = sig2bini;
                     end
-                  end
 
                   if logLikflag & ~MLflag
                     logLikvec = nan(1,size(ymat_res,2));
@@ -532,6 +531,7 @@ for coli_ri=1:ncols_ri
         beta_se_perm_ri(reverse_cols,coli_ri,:) = beta_se_perm(reverse_cols,1:length(reverse_cols),:);
         zmat_perm_ri(reverse_cols,coli_ri,:) = zmat_perm(reverse_cols,1:length(reverse_cols),:);
       end
+end
 
 if reverseinferenceflag
   beta_hat_perm = beta_hat_perm_ri;
