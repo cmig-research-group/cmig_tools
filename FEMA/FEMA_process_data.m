@@ -247,7 +247,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                   imgtable=imgtable(IB,:);
                   ymat=ymat(IA,:);
           
-            case {'4.0', '5.0'}
+            case '4.0'
                   tic
                   files=dir([dirname_tabulated '/abcd_mri01*']);
                   fname_tabulated=[dirname_tabulated '/' files.name];
@@ -256,6 +256,49 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                   imgtable.idevent=strcat(imgtable.src_subject_id,'_',imgtable.eventname);
           
                   files=dir([dirname_tabulated '/abcd_imgincl01*']);
+                  fname_incflag=[dirname_tabulated '/' files.name];
+                  inctable = readtable(fname_incflag);
+                  inctable.idevent=strcat(inctable.src_subject_id,'_',inctable.eventname);
+
+                  if ismember('dataset_id',imgtable.Properties.VariableNames)
+                        imgtable=removevars(imgtable,'dataset_id');
+                        inctable=removevars(inctable,'dataset_id');
+                  end
+
+                  [dummy IA IB] = intersect(imgtable.idevent,inctable.idevent,'stable');
+                  imgtable=join(imgtable(IA,:),inctable(IB,:));
+          
+                  iid_imgtable = imgtable.subjectkey;
+                  eid_imgtable = imgtable.eventname;
+                  date_imgtable = imgtable.mri_info_studydate;
+                  visitid_imgtable = imgtable.mri_info_visitid;
+          
+                        %for dati=1:length(date_imgtable)
+                              %tmp = regexp(imgtable.mri_info_studydate{2}, '^(?<month>\d+)/(?<day>\d+)/(?<year>\d+)', 'names');
+                              %datevec{dati}=sprintf('%s%s%s',tmp.year,tmp.month,tmp.day);
+                        %      visitid_imgtable{dati}=sprintf('%s_%d',visitid_imgtable{dati},date_imgtable(dati));
+                        %end
+                  toc
+          
+                  % Merge vertex/voxelwise and tabulated imaging data
+                  tmplist_concat = visitid_concat;
+                  tmplist_imgtable = visitid_imgtable;
+                  [dummy IA IB] = intersect(tmplist_concat,tmplist_imgtable,'stable');
+                  eid_concat = eid_imgtable(IB);
+                  iid_concat = iid_concat(IA);
+                  idevent = strcat(iid_concat(:),'_',eid_concat(:));
+                  imgtable=imgtable(IB,:);
+                  ymat=ymat(IA,:);
+
+            case '5.0'
+                  tic
+                  files=dir([dirname_tabulated '/mri_y_adm_info*']);
+                  fname_tabulated=[dirname_tabulated '/' files.name];
+                  logging('Reading tabulated imaging data from %s',fname_tabulated);
+                  imgtable = readtable(fname_tabulated);
+                  imgtable.idevent=strcat(imgtable.src_subject_id,'_',imgtable.eventname);
+          
+                  files=dir([dirname_tabulated '/mri_y_qc_incl*']);
                   fname_incflag=[dirname_tabulated '/' files.name];
                   inctable = readtable(fname_incflag);
                   inctable.idevent=strcat(inctable.src_subject_id,'_',inctable.eventname);
