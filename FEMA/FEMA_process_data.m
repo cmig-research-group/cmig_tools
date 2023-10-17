@@ -311,7 +311,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
                   [dummy IA IB] = intersect(imgtable.idevent,inctable.idevent,'stable');
                   imgtable=join(imgtable(IA,:),inctable(IB,:));
           
-                  iid_imgtable = imgtable.subjectkey;
+                  iid_imgtable = imgtable.src_subject_id;
                   eid_imgtable = imgtable.eventname;
                   date_imgtable = imgtable.mri_info_studydate;
                   visitid_imgtable = imgtable.mri_info_visitid;
