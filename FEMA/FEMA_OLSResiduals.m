@@ -1,4 +1,4 @@
-function residualVariable = FEMA_OLSResiduals(variable, fixedEffects, useFlag)
+function [residualVariable, iXtX] = FEMA_OLSResiduals(variable, fixedEffects, useFlag, iXtX)
 % OLS residualize a variable for other fixed effects
 %% Inputs:
 % variable:         [n x m]     matrix of n subjects and m varibles
@@ -11,10 +11,19 @@ function residualVariable = FEMA_OLSResiduals(variable, fixedEffects, useFlag)
 %                                   * 'pinv'
 %                                   * 'backslash'
 %
+% iXtX:             [m x m]     matrix containing the inverse of the X'X
+%                               term (optional)
+%
 %% Output(s):
-% residualVariable  [n x m]     matrix of n subjects and m variables with 
+% residualVariable: [n x m]     matrix of n subjects and m variables with 
 %                               each variable residualized for the effect 
 %                               of the fixedEffects using OLS
+%
+% iXtX:             [m x m]     matrix containing the inverse of the X'X
+%                               term, which can be passed back for faster
+%                               computation (for example, when
+%                               residualizing multiple SNPs fopr the same X
+%                               variables)
 %
 %% Notes:
 % This is a simplified version of FEMA_residualizeGenotype without any
@@ -51,25 +60,33 @@ if ~exist('useFlag', 'var') || isempty(useFlag)
             useFlag = 'backslash';
         end
     end
+else
+    useFlag = lower(useFlag);
+    if ~ismember(useFlag, {'lsqminnorm', 'backslash', 'pinv'})
+        error(['Unknown useFlag provided: ', useFlag, '; should be one of: lsqminnorm, backslash, or pinv']);
+    end
 end
 
 %% Estimate beta
-XtX  = fixedEffects' * fixedEffects;
+% Reuse iXtX, if it exists
+if ~exist('iXtX', 'var') || isempty(iXtX)
+    XtX  = fixedEffects' * fixedEffects;
 
-% Calculate inverse
-switch useFlag
-    case 'lsqminnorm'
-        iXtX = lsqminnorm(XtX, eye(size(XtX)));
-
-    case 'pinv'
-        iXtX = pinv(XtX);
-
-    case 'backslash'
-        iXtX = XtX \ eye(size(XtX));
+    % Calculate inverse
+    switch useFlag
+        case 'lsqminnorm'
+            iXtX = lsqminnorm(XtX, eye(size(XtX)));
+    
+        case 'pinv'
+            iXtX = pinv(XtX);
+    
+        case 'backslash'
+            iXtX = XtX \ eye(size(XtX));
+    end
 end
 
 % Calculate beta: inv(X' * X) * X' * y
-beta = iXtX * fixedEffects' * variable;
+beta = iXtX * (fixedEffects' * variable);
 
 %% Compute residuals
 residualVariable = variable - (fixedEffects * beta);
