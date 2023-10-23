@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2023-10-23]
+
+### Changed
+* ``colvec``: switched to numel instead of prod (trivial performance improvement)
+* ``rowvec``: switched to numel instead of prod (trivial performance improvement)
+* ``FEMA_parse_family``: performance improvement (summary below)
+  - performing a string comparison by creating a string version of ``freq_unique`` and ``famtypelist`` (instead of ``ivec = find(cellfun(@(x)isequal(x,freq_unique),famtypelist));``)
+  - replaced repeated accessing of clusterinfo by converting to cell and then accessing contents of the cell
+* ``FEMA_sig2binseg_parfeval``: performance improvement (summary below)
+  - major code rewrite and formatting changes
+  - inverses are calculated using backslash (only in rank deficient cases we either use lsqminnorm or fall back to pinv)
+  - replaced repeated accessing of clusterinfo by converting to cell and then accessing contents of the cell
+  - no longer computing XtWVsWt
+* ``FEMA_fit``: combined version of Anders' ``FEMA_DEAP_fit`` and `GWAS_v2` branch ``FEMA_fit``
+  - now includes IGLS
+  - additionally returning reusableVars - a structure having variables like clusterinfo which can be reused
+  - slight changes to OLS estimation
+  - returning non-permuted binvec (i.e., returns binvec_save)
+* ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
+
 ## [Unreleased]
 
 ### Added (major options)
