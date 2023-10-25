@@ -386,7 +386,13 @@ end
 
 if ~isempty(fname_preg)
       logging('Reading PREGNANCY ID');
-      preg = readtable(fname_preg);
+      fid = fopen(fname_preg);
+      varNames = strsplit(fgetl(fid), {' ' '"'});
+      fclose(fid);
+      opts=detectImportOptions(fname_preg);
+      opts.SelectedVariableNames = [2:5];
+      preg = readtable(fname_preg, opts);
+      preg = renamevars(preg,1:width(preg),varNames(2:5)); 
 else     
       preg=[];
 end
