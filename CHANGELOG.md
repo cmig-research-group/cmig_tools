@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
-## [Unreleased - 2023-10-23]
+## [Unreleased - 2023-10-27]
 
 ### Changed
 * ``colvec``: switched to numel instead of prod (trivial performance improvement)
@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - additionally returning reusableVars - a structure having variables like clusterinfo which can be reused
   - slight changes to OLS estimation
   - returning non-permuted binvec (i.e., returns binvec_save)
+  - additionally returning FamilyStruct - for use in DEAP
+  - improved documentation of input and output variables
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ## [Unreleased]
