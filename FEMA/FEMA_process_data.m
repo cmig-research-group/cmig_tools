@@ -292,17 +292,26 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 
             case '5.0'
                   tic
-                  files=dir([dirname_tabulated '/mri_y_adm_info*']);
+                  % if using "released" 
+                  if contains(dirname_tabulated, 'released')
+                        fname_mri_info = 'mri_y_adm_info';
+                        fname_imgincl = 'mri_y_qc_incl'; 
+                  elseif contains(dirname_tabulated, 'img')
+                        fname_mri_info = 'abcd_mri01';
+                        fname_imgincl = 'abcd_imgincl01'; 
+                  end 
+                  % mri_info file 
+                  files=dir([dirname_tabulated '/', fname_mri_info, '*']);
                   fname_tabulated=[dirname_tabulated '/' files.name];
                   logging('Reading tabulated imaging data from %s',fname_tabulated);
-                  imgtable = readtable(fname_tabulated);
+                  imgtable = readtable(fname_tabulated); 
                   imgtable.idevent=strcat(imgtable.src_subject_id,'_',imgtable.eventname);
-          
-                  files=dir([dirname_tabulated '/mri_y_qc_incl*']);
+                  % imgincl file 
+                  files=dir([dirname_tabulated '/', fname_imgincl, '*']);
                   fname_incflag=[dirname_tabulated '/' files.name];
                   inctable = readtable(fname_incflag);
                   inctable.idevent=strcat(inctable.src_subject_id,'_',inctable.eventname);
-
+                  
                   if ismember('dataset_id',imgtable.Properties.VariableNames)
                         imgtable=removevars(imgtable,'dataset_id');
                         inctable=removevars(inctable,'dataset_id');
@@ -377,7 +386,13 @@ end
 
 if ~isempty(fname_preg)
       logging('Reading PREGNANCY ID');
-      preg = readtable(fname_preg);
+      fid = fopen(fname_preg);
+      varNames = strsplit(fgetl(fid), {' ' '"'});
+      fclose(fid);
+      opts=detectImportOptions(fname_preg);
+      opts.SelectedVariableNames = [2:5];
+      preg = readtable(fname_preg, opts);
+      preg = renamevars(preg,1:width(preg),varNames(2:5)); 
 else     
       preg=[];
 end
