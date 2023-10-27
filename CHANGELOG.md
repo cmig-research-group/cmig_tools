@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased - 2023-10-27]
 
+### Added
+* ``lsqnonneg_amd3``: modified version of ``lsqnonneg_amd2`` that avoids using pinv; should lead to performance improvement
+
 ### Changed
 * ``colvec``: switched to numel instead of prod (trivial performance improvement)
 * ``rowvec``: switched to numel instead of prod (trivial performance improvement)
@@ -24,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - returning non-permuted binvec (i.e., returns binvec_save)
   - additionally returning FamilyStruct - for use in DEAP
   - improved documentation of input and output variables
+  - uses ``lsqnonneg_amd3`` instead of ``lsqnonneg_amd2`` - should improve performance
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ## [Unreleased]
