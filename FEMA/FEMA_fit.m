@@ -448,7 +448,7 @@ for coli_ri=1:ncols_ri
                 sig2mat = max(0,tmp); % Variances must be non-negative
             else 
                 % Use new version of lsqnonneg_amd to enfoce non-negative variances
-                sig2mat = lsqnonneg_amd2(M,LHS); % This doesn't actually ensure non-negative values! -- problem with complex ymat / LHS
+                sig2mat = lsqnonneg_amd3(M,LHS); % This doesn't actually ensure non-negative values! -- problem with complex ymat / LHS
                 sig2mat = max(0,sig2mat); % This shouldn't be needed
             end
 
