@@ -2,66 +2,73 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
           sig2tvec,      sig2mat,        Hessmat,     logLikvec,            ...
           beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,        ...
           sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,            ...
-          tvec_bins,     reusableVars] =                                    ...
+          tvec_bins,     FamilyStruct,   reusableVars] =                    ...
           FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, ...
                    pihatmat, varargin)
-
 % Function to fit fast and efficient linear mixed effects model
 %
 % For notation below:
 % n = observations,
 % p = predictors (fixed effects),
 % v = imaging units (e.g. voxels/vertices)
+% c = number of contrasts to evaluate
+% r = number of random effects
 %
 % Parekh et al., (2021) - Fast and efficient mixed-effects algorithm for 
 %                         large sample whole-brain imaging data, bioRxiv 
 %                         https://doi.org/10.1101/2021.10.27.466202
 %
-% INPUTS
-%   X <num>                    :  design matrix (n x p), with intersept if needed
-%   iid <char>                 :  subject IDs to match imaging data
-%   eid <char>                 :  eventname (n x 1)
-%   fid <num>                  :  family ID (members of the same family unit have same value)
-%   agevec <num>               :  participants age (n x 1)
-%   ymat <num>                 :  matrix of imaging data (n x v)
-%   niter <num>                :  number of iterations (default 1)
-%   contrasts <num> OR <path>  :  contrast matrix (c x p), where c is number of contrasts to compute,
-%                                 OR path to file containing contrast matrix (readable by readtable)
-%   nbins <num>                :  number of bins across Y for estimating random effects (default 20)
-%   pihatmat <num>             :  matrix of genetic relatedness (n x n) --> already intersected to match X and Y sample
+%% Inputs:
+% X               <num>            [n x p]    design matrix, with intercept if needed
+% iid             <cell>           [n x 1]    subject IDs to match imaging data
+% eid             <cell>           [n x 1]    eventname
+% fid             <num>            [n x 1]    family ID (members of the same family unit have same value)
+% agevec          <num>            [n x 1]    participants age
+% ymat            <num>            [n x v]    matrix of imaging data
+% niter           <num>            [1 x 1]    number of iterations (default 1)
+% contrasts       <num> OR <path>  [c x p]    contrast matrix, where c is number of contrasts to compute,
+%                                             OR path to file containing contrast matrix (readable by readtable)
+% nbins           <num>            [1 x 1]    number of bins across Y for estimating random effects (default 20)
+% pihatmat        <num>            [n x n]    matrix of genetic relatedness --> already intersected to match X and Y sample
 %
-% Optional input arguments:
-%   RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
-%                                   family relatedness (F)
-%                                   subject - required for longitudinal analyses (S)
-%                                   error (E) - always required
-%                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (pihat) for this option
-%   nperms <num>               :  deault 0 --> if >0 will run and output permuted effects
-%   CovType <char>             :  default 'analytic' --> no other options currently available
-%   FixedEstType <char>        :  default 'GLS' --> other option: 'OLS'
-%   RandomEstType <char>       :  default 'MoM' --> other option: 'ML' (much slower)
-%   GroupByFamType <boolean>   :  default true
-%   Parallelize <boolean>      :  default false
-%   NonnegFlag <blooean>       :  default true - non-negativity constraint on random effects estimation
-%   SingleOrDouble <char>      :  default 'double' --> other option: 'single' - for precision
-%   logLikflag <boolean>       :  default true - compute log-likelihood
-%   PermType <char>            :  input for FEMA_fit - options:
-%                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation
-%                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
+%% Optional input arguments:
+% RandomEffects   <cell>           list of random effects to estimate (default {'F','S','E'}):
+%                                       * F:  family relatedness
+%                                       * S:  subject - required for longitudinal analyses
+%                                       * E:  error - always required
+%                                       * A:  additive genetic relatedness - must include file path to genetic relatedness data (pihat) for this option
+%                                       * D:  dominant genetic relatedness - square of A
+%                                       * M:  maternal effect - effect of having same mother
+%                                       * P:  paternal effect  - effect of having same father
+%                                       * H:  home effect - effect of living at the same address
+%                                       * T:  twin effect - effect of having the same pregnancy ID
+% nperms          <num>            deault 0 --> if >0 will run and output permuted effects
+% CovType         <char>           default 'analytic' --> no other options currently available
+% FixedEstType    <char>           default 'GLS' --> other option: 'OLS'
+% RandomEstType   <char>           default 'MoM' --> other option: 'ML' (much slower)
+% GroupByFamType  <boolean>        default true
+% Parallelize     <boolean>        default false
+% NonnegFlag      <blooean>        default true - non-negativity constraint on random effects estimation
+% SingleOrDouble  <char>           default 'double' --> other option: 'single' - for precision
+% logLikflag      <boolean>        default true - compute log-likelihood
+% PermType        <char>           permutation type:
+%                                       * 'wildbootstrap':    residual boostrap --> creates null distribution by randomly flipping the sign of each observation
+%                                       * 'wildbootstrap-nn': non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
 %
-% OUTPUTS
-%   beta_hat                   :  estimated beta coefficients (p x v)
-%   beta_se                    :  estimated beta standard errors (p x v)
-%   zmat                       :  z statistics (p x v)
-%   logpmat                    :  log10 p-values (p x v)
-%   sig2tvec                   :  total residual error of model at each vertex/voxel (1 x v)
-%   sig2mat                    :  normalized random effect variances (length(random_effects) x v)
+%% Outputs:
+% beta_hat                         [c+p x v]  estimated beta coefficients
+% beta_se                          [c+p x v]  estimated beta standard errors
+% zmat                             [c+p x v]  z statistics
+% logpmat                          [c+p x v]  log10 p-values
+% sig2tvec                         [1   x v]  total residual error of model at each vertex/voxel
+% sig2mat                          [r   x v]  normalized random effect variances
+% binvec_save                      [1   x v]  bin number(s) for non-permuted ymat
+% FamilyStruct                                structure type (can be passed as input to avoid re-parsing family structure etc.)
+% reusableVars                                structure type (primarily used for FEMA-GWAS)
 %
-
-%
-% This software is Copyright (c) 2021 The Regents of the University of California. All Rights Reserved.
-% See LICENSE.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This software is Copyright (c) 2021 
+% The Regents of the University of California. 
+% All Rights Reserved. See LICENSE.
 
 starttime = now(); %#ok<*TNOW1>
 logging('***Start***');
@@ -117,6 +124,7 @@ addParamValue(p,'FatherID', {}); % Father ID, ordered same as pihatmat
 addParamValue(p,'MotherID', {}); % Mother ID, ordered same as pihatmat
 addParamValue(p,'PregID', {}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
 addParamValue(p,'HomeID', {}); % Home effect (defined as same address ID), ordered same as pihatmat
+addParamValue(p,'FamilyStruct',{}); % Avoids recomputing family strucutre et al
 addParamValue(p,'synthstruct',''); % True / synthesized random effects
 
 parse(p,varargin{:})
@@ -137,6 +145,7 @@ Hessflag             = p.Results.Hessflag;
 ciflag               = p.Results.ciflag;
 nperms               = p.Results.nperms;
 PermType             = p.Results.PermType;
+FamilyStruct         = p.Results.FamilyStruct;
 synthstruct          = p.Results.synthstruct;
 reverse_cols         = p.Results.reverse_cols; % AMD
 reverseinferenceflag = p.Results.reverseinferenceflag; % AMD
@@ -177,90 +186,118 @@ reusableVars.lowRank        = lowRank;
 
 t0 = now;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Parse family structure -- should be passed in: clusterinfo, M,
-tic
-[clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec] =                  ...
- FEMA_parse_family(iid, eid, fid, agevec, pihatmat, 'RandomEffects', RandomEffects, ...
-                   'FatherID', p.Results.FatherID,  'MotherID', p.Results.MotherID, ...
-                   'PregID',   p.Results.PregID,    'HomeID',   p.Results.HomeID); %#ok<*ASGLU>
+% Parse family structure, if necessary
+if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
+    tic
+    [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec] =                  ...
+     FEMA_parse_family(iid, eid, fid, agevec, pihatmat, 'RandomEffects', RandomEffects, ...
+                       'FatherID', p.Results.FatherID,  'MotherID', p.Results.MotherID, ...
+                       'PregID',   p.Results.PregID,    'HomeID',   p.Results.HomeID); %#ok<*ASGLU>
+    
+    [iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
+    [fid_list, IA, IC_fam]  = unique(fid,'stable'); nfam  = length(fid_list);
+    nfamtypes = length(famtypelist);
 
-[iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); nobs = length(iid);
-[fid_list, IA, IC_fam]  = unique(fid,'stable'); nfam  = length(fid_list);
-nfamtypes = length(famtypelist);
+    toc
+    % Prepare generalized matrix version of MoM estimator
+    tic
+    S_sum = Ss{1};
+    for i = 2:length(Ss)
+        S_sum = S_sum + Ss{i};
+    end
+    [subvec1, subvec2] = find(S_sum); % Use full matrix, to simplify IGLS -- should be possible to limit to tril
+    %[subvec1 subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
+    indvec = sub2ind([nobs nobs],subvec1,subvec2);
 
-% Save some variables for later use
-reusableVars.famtypevec  = famtypevec;
-reusableVars.famtypelist = famtypelist;
-% reusableVars.Ss          = Ss;
-toc
+    F_num = S_sum;
+    for fi = 1:nfam
+        F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
+    end
+    fnumvec = F_num(indvec);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Prepare generalized matrix version of MoM estimator
-tic
-S_sum = Ss{1};
-for i = 2:length(Ss)
-    S_sum = S_sum + Ss{i};
+    for fi = 1:nfam
+        jvec_tmp  = clusterinfo{fi}.jvec_fam;
+        [sv, si]  = sort(jvec_tmp);
+        I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
+        ivec_fam  = find(fnumvec==fi);
+        ivec_fam  = ivec_fam(colvec(I_tmp(si, si)));
+        %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
+        clusterinfo{fi}.ivec_fam = ivec_fam;
+    end
+
+    M = zeros(length(indvec),length(Ss));
+    for i = 1:length(Ss)
+        M(:,i) = Ss{i}(indvec);
+    end
+
+    % Create grid of normalized random effects -- currently supports only FSE models -- should generalize to arbitrary set of random effects
+    %binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = binvals_edges(end)+0.0001; % Should adjust max to include all values above sig2gridl
+    binvals_edges       = linspace(0, 1, nbins+1);
+    binvals_edges(end)  = Inf;
+    if length(RandomEffects)==2 % Why is this needed? -- N-d version, below, should work for 2-d?
+        sig2gridi = colvec(1:length(binvals_edges)-1);
+        sig2gridl = colvec(binvals_edges(1:end-1));
+        sig2gridu = colvec(binvals_edges(2:end));
+    else
+        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1},[1 length(RandomEffects)-1]));
+        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},   [1 length(RandomEffects)-1]));
+        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},     [1 length(RandomEffects)-1]));
+    end
+    %sig2grid = (sig2gridl+sig2gridu)/2; % Should make sig2gridl+1/nbins
+    sig2grid      = sig2gridl+(0.5/nbins);
+    sig2grid_ivec = find(sum(sig2grid,2)<=1-0.5/nbins); % Get rid of "impossible" bins -- use middle of bin instead
+    sig2gridl     = sig2gridl(sig2grid_ivec,:);
+    sig2gridu     = sig2gridu(sig2grid_ivec,:);
+    sig2grid      = sig2grid(sig2grid_ivec,:);
+    sig2gridi     = sig2gridi(sig2grid_ivec,:);
+    sig2gridind   = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
+    nsig2bins     = size(sig2grid,1); % Should handle case of no binning
+
+    % Prepare FamilyStruct
+    FamilyStruct = struct('clusterinfo', {clusterinfo}, 'M', {M},                     ...
+                          'famtypevec',  {famtypevec},  'famtypelist', {famtypelist}, ...
+                          'nfamtypes',   nfamtypes,     'iid', {iid},                 ...
+                          'fid',         {fid},         'iid_list', {iid_list},       ...
+                          'fid_list',    {fid_list},    'nfam', nfam,                 ...
+                          'sig2grid',    sig2grid,      'sig2gridl', sig2gridl,       ...
+                          'sig2gridu',   sig2gridu,     'sig2gridi', sig2gridi,       ...
+                          'sig2gridind', sig2gridind,   'nsig2bins', nsig2bins,       ...
+                          'subvec1',     subvec1,       'subvec2', subvec2);
+
+    % Save some variables for later use
+    reusableVars.famtypevec  = famtypevec;
+    reusableVars.famtypelist = famtypelist;
+    reusableVars.clusterinfo = clusterinfo;
+    reusableVars.nfamtypes   = nfamtypes;
+else
+    clusterinfo = FamilyStruct.clusterinfo;
+    M           = FamilyStruct.M;
+    nsig2bins   = FamilyStruct.nsig2bins;
+    nfam        = FamilyStruct.nfam;
+    famtypevec  = FamilyStruct.famtypevec;
+    nfamtypes   = FamilyStruct.nfamtypes;
+    sig2grid    = FamilyStruct.sig2grid;
+    sig2gridl   = FamilyStruct.sig2gridl;
+    sig2gridu   = FamilyStruct.sig2gridu;
+    subvec1     = FamilyStruct.subvec1;
+    subvec2     = FamilyStruct.subvec2;
+
+    % Save some variables for later use
+    reusableVars.famtypevec  = FamilyStruct.famtypevec;
+    reusableVars.famtypelist = FamilyStruct.famtypelist;
+    reusableVars.clusterinfo = FamilyStruct.clusterinfo;
+    reusableVars.nfamtypes   = FamilyStruct.nfamtypes;
 end
-[subvec1, subvec2] = find(S_sum); % Use full matrix, to simplify IGLS -- should be possible to limit to tril
-%[subvec1 subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
-indvec = sub2ind([nobs nobs],subvec1,subvec2);
 
-F_num = S_sum;
-for fi = 1:nfam
-    F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
-end
-fnumvec = F_num(indvec);
+tshim = now-t0;
 
-for fi = 1:nfam
-    jvec_tmp  = clusterinfo{fi}.jvec_fam;
-    [sv, si]  = sort(jvec_tmp);
-    I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
-    ivec_fam  = find(fnumvec==fi);
-    ivec_fam  = ivec_fam(colvec(I_tmp(si, si)));
-    %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
-    clusterinfo{fi}.ivec_fam = ivec_fam;
-end
-
-% Save clusterinfo for later use
-reusableVars.clusterinfo = clusterinfo;
-
-M = zeros(length(indvec),length(Ss));
-for i = 1:length(Ss)
-    M(:,i) = Ss{i}(indvec);
-end
 Mi = single(pinv(M));
 Cov_MoM = Mi*Mi'; % Variance  / covariance of MoM estimates, per unit of residual error variance
-toc
 
 logging('size(M) = [%d %d]',size(M));
 logging('Cov_MoM:'); disp(Cov_MoM);
 logging('Mi*M:'); disp(Mi*M);
 
-% Create grid of normalized random effects -- currently supports only FSE models -- should generalize to arbitrary set of random effects
-%binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = binvals_edges(end)+0.0001; % Should adjust max to include all values above sig2gridl
-binvals_edges       = linspace(0, 1, nbins+1);
-binvals_edges(end)  = Inf;
-if length(RandomEffects)==2 % Why is this needed? -- N-d version, below, should work for 2-d?
-    sig2gridi = colvec(1:length(binvals_edges)-1);
-    sig2gridl = colvec(binvals_edges(1:end-1));
-    sig2gridu = colvec(binvals_edges(2:end));
-else
-    sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1},[1 length(RandomEffects)-1]));
-    sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},   [1 length(RandomEffects)-1]));
-    sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},     [1 length(RandomEffects)-1]));
-end
-%sig2grid = (sig2gridl+sig2gridu)/2; % Should make sig2gridl+1/nbins
-sig2grid      = sig2gridl+(0.5/nbins);
-sig2grid_ivec = find(sum(sig2grid,2)<=1-0.5/nbins); % Get rid of "impossible" bins -- use middle of bin instead
-sig2gridl     = sig2gridl(sig2grid_ivec,:);
-sig2gridu     = sig2gridu(sig2grid_ivec,:);
-sig2grid      = sig2grid(sig2grid_ivec,:);
-sig2gridi     = sig2gridi(sig2grid_ivec,:);
-sig2gridind   = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
-nsig2bins     = size(sig2grid,1); % Should handle case of no binning
-
-tshim = now-t0;
 
 if ~isempty(synthstruct)
     sig2mat_true  = synthstruct.sig2mat_true;
