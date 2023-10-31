@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - additionally returning FamilyStruct - for use in DEAP
   - improved documentation of input and output variables
   - uses ``lsqnonneg_amd3`` instead of ``lsqnonneg_amd2`` - should improve performance
+  - subvec1, subvec2, and indvec are updated to ``find(tril(S_sum))`` - should fix increased memory requirement
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ## [Unreleased]

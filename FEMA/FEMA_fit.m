@@ -225,6 +225,10 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
         clusterinfo{fi}.ivec_fam = ivec_fam;
     end
 
+    % Scale back to using tril on S_sum
+    [subvec1, subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
+    indvec             = sub2ind([nobs nobs],subvec1,subvec2);
+
     M = zeros(length(indvec),length(Ss));
     for i = 1:length(Ss)
         M(:,i) = Ss{i}(indvec);
