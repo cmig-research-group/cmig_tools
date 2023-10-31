@@ -164,22 +164,54 @@ end
 % Should make list of random effects an optional argument  -- change variable names to be consistent with equation (coordinate with Chun)
 
 % Should modify code above and below to use arbitray list of clusterinfo{:}.Vs
-nnz_max      = sum(nfmemvec.^2);
-Ss           = repmat({spalloc(nobs,nobs,nnz_max)},[1 length(RandomEffects)]);
+% Identify which cell entry is jvec_fam in clusterinfo
 ff           = fieldnames(clusterinfo{1});
 [a, b]       = ismember(ff, strcat('V_', RandomEffects));
 [~, RFX_ord] = sort(b(a));
 locJVec      = strcmpi(ff, 'jvec_fam');
 
+% Initialization
+nnz_max = sum(nfmemvec.^2);
+Ss      = cell(length(RandomEffects), 1);
+allR    = zeros(nnz_max, 1);
+allC    = zeros(nnz_max, 1);
+allV    = zeros(nnz_max, length(RandomEffects));
+count   = 1;
+
+% Go over every clusterinfo entry and work out rows, columns, and values
+% for putting together Ss
 for fi = 1:nfam
-    currClus = struct2cell(clusterinfo{fi});
-    locs     = currClus{locJVec};
+    currClus    = struct2cell(clusterinfo{fi});
+    locs        = currClus{locJVec};
+    tmpSize     = length(locs);
+    tmpR        = repmat(locs', tmpSize, 1);
+    tmpC        = repmat(locs,  tmpSize, 1);
+    alloc       = count:count+tmpSize^2 - 1;
+    allR(alloc) = tmpR(:);
+    allC(alloc) = tmpC(:);
+ 
+    % Extract values - these are for every random effect
     for ri = 1:length(RandomEffects)
-        Ss{ri}(locs, locs) = currClus{RFX_ord(ri)};
+        allV(alloc, ri) = currClus{RFX_ord(ri)}(:);
     end
+    count = count + tmpSize^2;
+end
+ 
+% Put together as sparse matrices
+for ri = 1:length(RandomEffects)
+    Ss{ri} = sparse(allR, allC, allV(:,ri), length(iid), length(iid), nnz_max);
 end
 
-% Older solution:
+% More efficient solution:
+% for fi = 1:nfam
+%     currClus = struct2cell(clusterinfo{fi});
+%     locs     = currClus{locJVec};
+%     for ri = 1:length(RandomEffects)
+%         Ss{ri}(locs, locs) = currClus{RFX_ord(ri)};
+%     end
+% end
+
+% Original solution:
 % Ss = repmat({spalloc(nobs,nobs,nnz_max)},[1 length(RandomEffects)]);
 % %tic
 % for fi = 1:nfam

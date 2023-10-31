@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * ``FEMA_parse_family``: performance improvement (summary below)
   - performing a string comparison by creating a string version of ``freq_unique`` and ``famtypelist`` (instead of ``ivec = find(cellfun(@(x)isequal(x,freq_unique),famtypelist));``)
   - replaced repeated accessing of clusterinfo by converting to cell and then accessing contents of the cell
+  - constructing Ss using rows, columns, and values instead of spalloc initially and then iteratively changing values inside - should lead to much better performance
 * ``FEMA_sig2binseg_parfeval``: performance improvement (summary below)
   - major code rewrite and formatting changes
   - inverses are calculated using backslash (only in rank deficient cases we either use lsqminnorm or fall back to pinv)
