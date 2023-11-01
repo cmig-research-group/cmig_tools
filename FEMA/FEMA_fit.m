@@ -412,8 +412,8 @@ for coli_ri=1:ncols_ri
         sig2tvec     = sum(ymat_res.^2,1)/(size(ymat_res, 1) - size(X, 2)); % Adjust for the number of estimated parameters -- should use effective DOF instead?
         beta_se      = sqrt(diag(iXtX) * sig2tvec);
         Cov_beta     = iXtX;
-        ymat_hat_ols = ymat_hat;
-        ymat_res_ols = ymat_res;
+        % ymat_hat_ols = ymat_hat;
+        % ymat_res_ols = ymat_res;
 
         % Older OLS solution:
         % Xi            = pinv(X);
@@ -428,8 +428,8 @@ for coli_ri=1:ncols_ri
         % beta_se       = sqrt(diag(Cov_beta) * sig2tvec);
 
         % Save OLS variables for later use
-        reusableVars.ymat_hat_ols = ymat_hat_ols;
-        reusableVars.ymat_res_ols = ymat_res_ols;
+        % reusableVars.ymat_hat_ols = ymat_hat;
+        % reusableVars.ymat_res_ols = ymat_res;
 
         for ci = 1:size(contrasts,1)
             betacon_hat(ci,:) = contrasts(ci,:)      * beta_hat;
@@ -863,6 +863,10 @@ for coli_ri=1:ncols_ri
                     betacon_se(:,  ivec_tmp) = F(completedIdx).OutputArguments{4};
                 end
             end
+
+            % Save OLS variables just before computing GLS varialbes
+            reusableVars.ymat_hat_ols = ymat_hat;
+            reusableVars.ymat_res_ols = ymat_res;
 
             ymat_hat = X * beta_hat;
             ymat_res = ymat - ymat_hat;

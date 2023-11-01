@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - uses ``lsqnonneg_amd3`` instead of ``lsqnonneg_amd2`` - should improve performance
   - subvec1, subvec2, and indvec are updated to ``find(tril(S_sum))`` - should fix increased memory requirement
   - removed redundant fields between ``reusableVars`` and ``FamilyStruct`` - should reduce memory requirement
+  - no longer explicitly saving ``ymat_hat_ols`` and ``ymat_res_ols`` as separate variables - directly using ``ymat_hat`` and ``ymat_res`` - should reduce memory requirement
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ## [Unreleased]
