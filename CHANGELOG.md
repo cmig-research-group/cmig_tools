@@ -23,13 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - no longer computing XtWVsWt
 * ``FEMA_fit``: combined version of Anders' ``FEMA_DEAP_fit`` and `GWAS_v2` branch ``FEMA_fit``
   - now includes IGLS
-  - additionally returning reusableVars - a structure having variables like clusterinfo which can be reused
+  - additionally returning reusableVars - a structure having some variables predicted values and residuals which can be reused
   - slight changes to OLS estimation
   - returning non-permuted binvec (i.e., returns binvec_save)
   - additionally returning FamilyStruct - for use in DEAP
   - improved documentation of input and output variables
   - uses ``lsqnonneg_amd3`` instead of ``lsqnonneg_amd2`` - should improve performance
   - subvec1, subvec2, and indvec are updated to ``find(tril(S_sum))`` - should fix increased memory requirement
+  - removed redundant fields between ``reusableVars`` and ``FamilyStruct`` - should reduce memory requirement
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ## [Unreleased]

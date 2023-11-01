@@ -268,11 +268,11 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
                           'sig2gridind', sig2gridind,   'nsig2bins', nsig2bins,       ...
                           'subvec1',     subvec1,       'subvec2', subvec2);
 
-    % Save some variables for later use
-    reusableVars.famtypevec  = famtypevec;
-    reusableVars.famtypelist = famtypelist;
-    reusableVars.clusterinfo = clusterinfo;
-    reusableVars.nfamtypes   = nfamtypes;
+    % % Save some variables for later use
+    % reusableVars.famtypevec  = famtypevec;
+    % reusableVars.famtypelist = famtypelist;
+    % reusableVars.clusterinfo = clusterinfo;
+    % reusableVars.nfamtypes   = nfamtypes;
 else
     clusterinfo = FamilyStruct.clusterinfo;
     M           = FamilyStruct.M;
@@ -287,10 +287,10 @@ else
     subvec2     = FamilyStruct.subvec2;
 
     % Save some variables for later use
-    reusableVars.famtypevec  = FamilyStruct.famtypevec;
-    reusableVars.famtypelist = FamilyStruct.famtypelist;
-    reusableVars.clusterinfo = FamilyStruct.clusterinfo;
-    reusableVars.nfamtypes   = FamilyStruct.nfamtypes;
+    % reusableVars.famtypevec  = FamilyStruct.famtypevec;
+    % reusableVars.famtypelist = FamilyStruct.famtypelist;
+    % reusableVars.clusterinfo = FamilyStruct.clusterinfo;
+    % reusableVars.nfamtypes   = FamilyStruct.nfamtypes;
 end
 
 tshim = now-t0;
