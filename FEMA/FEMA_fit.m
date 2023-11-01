@@ -407,8 +407,9 @@ for coli_ri=1:ncols_ri
             iXtX     = XtX \ eye(size(XtX));
         end
         beta_hat     = iXtX * (X' * ymat);
+        ymat_res     = ymat - (X * beta_hat);
         ymat_hat     = X * beta_hat;
-        ymat_res     = ymat - ymat_hat;
+        % ymat_res     = ymat - ymat_hat;
         sig2tvec     = sum(ymat_res.^2,1)/(size(ymat_res, 1) - size(X, 2)); % Adjust for the number of estimated parameters -- should use effective DOF instead?
         beta_se      = sqrt(diag(iXtX) * sig2tvec);
         Cov_beta     = iXtX;
@@ -865,14 +866,14 @@ for coli_ri=1:ncols_ri
             end
 
             % Save OLS variables just before computing GLS varialbes
-            reusableVars.ymat_hat_ols = ymat_hat;
+            % reusableVars.ymat_hat_ols = ymat_hat;
             reusableVars.ymat_res_ols = ymat_res;
 
-            ymat_hat = X * beta_hat;
-            ymat_res = ymat - ymat_hat;
+            % ymat_hat = X * beta_hat;
+            ymat_res = ymat - (X * beta_hat);
 
             % Save GLS variables
-            reusableVars.ymat_hat_gls = ymat_hat;
+            % reusableVars.ymat_hat_gls = ymat_hat;
             reusableVars.ymat_res_gls = ymat_res;
         end
 
