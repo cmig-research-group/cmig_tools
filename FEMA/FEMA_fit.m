@@ -407,14 +407,11 @@ for coli_ri=1:ncols_ri
             iXtX     = XtX \ eye(size(XtX));
         end
         beta_hat     = iXtX * (X' * ymat);
-        ymat_res     = ymat - (X * beta_hat);
         ymat_hat     = X * beta_hat;
-        % ymat_res     = ymat - ymat_hat;
+        ymat_res     = ymat - ymat_hat;
         sig2tvec     = sum(ymat_res.^2,1)/(size(ymat_res, 1) - size(X, 2)); % Adjust for the number of estimated parameters -- should use effective DOF instead?
         beta_se      = sqrt(diag(iXtX) * sig2tvec);
         Cov_beta     = iXtX;
-        % ymat_hat_ols = ymat_hat;
-        % ymat_res_ols = ymat_res;
 
         % Older OLS solution:
         % Xi            = pinv(X);
@@ -440,9 +437,9 @@ for coli_ri=1:ncols_ri
         for iter = 1:max(1,niter)
 
             % sig2tvec = mean(ymat_res.^2,1);
-              % Should we use  ymat_res' * inv(V) * ymat_res instead, 
-              % as ymat_res ~ N(0, sig_t * V), with inv(V)=Vis, 
-              % as defined in FEMA_sig2binseg_parfeval?
+            % Should we use  ymat_res' * inv(V) * ymat_res instead,
+            % as ymat_res ~ N(0, sig_t * V), with inv(V)=Vis,
+            % as defined in FEMA_sig2binseg_parfeval?
             sig2tvec = sum(ymat_res.^2,1)/(size(ymat_res,1)-size(X,2));
 
             % LHS = ymat_res(subvec1,:).*ymat_res(subvec2,:);
@@ -869,8 +866,8 @@ for coli_ri=1:ncols_ri
             % reusableVars.ymat_hat_ols = ymat_hat;
             reusableVars.ymat_res_ols = ymat_res;
 
-            % ymat_hat = X * beta_hat;
-            ymat_res = ymat - (X * beta_hat);
+            ymat_hat = X * beta_hat;
+            ymat_res = ymat - ymat_hat;
 
             % Save GLS variables
             % reusableVars.ymat_hat_gls = ymat_hat;
