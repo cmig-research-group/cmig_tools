@@ -1,4 +1,4 @@
-function [betahat_out, resnorm, residual] = lsqnonneg_amd3(C,d,nnvec)
+function [betahat_out, residual, resnorm] = lsqnonneg_amd3(C,d,nnvec)
 % This is an alternate version of lsqnonneg_amd2 that skips using pinv
 
 if ~exist('nnvec','var')
@@ -60,9 +60,14 @@ end
 
 betahat_out(:,ivec_neg) = betahat;
 
-d_pred = C*betahat_out;
-residual = d_pred-d_bak;
-resnorm = sum(colvec(residual).^2)./sum(colvec(d).^2);
+if nargout>1
+  d_pred = C*betahat_out;
+  residual = d_pred-d_bak;
+  if nargout>2
+    resnorm = sum(colvec(residual).^2)./sum(colvec(d).^2);
+  end
+end
+
 %resnorm = norm(residual); % Check why this takes so long
 
 return
@@ -99,4 +104,3 @@ for comboi = 1:ncombos % Should only re-do voxels that provide negative values f
   ivec_vox = ivec_neg;
   toc
 end
-
