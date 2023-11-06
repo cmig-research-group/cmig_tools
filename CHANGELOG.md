@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased - 2023-10-27]
 
 ### Added
-* ``lsqnonneg_amd3``: modified version of ``lsqnonneg_amd2`` that avoids using pinv; should lead to performance improvement
+* ``lsqnonneg_amd3``: modified version of ``lsqnonneg_amd2`` that avoids using pinv; should lead to performance improvement; additionally, residual and resnorm are only returned if user wants (should reduce memory use)
 
 ### Changed
 * ``colvec``: switched to numel instead of prod (trivial performance improvement)
@@ -16,14 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - performing a string comparison by creating a string version of ``freq_unique`` and ``famtypelist`` (instead of ``ivec = find(cellfun(@(x)isequal(x,freq_unique),famtypelist));``)
   - replaced repeated accessing of clusterinfo by converting to cell and then accessing contents of the cell
   - constructing Ss using rows, columns, and values instead of spalloc initially and then iteratively changing values inside - should lead to much better performance
-* ``FEMA_sig2binseg_parfeval``: performance improvement (summary below)
-  - major code rewrite and formatting changes
-  - inverses are calculated using backslash (only in rank deficient cases we either use lsqminnorm or fall back to pinv)
-  - replaced repeated accessing of clusterinfo by converting to cell and then accessing contents of the cell
-  - no longer computing XtWVsWt
 * ``FEMA_fit``: combined version of Anders' ``FEMA_DEAP_fit`` and `GWAS_v2` branch ``FEMA_fit``
   - now includes IGLS
-  - additionally returning reusableVars - a structure having some variables predicted values and residuals which can be reused
+  - additionally returning reusableVars, if the user specifies ``returnReusable`` as ``true`` - a structure having some settings, residuals, and MSE which can be reused for FEMA-GWAS
   - slight changes to OLS estimation
   - returning non-permuted binvec (i.e., returns binvec_save)
   - additionally returning FamilyStruct - for use in DEAP
@@ -32,7 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - subvec1, subvec2, and indvec are updated to ``find(tril(S_sum))`` - should fix increased memory requirement
   - removed redundant fields between ``reusableVars`` and ``FamilyStruct`` - should reduce memory requirement
   - no longer explicitly saving ``ymat_hat_ols`` and ``ymat_res_ols`` as separate variables - directly using ``ymat_hat`` and ``ymat_res`` - should reduce memory requirement
+  - merged GLS estimation from ``FEMA_sig2binseg_parfeval``
+  - dropped ``reverse_cols`` and ``reverseinferenceflag``
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
+
+### Deleted
+* ``FEMA_sig2binseg_parfeval``: now merged with FEMA_fit (summary of changes done prior to merging below; these changes are now part of ``FEMA_fit``):
+  - major code rewrite and formatting changes
+  - inverses are calculated using backslash (only in rank deficient cases we either use lsqminnorm or fall back to pinv)
+  - replaced repeated accessing of clusterinfo by converting to cell and then accessing contents of the cell
+  - no longer computing XtWVsWt
 
 ## [Unreleased]
 
