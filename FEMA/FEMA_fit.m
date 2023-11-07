@@ -72,6 +72,12 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 starttime = now(); %#ok<*TNOW1>
 logging('***Start***');
 
+% Extremely quick sanity check on X and y variables
+if logical(sum(any(isnan(X)))) || logical(sum(any(isnan(ymat)))) || ...
+   logical(sum(any(isinf(X)))) || logical(sum(any(isinf(ymat))))
+    error('X and/or ymat have NaN or Inf; please check your data');
+end
+
 p = inputParser;
 
 if ~exist('niter', 'var') || isempty(niter)
@@ -507,7 +513,7 @@ for permi = 0:nperms
             sig2tvec = sig2tvec_ml;
         end
 
-        % Snap to random effects grid -- should make this a script
+        %% Snap to random effects grid -- should make this a script
         nvec_bins = NaN(nsig2bins, 1);
         tvec_bins = zeros(nsig2bins, 1);
         for sig2bini = 1:nsig2bins
@@ -519,6 +525,26 @@ for permi = 0:nperms
             ivec_bin            = find(tmpvec);
             nvec_bins(sig2bini) = length(ivec_bin);
             binvec(ivec_bin)    = sig2bini;
+        end
+
+        % If by any chance the bin was not assigned, coerce to the next
+        % nearest bin
+        locNaN = find(isnan(binvec));
+        if ~isempty(locNaN)
+            % Set this flag to 1, to enable debugging
+            if 0
+                keyboard; %#ok<KEYBOARDFUN,UNRCH>
+            end
+            for tmpBin = 1:length(locNaN)
+                % For this bin, find the closest neighboring bin on the
+                % grid; this is the bin where the absolute difference
+                % between the estimated effects and grid values are the 
+                % smallest
+                tmpVals = sig2mat(1:size(sig2mat,1)-1, locNaN(tmpBin))';
+                absDiff = sum(abs(tmpVals - sig2grid), 2);
+                binvec(locNaN(tmpBin)) = find(absDiff == min(absDiff), 1);
+            end
+            warning(['Bins for the following y variables were coerced to the next nearest: ', num2str(locNaN)]);
         end
 
         %% Using approach described by Goldstein and Lindquist
@@ -663,11 +689,13 @@ for permi = 0:nperms
         % Ugly hack to save resampled random effects estimates
         sig2mat_save  = sig2mat;
         sig2tvec_save = sig2tvec;
-        binvec_save   = binvec;
 
         % Save bin info
-        if returnReusable && permi == 1
-            reusableVars.binvec = binvec_save;
+        if permi == 0
+            binvec_save = binvec;
+            if returnReusable
+                reusableVars.binvec = binvec_save;
+            end
         end
 
         if permi>0
@@ -693,7 +721,7 @@ for permi = 0:nperms
         locJVec      = strcmpi(ff, 'jvec_fam');
 
         % Save this ordering info for future use
-        if returnReusable && permi == 1
+        if returnReusable && permi == 0
             reusableVars.RFX_ord = RFX_ord;
             reusableVars.locJVec = locJVec;
         end

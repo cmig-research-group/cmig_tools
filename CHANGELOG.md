@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
-## [Unreleased - 2023-10-27]
+## [Unreleased - 2023-11-08]
 
 ### Added
 * ``lsqnonneg_amd3``: modified version of ``lsqnonneg_amd2`` that avoids using pinv; should lead to performance improvement; additionally, residual and resnorm are only returned if user wants (should reduce memory use)
@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - no longer explicitly saving ``ymat_hat_ols`` and ``ymat_res_ols`` as separate variables - directly using ``ymat_hat`` and ``ymat_res`` - should reduce memory requirement
   - merged GLS estimation from ``FEMA_sig2binseg_parfeval``
   - dropped ``reverse_cols`` and ``reverseinferenceflag``
+  - additionally handling cases where bin might be assigned as NaN
+  - introduced a quick check of X and ymat to ensure no NaN or Inf
+  - ``binvec_save`` is saved when ``permi==0``
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ### Deleted
