@@ -716,9 +716,11 @@ for permi = 0:nperms
         % fields are always ordered in the same way since clusterinfo is
         % created in the same way across all clusters
         ff           = fieldnames(clusterinfo{1});
-        [a, b]       = ismember(ff, strcat('V_', RandomEffects));
-        [~, RFX_ord] = sort(b(a));
+        RFX_ord      = zeros(length(RandomEffects),1);
         locJVec      = strcmpi(ff, 'jvec_fam');
+        for rfx = 1:length(RandomEffects)
+            RFX_ord(rfx,1) = find(strcmpi(ff, ['V_', RandomEffects{rfx}]));
+        end
 
         % Save this ordering info for future use
         if returnReusable && permi == 0

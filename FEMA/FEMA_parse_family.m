@@ -166,13 +166,15 @@ end
 % Should modify code above and below to use arbitray list of clusterinfo{:}.Vs
 % Identify which cell entry is jvec_fam in clusterinfo
 ff           = fieldnames(clusterinfo{1});
-[a, b]       = ismember(ff, strcat('V_', RandomEffects));
-[~, RFX_ord] = sort(b(a));
+RFX_ord      = zeros(length(RandomEffects),1);
 locJVec      = strcmpi(ff, 'jvec_fam');
+for rfx = 1:length(RandomEffects)
+    RFX_ord(rfx,1) = find(strcmpi(ff, ['V_', RandomEffects{rfx}]));
+end
 
 % Initialization
 nnz_max = sum(nfmemvec.^2);
-Ss      = cell(length(RandomEffects), 1);
+Ss      = cell(1, length(RandomEffects));
 allR    = zeros(nnz_max, 1);
 allC    = zeros(nnz_max, 1);
 allV    = zeros(nnz_max, length(RandomEffects));
