@@ -766,7 +766,7 @@ for permi = 0:nperms
 
                             % Compute inverse of V
                             Vis_famtype = double(Vs_famtype) \ eye(tmpSize, SingleOrDouble);
-                            if any(isnan(Vis_famtype))
+                            if any(isnan(Vis_famtype) | isinf(Vis_famtype))
                                 Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
                             end
                             Ws_famtype{fi} = Vis_famtype;
@@ -785,7 +785,7 @@ for permi = 0:nperms
 
                             % Compute inverse of V
                             Vis_fam = double(Vs_fam) \ eye(tmpSize, SingleOrDouble);
-                            if any(isnan(Vis_fam))
+                            if any(isnan(Vis_fam) | isinf(Vis_fam))
                                 Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
                             end
                             Ws_fam{fi} = Vis_fam;
