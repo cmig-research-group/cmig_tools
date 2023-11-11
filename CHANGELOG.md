@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - additionally handling cases where bin might be assigned as NaN
   - introduced a quick check of X and ymat to ensure no NaN or Inf
   - ``binvec_save`` is saved when ``permi==0``
+  - more robust handling of singular or nearly singular matrix; no longer displaying warnings (use pinv if a warning is generated)
 * ``FEMA_run_on_synthetic_data``: updated to match the output(s) from ``FEMA_fit``
 
 ### Deleted

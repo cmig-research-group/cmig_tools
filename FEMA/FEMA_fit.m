@@ -750,6 +750,14 @@ for permi = 0:nperms
             reusableVars.locJVec = locJVec;
         end
 
+        % Get warning statuses for singular and nearly singular cases;
+        % temporarily set their display off
+        statusSingular = warning('off', 'MATLAB:singularMatrix');
+        statusNearSing = warning('off', 'MATLAB:nearlySingularMatrix');
+
+        % Clear last warning
+        lastwarn('');
+
         for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
             t0         = now; %#ok<*TNOW1>
             ivec_bin   = find(binvec==sig2bini);
@@ -788,10 +796,13 @@ for permi = 0:nperms
 
                             % Compute inverse of V
                             Vis_famtype = double(Vs_famtype) \ eye(tmpSize, SingleOrDouble);
-                            if any(isnan(Vis_famtype) | isinf(Vis_famtype))
+                            msg         = lastwarn;
+                            if ~isempty(msg)
                                 Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
+                                msg = '';
+                                lastwarn('');
                             end
-                            Ws_famtype{fi} = Vis_famtype;
+                                Ws_famtype{fi} = Vis_famtype;
                         end
                     else
                         % Compute Vs and Vis for each family
@@ -807,12 +818,19 @@ for permi = 0:nperms
 
                             % Compute inverse of V
                             Vis_fam = double(Vs_fam) \ eye(tmpSize, SingleOrDouble);
-                            if any(isnan(Vis_fam) | isinf(Vis_fam))
+                            msg     = lastwarn;
+                            if ~isempty(msg)
                                 Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                                msg = '';
+                                lastwarn('');
                             end
                             Ws_fam{fi} = Vis_fam;
                         end
                     end
+
+                    % Reset the status of warnings
+                    warning(statusSingular);
+                    warning(statusNearSing);
 
                     % Compute XtW
                     XtW   = zeros(fliplr(size(X)), class(X));
