@@ -241,28 +241,50 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
         M(:,i) = Ss{i}(indvec);
     end
 
-    % Create grid of normalized random effects -- currently supports only FSE models -- should generalize to arbitrary set of random effects
-    %binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = binvals_edges(end)+0.0001; % Should adjust max to include all values above sig2gridl
-    binvals_edges       = linspace(0, 1, nbins+1);
-    binvals_edges(end)  = Inf;
-    if length(RandomEffects)==2 % Why is this needed? -- N-d version, below, should work for 2-d?
+    % Create grid of normalized random effects
+    binvals_edges       = linspace(0,1,nbins+1); 
+    binvals_edges(end)  = binvals_edges(end)+0.0001;
+
+    % New ND version
+    if length(RandomEffects) == 2
         sig2gridi = colvec(1:length(binvals_edges)-1);
         sig2gridl = colvec(binvals_edges(1:end-1));
         sig2gridu = colvec(binvals_edges(2:end));
     else
-        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1},[1 length(RandomEffects)-1]));
-        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},   [1 length(RandomEffects)-1]));
-        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},     [1 length(RandomEffects)-1]));
+        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1}, [1 length(RandomEffects)-1]));
+        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 length(RandomEffects)-1]));
+        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 length(RandomEffects)-1]));
     end
-    %sig2grid = (sig2gridl+sig2gridu)/2; % Should make sig2gridl+1/nbins
-    sig2grid      = sig2gridl+(0.5/nbins);
-    sig2grid_ivec = find(sum(sig2grid,2)<=1-0.5/nbins); % Get rid of "impossible" bins -- use middle of bin instead
+    sig2grid_ivec = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
     sig2gridl     = sig2gridl(sig2grid_ivec,:);
     sig2gridu     = sig2gridu(sig2grid_ivec,:);
-    sig2grid      = sig2grid(sig2grid_ivec,:);
     sig2gridi     = sig2gridi(sig2grid_ivec,:);
+    sig2grid      = (sig2gridl+sig2gridu)/2;
     sig2gridind   = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
-    nsig2bins     = size(sig2grid,1); % Should handle case of no binning
+    nsig2bins     = size(sig2gridl,1); % Should handle case of no binning
+
+    % % Create grid of normalized random effects -- currently supports only FSE models -- should generalize to arbitrary set of random effects
+    % %binvals_edges = linspace(0,1,nbins+1); binvals_edges(end) = binvals_edges(end)+0.0001; % Should adjust max to include all values above sig2gridl
+    % binvals_edges       = linspace(0, 1, nbins+1);
+    % binvals_edges(end)  = Inf;
+    % if length(RandomEffects)==2 % Why is this needed? -- N-d version, below, should work for 2-d?
+    %     sig2gridi = colvec(1:length(binvals_edges)-1);
+    %     sig2gridl = colvec(binvals_edges(1:end-1));
+    %     sig2gridu = colvec(binvals_edges(2:end));
+    % else
+    %     sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1},[1 length(RandomEffects)-1]));
+    %     sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},   [1 length(RandomEffects)-1]));
+    %     sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},     [1 length(RandomEffects)-1]));
+    % end
+    % %sig2grid = (sig2gridl+sig2gridu)/2; % Should make sig2gridl+1/nbins
+    % sig2grid      = sig2gridl+(0.5/nbins);
+    % sig2grid_ivec = find(sum(sig2grid,2)<=1-0.5/nbins); % Get rid of "impossible" bins -- use middle of bin instead
+    % sig2gridl     = sig2gridl(sig2grid_ivec,:);
+    % sig2gridu     = sig2gridu(sig2grid_ivec,:);
+    % sig2grid      = sig2grid(sig2grid_ivec,:);
+    % sig2gridi     = sig2gridi(sig2grid_ivec,:);
+    % sig2gridind   = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
+    % nsig2bins     = size(sig2grid,1); % Should handle case of no binning
 
     % Prepare FamilyStruct
     FamilyStruct = struct('clusterinfo', {clusterinfo}, 'M', {M},                     ...
@@ -615,15 +637,15 @@ for permi = 0:nperms
                 XtWX = 0;
                 if GroupByFamType
                     for fi = 1:length(clusterinfo)
-                        ivec_tmp = clusterinfo{fi}.ivec_fam;
-                        XtWy = XtWy + M(ivec_tmp,:)' * Ws_famtype{famtypevec(fi)} * LHS(ivec_tmp, ivec_bin);
-                        XtWX = XtWX + M(ivec_tmp,:)' * Ws_famtype{famtypevec(fi)} * M(ivec_tmp, :);
+                        sig2grid_ivec = clusterinfo{fi}.ivec_fam;
+                        XtWy = XtWy + M(sig2grid_ivec,:)' * Ws_famtype{famtypevec(fi)} * LHS(sig2grid_ivec, ivec_bin);
+                        XtWX = XtWX + M(sig2grid_ivec,:)' * Ws_famtype{famtypevec(fi)} * M(sig2grid_ivec, :);
                     end
                 else
                     for fi = 1:length(clusterinfo)
-                        ivec_tmp = clusterinfo{fi}.ivec_fam;
-                        XtWy = XtWy + M(ivec_tmp,:)' * Ws_fam{fi} * LHS(ivec_tmp, ivec_bin);
-                        XtWX = XtWX + M(ivec_tmp,:)' * Ws_fam{fi} * M(ivec_tmp, :);
+                        sig2grid_ivec = clusterinfo{fi}.ivec_fam;
+                        XtWy = XtWy + M(sig2grid_ivec,:)' * Ws_fam{fi} * LHS(sig2grid_ivec, ivec_bin);
+                        XtWX = XtWX + M(sig2grid_ivec,:)' * Ws_fam{fi} * M(sig2grid_ivec, :);
                     end
                 end
 
