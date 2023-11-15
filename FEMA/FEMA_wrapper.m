@@ -58,7 +58,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 % See LICENSE.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-logging('***Start FEMA v2.1, 11/15/2023)');
+logging('***Start FEMA v2.3, 11/15/2023)');
 starttime = now();
 rng shuffle %Set random number generator so different every time
 
