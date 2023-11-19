@@ -828,10 +828,6 @@ for permi = 0:nperms
                         end
                     end
 
-                    % Reset the status of warnings
-                    warning(statusSingular);
-                    warning(statusNearSing);
-
                     % Compute XtW
                     XtW   = zeros(fliplr(size(X)), class(X));
                     nClus = length(clusterinfo);
@@ -877,6 +873,10 @@ for permi = 0:nperms
                 tvec_bins(sig2bini) = (now-t0) * 3600 * 24; % Time in seconds
             end
         end
+
+        % Reset the status of warnings
+        warning(statusSingular);
+        warning(statusNearSing);
 
         ymat_hat = X * beta_hat;
         ymat_res = ymat - ymat_hat;
