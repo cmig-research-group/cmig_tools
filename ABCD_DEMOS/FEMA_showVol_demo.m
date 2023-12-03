@@ -90,7 +90,7 @@ bg_vol = [];                        % Set background image to overlay statistics
 CSFprob = [];                       % Probabilistic threshold for masking CSF e.g. if CSFprob=0.8, only voxels in which 80% of participants labelled that voxel as CSF will be masked (Default: no masking)
 interpMethod = [];                  % By default uses linear interpolation to go from 2mm to 1mm voxels. Specify 'nearest' to show actual resolution
 
-vols = convertFEMAVols(vol_stat, fstem_imaging, stat_name, colnames_model, index, limits, showPval, cmap, bg_vol, CSFprob, interpMethod, atlasVersion)
+vols = convertFEMAVols(vol_stat, fstem_imaging, stat_name, colnames_model, index, limits, showPval, cmap, bg_vol, CSFprob, interpMethod, atlasVersion);
 
 % 4) Visualize using showVol
 switch atlasVersion

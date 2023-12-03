@@ -70,7 +70,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
   if strcmpi(datatype, 'voxel')
     %Load voxelwise imaging data
     logging('Reading VOXELWISE %s imaging data',fstem_imaging);
-
+    tic
     measname = fstem_imaging;
     dirname_volmats = dirname_imaging;
     fname_volinfo = sprintf('%s/volinfo.mat',dirname_volmats);
@@ -104,13 +104,13 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
           datevec{diri} = tmp.date;
           visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
         end
-        toc
         iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
         visitid_concat = visitidvec;
         corrmat_concat = tmp_volinfo.corrmat;
       otherwise
         warning('Data release %s may not work properly. Check the code that parses voxelwise data directory names')
     end
+    toc
 
   elseif strcmpi(datatype, 'vertex')
     % Read in vertexwise imaging data
@@ -237,6 +237,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 
   switch dataRelease
     case '3.0'
+      tic
       files=dir([dirname_tabulated '/abcd_mri01*']);
       fname_tabulated=[dirname_tabulated '/' files.name];
       logging('Reading tabulated imaging data from %s',fname_tabulated);
@@ -361,7 +362,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       case '3.0'
         defvec=find(corrvec>=thresh);
       case {'4.0', '5.0'}
-        defvec=find(corrvec>=thresh & imgtable.imgincl_dmri_include==1 & imgtable.imgincl_t1w_include==1);
+        defvec=find(corrvec>=thresh & str2double(imgtable.imgincl_dmri_include)==1 & str2double(imgtable.imgincl_t1w_include)==1);
     end
     ymat=ymat(defvec,:);
     idevent=idevent(defvec,:);
