@@ -144,6 +144,9 @@ set(handles.figure, 'Renderer', 'zbuffer');
 
 set(handles.figure, 'Tag','showVol')
 
+%check dependencies (make sure utils is on path)
+handles = checkDependencies(handles);
+
 if isempty(varargin)
   fprintf('--------------------------------\n')
   fprintf('%s: no inputs given\n', mfilename);
@@ -529,8 +532,6 @@ handles = anatomySetup(handles);
 %initialize annotations (ABCD only, nop if not)
 handles = annotationSetup(handles);
 
-%check dependencies
-handles = checkDependencies(handles);
 
 %set up FOD zoomed inset
 set(handles.zoomedInsetAxes, 'Visible','off')
@@ -861,9 +862,15 @@ vol1 = handles.vols{1};
 if nargin < 2
   vol = handles.vols{handles.currentVol};
 end
-sf.r = vol1.vx/vol.vx;
-sf.c = vol1.vy/vol.vy;
-sf.s = vol1.vz/vol.vz;
+try
+    sf.r = vol1.vx/vol.vx;
+    sf.c = vol1.vy/vol.vy;
+    sf.s = vol1.vz/vol.vz;
+catch
+    sf.r = 1;
+    sf.c = 1;
+    sf.s = 1;
+end
 sf.scale = mean([sf.r sf.c sf.s]);
 
 return
@@ -1075,14 +1082,15 @@ function broadcastLPH(handles)
 
 if ~isfield(handles,'doLinkCoordinates') || ~handles.doLinkCoordinates, return, end
 
-showVolWins = findobj(get(0,'children'),'flat','Tag','showVol');
+showVolWins = findobj(get(0,'children'),'flat','Tag','showVol','-or','Tag','showVol_listener');
 for win = showVolWins'
-  if isequal(win,gcf), continue, end
+  if isequal(win,handles.figure), continue, end
   rcs = [handles.rr handles.cc handles.ss 1];
   M = handles.Mvxl2lph_atlas;
   lph = M * rcs(:);
   ud.lph = lph(1:3);
   ud.M = M;
+  ud.sender = handles.figure;
   set(win, 'UserData',ud)
 end
 
@@ -1092,9 +1100,9 @@ end
 function receiveLPH(~,event)
 
 destFig = event.AffectedObject;
-srcFig = gcf;
 ud = destFig.UserData;
 handles = guidata(destFig);
+srcFig = ud.sender;
 
 if ~isfield(handles,'doLinkCoordinates') || ~handles.doLinkCoordinates, return, end
 if ~isfield(ud,'lph'), return, end %|| isequal(ud.rcs, [handles.rr handles.cc handles.ss])
@@ -1117,8 +1125,8 @@ set(0,'CurrentFigure',srcFig)
 %% ------------------------------------------------------------
 function handles = registerCoordinateListener(handles)
 
-handles.CoordinateListener = addlistener(gcf,'UserData', 'PostSet', @receiveLPH);
-guidata(gcf, handles)
+handles.CoordinateListener = addlistener(handles.figure,'UserData', 'PostSet', @receiveLPH);
+guidata(handles.figure, handles)
 
 %% +++++++ end of functions related to broadcasting coords across viewers
 %% ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1131,7 +1139,7 @@ guidata(gcf, handles)
 function handles = checkDependencies(handles)
 %make sure utils are in path
 handles.showVolPath = fileparts(mfilename('fullpath'));
-path(addpath(fullfile(handles.showVolPath,'utils',''))); %make sure utils in path
+addpath(fullfile(handles.showVolPath,'utils','')); %make sure utils in path
 
 %make sure cmig_utils are present (public release will include, so should not be an issue)
 hasCmigUtils = exist('atlas_T1.m','file'); %pick a file found only in cmig_utils
@@ -1139,7 +1147,7 @@ if ~hasCmigUtils
   error('You must also get cmig_utils from github (https://github.com/cmig-research-group/cmig_utils) and add to your path.')  
 end
 
-guidata(gcf, handles)
+guidata(handles.figure, handles)
 
 
 %% ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1229,7 +1237,7 @@ else
 end
 
 handles.annotation.annotationUI = [];
-handles.annotation.listener = addlistener(gcf,'UserData', 'PostSet', @annotationReceive);
+handles.annotation.listener = addlistener(handles.figure,'UserData', 'PostSet', @annotationReceive);
 handles.annotation.updateUI = true;
 
 guidata(handles.figure, handles)
@@ -2202,7 +2210,8 @@ handles.anat.params.roiset = roiset;
 handles.anat.params.roiatlas = roiatlas;
 handles.anat.params.roiatlasversion = atlasnum;
 
-if ~isempty(roiset)
+if ~isempty(roiset) && exist(roiset,'file')
+  fprintf('%s: Loading ROI settings from %s\n',mfilename,roiset)
   handles = roi_load_button_Callback([], [], handles);
 end
 
@@ -2317,12 +2326,12 @@ function handles = showVolumeName(handles)
 %get name, if present, and add to figure title
 try
   name = handles.vols{handles.currentVol}.name;
-  set(gcf,'name',['showVol - ' name])
+  set(handles.figure,'name',['showVol - ' name])
 catch
   if isfield(handles,'volName_text') && ishandle(handles.volName_text)
     set(handles.volName_text,'String','', 'visible','off')
   end
-  set(gcf,'name','showVol')
+  set(handles.figure,'name','showVol')
   return
 end
 
@@ -2374,6 +2383,7 @@ if ~handles.anat.params.showOverlay || ~( isfield(handles.anat,'aseg') || isfiel
     set(handles.anat.aseg.roi_text,'visible','off')
     set(handles.anat.fiber.roi_text,'visible','off')
     set(handles.anat.aparcaseg.roi_text,'visible','off')
+  catch
   end
   return
 end
@@ -2409,6 +2419,7 @@ if isfield(handles.anat,'aseg') && handles.anat.aseg.showNames
 else
   try
     set(handles.anat.aseg.roi_text,'visible','off')
+  catch
   end
 end
 
@@ -2423,6 +2434,7 @@ if isfield(handles.anat,'fiber') && handles.anat.fiber.showNames
 else
   try
     set(handles.anat.fiber.roi_text,'visible','off')
+  catch
   end
 end
 
@@ -2445,6 +2457,7 @@ if isfield(handles.anat,'aparcaseg') && handles.anat.aparcaseg.showNames
 else
   try
     set(handles.anat.aparcaseg.roi_text,'visible','off')
+  catch
   end
 end
 
@@ -2998,8 +3011,9 @@ handles = meshCrossSection_rr(handles);
 printInfo(handles);
 
 handles = updateDisplay_zoom(handles);
-guidata(gcf, handles)
+guidata(handles.figure, handles)
 
+%restore
 set(0,'CurrentFigure',frontFig)
 
 %% ------------------------------------------------------------
@@ -4987,7 +5001,7 @@ function roi_save_button_Callback(hObject, eventdata, handles)
 % hObject    handle to roi_save_button (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-if isempty(handles.annotation) || isempty(handles.anat), return, end
+if isempty(handles.anat), return, end
 
 anat.params = handles.anat.params;
 atlases = handles.anat.atlases;
@@ -5012,9 +5026,9 @@ function handles = roi_load_button_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-if isempty(handles.annotation) || isempty(handles.anat), return, end
+if isempty(handles.anat), return, end
 
-if isempty(hObject) && ~isempty(handles.anat.params.roiset) %special case during initialization
+if isempty(hObject) && ~isempty(handles.anat.params.roiset) %special case called during initialization with a roi settings in configuration
   fname = handles.anat.params.roiset;
 else
   [fname, fpath] = uigetfile(fullfile(userhome,'*.mat'),'Pick a ROI settings file');
