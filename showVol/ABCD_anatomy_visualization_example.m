@@ -11,6 +11,10 @@
 atlasVersion = 'ABCD2_cor10';
 fodtype = {'v','p80'}; %load several for now, to compare!
 
+% New in Dec 2023 -- not totally complete (no FOD, need some double-checking)
+atlasVersion = 'ABCD3_cor10';
+fodtype = [];
+
 % older
 % atlasVersion = 'ABCD1_cor10';
 % fodtype={''};
@@ -27,7 +31,7 @@ if exist(fname,'file')
   try
     thalamus_T1 = tmp.vol_T1; %FIXME--naming conventions across atlas versions need standardizing
   catch
-    thalamus_T1 = tmp.T1_thalamus_ABCD2;
+    thalamus_T1 = tmp.(['T1_thalamus_' atlasVersion(1:5)]);
   end
 end
 
@@ -53,6 +57,10 @@ switch cfg2.roiatlas
   case 'ABCD2'
     showVol(atlas_T1('ABCD2'), atlas_T1('ABCD1'),thalamus_T1, PRI.ABCD2.aparcaseg_rgb, PRI.ABCD2.fiber_rgb, PRI.ABCD2.CO, ...
        PRI.ABCD2.FOD, PRI.ABCD2.FOD_p80, cfg2);
+     
+  case 'ABCD3'
+    showVol(atlas_T1('ABCD3'), atlas_T1('ABCD3', true), atlas_T1('ABCD2'), atlas_T1('ABCD1'), PRI.ABCD3.aseg_rgb, PRI.ABCD3.aparcaseg_rgb,...
+      PRI.ABCD3.fiber_rgb, PRI.ABCD3.CO, cfg2);
 end
 
 % TO DO: standardize variable and volume names

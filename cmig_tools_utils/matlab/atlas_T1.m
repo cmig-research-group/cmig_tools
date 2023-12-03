@@ -5,7 +5,9 @@ function vol_T1 = atlas_T1(atlas, mask)
 %
 %  vol_T1 = atlas_T1(atlas, mask)
 %
-% optional input:
+%  atlas is ABCD1_cor10,  ABCD2_cor10 or ABCD3_cor10 (or just ABCD1, ABCD2 or ABCD3) - As of Dec 2023, ABCD3 by default if not specified
+%
+% optional input (default false):
 %   mask:     if true, return skull stripped brain-only T1
 %
 % demo:
@@ -16,8 +18,8 @@ if ~exist('mask','var')
 end
 
 if ~exist('atlas','var') || isempty(atlas)
-  atlas = 'ABCD1_cor10';
-  disp('atlas_T1; Using ABCD1 atlas by default. Specify atlas if you want something else.')
+  atlas = 'ABCD3_cor10';
+  warning('atlas_T1; Using ABCD3 atlas by default. Specify atlas if you want something else.')
 end
 
 cfg = abcdConfig('showVol');
@@ -41,6 +43,11 @@ switch atlas
     fname = fullfile(cfg.data.showVolData, 'Atlas','T1_ABCD2_cor10.mat');
     tmp = load(fname);
     vol_T1 = tmp.T1_ABCD2_cor10;
+    
+  case {'ABCD3_cor10','ABCD3'}
+    fname = fullfile(cfg.data.showVolData, 'Atlas','T1_ABCD3_cor10.mat');
+    tmp = load(fname);
+    vol_T1 = tmp.T1_ABCD3_cor10;
     
   otherwise
     error('Invalid atlas value (%s)',atlas)
