@@ -361,8 +361,10 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     switch dataRelease
       case '3.0'
         defvec=find(corrvec>=thresh);
-      case {'4.0', '5.0'}
+      case '4.0'
         defvec=find(corrvec>=thresh & str2double(imgtable.imgincl_dmri_include)==1 & str2double(imgtable.imgincl_t1w_include)==1);
+      case '5.0'
+        defvec=find(corrvec>=thresh & imgtable.imgincl_dmri_include==1 & imgtable.imgincl_t1w_include==1); 
     end
     ymat=ymat(defvec,:);
     idevent=idevent(defvec,:);
