@@ -1,5 +1,5 @@
 function [beta_hat, beta_se, tStats, logpValues] = ...
-          FEMA_sig2binseg_parfeval_GWAS_bf(genoMat, ymat, binvec, sig2tvec, varargin)
+          FEMA_sig2binseg_parfeval_GWAS_bf(genoMat, ymat, binvec, sig2tvec, Xvars, varargin)
 % Function to estimate the effect of each (residualized) SNP on
 % (residualized) phenotype using OLS or GLS
 %% Inputs:
@@ -197,7 +197,6 @@ p.addParameter('SingleOrDouble', 'double');
 p.addParameter('outDir',         '');
 p.addParameter('outName',        '');
 p.addParameter('useShortcut',    false);
-p.addParameter('allJVec',        []);
 p.addParameter('allWsTerms',     []);
 p.addParameter('reusableVars',   []);
 p.addParameter('clusterinfo',    []);
@@ -219,7 +218,6 @@ SingleOrDouble  = p.Results.SingleOrDouble;
 outDir          = p.Results.outDir;
 outName         = p.Results.outName;
 useShortcut     = p.Results.useShortcut;
-allJVec         = p.Results.allJVec;
 allWsTerms      = p.Results.allWsTerms;
 reusableVars    = p.Results.reusableVars;
 clusterinfo     = p.Results.clusterinfo;
@@ -231,7 +229,7 @@ Ws_fam          = p.Results.Ws_fam;
 % Deprecated slow solution
 classicalSolution = false;
 
-% Check whether SNP should interact with sex
+% Check whether SNP (*age) should interact with sex
 if isempty(sex)
     interactSex = false;
 else
@@ -273,8 +271,8 @@ end
 
 % Check if required variables are present, if useShortcut
 if useShortcut
-    if isempty(allJVec) || isempty(allWsTerms)
-        error('allJVec and allWsTerms are required inputs if useShortcut is true');
+    if isempty(allWsTerms)
+        error('allWsTerms is required if useShortcut is true');
     end
 else
     % If reusableVars is present, parse that
@@ -323,6 +321,7 @@ end
 %% Initialize
 [numObs, numSNPs] = size(genoMat);
 numYvars          = size(ymat, 2);
+nClus             = length(clusterinfo);
 
 % Update basis function, if required
 if interactSex
@@ -351,9 +350,18 @@ beta_se           = zeros(size(beta_hat), class(ymat));
 % df = df - totalColumns + 1;
 df = df - numBasisFunc + 1;
 
+%% Get ordering of fields in clusterinfo
+% Reasonable to assume that fields are always ordered in the same way since
+% clusterinfo is created in the same way across all clusters
+if ~useShortcut
+    ff           = fieldnames(clusterinfo{1});
+    [a, b]       = ismember(ff, strcat('V_', RandomEffects));
+    [~, RFX_ord] = sort(b(a));
+    locJVec      = strcmpi(ff, 'jvec_fam');
+end
+
 %% Handle the case of only one total column (standard GWAS)
 if numBasisFunc == 1
-    binLoc       = 1;
     for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
         ivec_bin = find(binvec==sig2bini);
 
@@ -384,22 +392,22 @@ if numBasisFunc == 1
             beta_se(:, ivec_bin) = sqrt(iterm1' * sig2tvec(ivec_bin));
         else
             % Initialize
-            XtW      = zeros(fliplr(size(genoMat)), class(genoMat));
+            XtW   = zeros(fliplr(size(genoMat)), class(genoMat));
             if ~useShortcut
                 if GroupByFamType
-                    for fi = 1:length(clusterinfo)
-                        XtW(:, clusterinfo{fi}.jvec_fam) = genoMat(clusterinfo{fi}.jvec_fam,:)' * Ws_famtype{binLoc, famtypevec(fi)};
+                    for fi = 1:nClus
+                        currClus = clusterinfo{fi};
+                        XtW(:, currClus.jvec_fam) = genoMat(currClus.jvec_fam,:)' * Ws_famtype{ivec_bin, famtypevec(fi)};
                     end
                 else
-                    for fi = 1:length(clusterinfo)
-                        XtW(:,clusterinfo{fi}.jvec_fam)  = genoMat(clusterinfo{fi}.jvec_fam,:)' * Ws_fam{binLoc, fi};
+                    for fi = 1:nClus
+                        currClus = clusterinfo{fi};
+                        XtW(:, cussClus.jvec_fam) = genoMat(currClus.jvec_fam,:)' * Ws_fam{ivec_bin, fi};
                     end
                 end
             else
                 % Jvec and Ws terms for this bin
-                currJVec    = allJVec{binLoc};
-                currWsTerm  = allWsTerms{binLoc};
-                XtW         = genoMat(currJVec, :)' * currWsTerm;
+                XtW = genoMat' * allWsTerms{ivec_bin};
             end
 
             % Calculating beta coefficient for every SNP
@@ -446,14 +454,10 @@ if numBasisFunc == 1
             % Standard error of beta
             beta_se(:,ivec_bin) = sqrt(Bi' * sig2tvec(ivec_bin));
         end
-
-        % Update binLoc
-        binLoc = binLoc + 1;
     end
 else
-    binLoc       = 1;
     for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
-        ivec_bin = find(binvec==sig2bini);
+        ivec_bin = find(binvec == sig2bini);
                 
         % Cast genovec as double precision, if required
         if strcmpi(SingleOrDouble, 'double')
@@ -462,8 +466,7 @@ else
 
         % Jvec and Ws terms for this bin
         if useShortcut
-            currJVec    = allJVec{binLoc};
-            currWsTerm  = allWsTerms{binLoc};
+            currWsTerm  = allWsTerms{ivec_bin};
         else
             if ~classicalSolution
                 % Use basis function to create new genotype matrix for this bin
@@ -484,12 +487,13 @@ else
                 XtW = zeros(fliplr(size(genoMat)), class(genoMat));
 
                 if GroupByFamType
-                    for fi = 1:length(clusterinfo)
-                        XtW(:, clusterinfo{fi}.jvec_fam) = genoMat(clusterinfo{fi}.jvec_fam,:)' * Ws_famtype{binLoc, famtypevec(fi)};
+                    for fi = 1:nClus
+                        currClus = clusterinfo{fi};
+                        XtW(:, currClus.jvec_fam) = genoMat(currClus.jvec_fam,:)' * Ws_famtype{ivec_bin, famtypevec(fi)};
                     end
                 else
-                    for fi = 1:length(clusterinfo)
-                        XtW(:,clusterinfo{fi}.jvec_fam) = genoMat(clusterinfo{fi}.jvec_fam,:)' * Ws_fam{binLoc, fi};
+                    for fi = 1:nClus
+                        XtW(:, currClus.jvec_fam) = genoMat(currClus.jvec_fam,:)' * Ws_fam{ivec_bin, fi};
                     end
                 end
 
@@ -515,7 +519,15 @@ else
             if useShortcut
                 % Prepare matrix of X variables
                 % tmpX = genoMat(:, snps) .* bfSNP;
-                tmpX   = genoMat(currJVec, snps) .* bfSNP;
+                % tmpX   = genoMat(currJVec, snps) .* bfSNP;
+                % tmpX   = genoMat(:, snps) .* bfSNP;
+                if snps == 1
+                    [tmpX, xXtW, xBi] = FEMA_GLSResiduals(genoMat(:,snps) .* bfSNP, Xvars, [], [], currWsTerm, 'backslash');
+                    % [tmpX, iXtX] = FEMA_OLSResiduals(genoMat(:,snps) .* bfSNP, Xvars, 'backslash');
+                else
+                    tmpX = FEMA_GLSResiduals(genoMat(:,snps) .* bfSNP, Xvars, xXtW, xBi, currWsTerm, 'backslash');
+                    % tmpX = FEMA_OLSResiduals(genoMat(:,snps) .* bfSNP, Xvars, 'backslash', iXtX);
+                end
             else
                 if ~classicalSolution
                     tmpX = genoMat(:, beginLocs(snps):endLocs(snps));
@@ -552,7 +564,6 @@ else
             else
                 % Prepare XtW
                 if useShortcut
-                    % XtW = tmpX(currJVec, :)' * currWsTerm;
                     XtW = tmpX' * currWsTerm;
 
                     % XtW is already transposed
@@ -561,12 +572,13 @@ else
                     if classicalSolution
                         XtW = zeros(fliplr(size(tmpX)), class(genoMat)); %#ok<UNRCH>
                         if GroupByFamType 
-                            for fi = 1:length(clusterinfo)
-                                XtW(:, clusterinfo{fi}.jvec_fam) = tmpX(clusterinfo{fi}.jvec_fam,:)' * Ws_famtype{binLoc, famtypevec(fi)};
+                            for fi = 1:nClus
+                                currClus = clusterinfo{fi};
+                                XtW(:, currClus.jvec_fam) = tmpX(currClus.jvec_fam,:)' * Ws_famtype{ivec_bin, famtypevec(fi)};
                             end
                         else
-                            for fi = 1:length(clusterinfo)
-                                XtW(:,clusterinfo{fi}.jvec_fam)  = tmpX(clusterinfo{fi}.jvec_fam,:)' * Ws_fam{binLoc, fi};
+                            for fi = 1:nClus
+                                XtW(:, currClus.jvec_fam)  = tmpX(currClus.jvec_fam,:)' * Ws_fam{ivec_bin, fi};
                             end
                         end
 
@@ -602,9 +614,6 @@ else
                 beta_se(snps,  :, ivec_bin) = sqrt(diag(iterm1) * sig2tvec(ivec_bin));
             end
         end
-        
-        % Update binloc
-        binLoc = binLoc + 1;
     end
 end
 

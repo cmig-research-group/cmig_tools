@@ -1,7 +1,6 @@
-function [Ws_famtype, Ws_fam, allWsTerms, allJVec, useShortcut] =       ...
-          FEMA_compileTerms(clusterinfo, binvec, nfamtypes, famtypevec, ...
-                            sig2mat, RandomEffects,  GroupByFamType,    ...
-                            numObs, SingleOrDouble,  OLSflag)
+function allWsTerms = FEMA_compileTerms(clusterinfo,    binvec,  nfamtypes,     ...
+                                        famtypevec,     sig2mat, RandomEffects, ...
+                                        GroupByFamType, numObs,  SingleOrDouble)
 %% Compile Vs and Ws terms for every bin
 %% Inputs:
 % clusterinfo:      [1 x f]     cell type of f families/clusters, returned
@@ -20,8 +19,6 @@ function [Ws_famtype, Ws_fam, allWsTerms, allJVec, useShortcut] =       ...
 % GroupByFamType:   logical     whether to GroupByFamType or not
 % 
 % SingleOrDouble:   character   single or double precision
-% 
-% OLSflag:          logical     OLS or GLS (default) solution
 %
 %% Outputs:
 % Ws_famtype and Ws_fam as cell types containing inverses of the "V" term 
@@ -46,109 +43,116 @@ function [Ws_famtype, Ws_fam, allWsTerms, allJVec, useShortcut] =       ...
 % numObs x numObs can be initialized, tests indicate that sparse matrix
 % multiplication can be faster
 
-%% Assign default
-% By default, use GLS solution
-if ~exist('OLSflag', 'var') || isempty(OLSflag)
-    OLSflag = false;
-end
-
-%% Determine if shortcut can be used
-try
-    allWsFam    = zeros(numObs, numObs);
-    useShortcut = true;
-    count       = 1;
-    JVec        = zeros(numObs, 1);
-catch
-    try
-        allWsFam    = spalloc(numObs, numObs, numObs);
-        useShortcut = true;
-        count       = 1;
-        JVec        = zeros(numObs, 1);
-    catch
-        useShortcut = false;
-    end
-end
-
 %% Initialize
-nfam         = length(clusterinfo);
-nbins        = length(unique(binvec(isfinite(binvec)), 'stable'));
-Vs_famtype   = cell(nbins, nfamtypes); 
-Vis_famtype  = cell(nbins, nfamtypes); 
-Ws_famtype   = cell(nbins, nfamtypes);
-Vs_fam       = cell(nbins, nfam); 
-Vis_fam      = cell(nbins, nfam); 
-Ws_fam       = cell(nbins, nfam);
-binLoc       = 1;
+nnz_max     = sum(cellfun(@length, {cell2mat(clusterinfo).jvec_fam}).^2);
+nfam        = length(clusterinfo);
+nbins       = length(unique(binvec(isfinite(binvec)), 'stable'));
+binLoc      = 1;
+allWsTerms  = cell(nbins, 1);
+allR        = zeros(nnz_max, 1);
+allC        = zeros(nnz_max, 1);
+allV        = zeros(nnz_max, 1);
 
-if useShortcut
-    allWsTerms   = cell(nbins, 1);
-    allJVec      = cell(nbins, 1);
-else
-    allWsTerms   = [];
-    allJVec      = [];
+% Get ordering of fields in clusterinfo - reasonable to assume that fields
+% are always ordered in the same way since clusterinfo is created in the
+% same way across all clusters
+ff           = fieldnames(clusterinfo{1});
+RFX_ord      = zeros(length(RandomEffects),1);
+locJVec      = strcmpi(ff, 'jvec_fam');
+for rfx = 1:length(RandomEffects)
+    RFX_ord(rfx,1) = find(strcmpi(ff, ['V_', RandomEffects{rfx}]));
 end
 
-for sig2bini = unique(binvec(isfinite(binvec)),'stable')
-    ivec_bin = find(binvec==sig2bini);
+%% Compile terms
+for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
+    ivec_bin = find(binvec == sig2bini);
     sig2vec  = mean(sig2mat(:,ivec_bin), 2);
+    count    = 1;
 
     if ~isempty(ivec_bin)
-        if GroupByFamType % Compute Vs and Vis by family type
-            tmpClusterinfo = cell2mat(clusterinfo);
+        if GroupByFamType
+            % Compute Vs and Vis by family type
             for fi = 1:nfamtypes
-                ivec = find(famtypevec==fi);
-                Vs_famtype{binLoc, fi} = 0;
+                ivec       = find(famtypevec == fi);
+                currClus   = struct2cell(clusterinfo{ivec(1)});
+                tmpSize    = length(currClus{locJVec});
+                Vs_famtype = zeros(tmpSize);
+
+                % Compute V
                 for ri = 1:length(RandomEffects)
-                    Vs_famtype{binLoc, fi} = Vs_famtype{binLoc, fi} + sig2vec(ri)*clusterinfo{ivec(1)}.(['V_', RandomEffects{ri}]);
-                end
-                Vis_famtype{binLoc, fi} = cast(double(Vs_famtype{binLoc, fi}) \ eye(size(Vs_famtype{binLoc, fi})), SingleOrDouble);
-                % Vis_famtype{binLoc, fi} = cast(pinv(double(Vs_famtype{binLoc, fi})),SingleOrDouble);
-                if OLSflag
-                    Ws_famtype{binLoc, fi} = eye(size(Vis_famtype{binLoc, fi}), class(Vis_famtype{binLoc, fi}));
-                else
-                    Ws_famtype{binLoc, fi} = Vis_famtype{binLoc, fi};
+                    Vs_famtype = Vs_famtype + sig2vec(ri) * currClus{RFX_ord(ri)};
                 end
 
-                if useShortcut
-                    currIDX                     = horzcat(tmpClusterinfo(ivec(:)).jvec_fam);
-                    temp                        = repmat(Ws_famtype(binLoc, fi), 1, length(ivec));
-                    allWsFam(currIDX, currIDX)  = blkdiag(temp{:});
-                    if fi == nfamtypes
-                        JVec = [tmpClusterinfo.jvec_fam]';
-                    end
+                % Compute inverse of V
+                Vis_famtype = double(Vs_famtype) \ eye(tmpSize, SingleOrDouble);
+                if any(isnan(Vis_famtype))
+                    Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
                 end
+
+                % Compile allWsFam
+                tmpClusterinfo              = cell2mat(clusterinfo(ivec(:)));
+                tmpR                        = repmat(vertcat(tmpClusterinfo(:).jvec_fam)', tmpSize, 1);
+                tmpC                        = repmat(horzcat(tmpClusterinfo(:).jvec_fam),  tmpSize, 1);
+                temp                        = repmat(Vis_famtype(:), length(ivec), 1);
+                tmp                         = numel(tmpR);
+                allR(count:count+tmp-1)     = tmpR(:);
+                allC(count:count+tmp-1)     = tmpC(:);
+                allV(count:count+tmp-1)     = temp;
+                % allV(count:count+tmp-1)     = nonzeros(blkdiag(temp{:}));
+                count                       = count + tmp;
+
+                % if useShortcut
+                %     tmpClusterinfo              = cell2mat(clusterinfo);
+                %     currIDX                     = horzcat(tmpClusterinfo(ivec(:)).jvec_fam);
+                %     temp                        = repmat(Vis_famtype, 1, length(ivec));
+                %     allWsFam(currIDX, currIDX)  = blkdiag(temp{:}); %#ok<SPRIX>
+                % end
             end
-        else % Compute Vs and Vis for each family
+
+            % Put together as a sparse matrix
+            allWsFam = sparse(allR, allC, allV, numObs, numObs, nnz_max);
+
+        else 
+            % Compute Vs and Vis for each family
             for fi = 1:nfam
-                Vs_fam{binLoc, fi} = 0;
+                currClus   = struct2cell(clusterinfo{fi});
+                tmpSize    = length(currClus{locJVec});
+                Vs_fam     = zeros(tmpSize);
+
+                % Compute V
                 for ri = 1:length(RandomEffects)
-                    Vs_fam{binLoc, fi} = Vs_fam{binLoc, fi} + sig2vec(ri)*clusterinfo{fi}.(['V_', RandomEffects{ri}]);
-                end
-                Vis_fam{binLoc, fi} = cast(double(Vs_fam{binLoc, fi}) \ eye(size(Vs_fam{binLoc, fi})), SingleOrDouble);
-                % Vis_fam{binLoc, fi} = cast(pinv(double(Vs_fam{binLoc, fi})),SingleOrDouble);
-                if OLSflag
-                    Ws_fam{binLoc, fi} = eye(size(Vis_fam{binLoc, fi}), class(Vis_fam{binLoc, fi}));
-                else
-                    Ws_fam{binLoc, fi} = Vis_fam{binLoc, fi};
+                    Vs_fam = Vs_fam + sig2vec(ri) * currClus{RFX_ord(ri)};
                 end
 
-                if useShortcut
-                    currIDX                     = clusterinfo{fi}.jvec_fam;
-                    tmpLen                      = length(currIDX);
-                    JVec(count:count+tmpLen-1)  = currIDX;
-                    allWsFam(currIDX, currIDX)  = Ws_fam{binLoc, fi};
-                    count                       = count + tmpLen;
+                % Compute inverse of V
+                Vis_fam = double(Vs_fam) \ eye(tmpSize, SingleOrDouble);
+                if any(isnan(Vis_fam))
+                    Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
                 end
+
+                % Compile allWsFam
+                currIDX                 = currClus{locJVec};
+                tmpR                    = repmat(currIDX', tmpSize, 1);
+                tmpC                    = repmat(currIDX,  tmpSize, 1);
+                tmp                     = numel(tmpR);
+                allR(count:count+tmp-1) = tmpR(:);
+                allC(count:count+tmp-1) = tmpC(:);
+                allV(count:count+tmp-1) = Vis_fam(:);
+                count                   = count + tmp;
+
+                % if useShortcut
+                %     currIDX                    = currClus{locJVec};
+                %     allWsFam(currIDX, currIDX) = Vis_fam; %#ok<SPRIX>
+                % end
             end
+            % Put together as a sparse matrix
+            allWsFam = sparse(allR, allC, allV, numObs, numObs, nnz_max);
         end
     end
 
     % Additional terms
-    if useShortcut
-        allWsTerms{binLoc, 1} = sparse(allWsFam);
-        allJVec{binLoc,    1} = JVec;
-    end
-
+    allWsTerms{binLoc, 1} = allWsFam;
+    
     % Update bin counter
     binLoc = binLoc + 1;
 end

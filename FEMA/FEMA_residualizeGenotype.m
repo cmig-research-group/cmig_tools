@@ -1,7 +1,7 @@
 function residualGenovec = FEMA_residualizeGenotype(genovec,     fixedEffects,   binvec,         ...
                                                     OLSflag,     clusterinfo,    GroupByFamType, ...
                                                     famtypevec,  Ws_famtype,     Ws_fam,         ...
-                                                    useShortcut, allJVec,        allWsTerms)
+                                                    useShortcut, allWsTerms)
 % Residualize a genotype for the fixed effects using OLS or GLS solution
 %% Inputs:
 % genovec:          [n x m]     matrix of n subjects and m SNPs
@@ -114,7 +114,8 @@ for bins = 1:numBins
             end
         end
     else
-        XtW = fixedEffects(allJVec{binLoc},:)' * allWsTerms{binLoc};
+        % XtW = fixedEffects(allJVec{binLoc},:)' * allWsTerms{binLoc};
+        XtW = fixedEffects' * allWsTerms{binLoc};
     end
 
     % Calculate beta values for all fixedEffects
