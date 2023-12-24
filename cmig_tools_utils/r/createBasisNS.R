@@ -1,4 +1,4 @@
-createBasisNS <- function(data, splinevar, knots = NULL, df = NULL, intercept = TRUE) {
+createBasisNS <- function(xvec, knots = NULL, df = NULL, intercept = TRUE) {
   # args      <- commandArgs(trailingOnly = TRUE)
   # splinevar       <- args[1]
   # knots     <- args[2]
@@ -7,10 +7,6 @@ createBasisNS <- function(data, splinevar, knots = NULL, df = NULL, intercept = 
 
   # Get the required library
   require(splines)
-  require(pracma)
-
-  # Create xvec
-  xvec = linspace(min(data[,splinevar],na.rm = TRUE),max(data[,splinevar],na.rm = TRUE),101)
 
   # Create basis functions
   basis <- data.frame(ns(x=xvec,knots = knots, df=df,intercept = intercept), row.names = xvec)
