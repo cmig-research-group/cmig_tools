@@ -43,7 +43,7 @@ handles.figure = figh;
 handles.CoordinateListener = addlistener(handles.figure,'UserData', 'PostSet', funch);
 handles.context = context;
 guidata(handles.figure, handles)
-figh.Tag = 'showVol_listener';      #this tag is how showVol knows to send this figure the coordinate data
+figh.Tag = 'showVol_listener';      %this tag is how showVol knows to send this figure the coordinate data
 
 
 %=======================================================

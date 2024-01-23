@@ -26,7 +26,6 @@ if ~exist('atlas','var') || isempty(atlas)
 end
 
 sameAtlas = strncmp(atlas, lastAtlas, 5);
-if sameAtlas && ~isempty(brainMask), return, end %mask is cached
 
 %cached load
 if isempty(brainMask) || ~sameAtlas
@@ -65,6 +64,7 @@ if isempty(brainMask) || ~sameAtlas
       
   end
 end
+
 if ~exist('img','var') || isempty(img)
   img = brainMask;
 else
