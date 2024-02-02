@@ -10,8 +10,8 @@ createBasisNS <- function(xvec, knots = NULL, df = NULL, intercept = TRUE, demea
 
   # set default values for knots if not specified
   if (is.null(knots) & is.null(df)){
-    knots = linspace(min(xvec), max(xvec), 6) 
-    knots = knots[2:(length(knots)-1)] # default will be 5 basis functions with evenly spaced knots
+    knots = seq(from=min(xvec),to=max(xvec),length=5) 
+    knots = knots[2:(length(knots)-1)] # default will be 5 basis functions with evenly spaced knots 
   }
 
   # Create basis functions
