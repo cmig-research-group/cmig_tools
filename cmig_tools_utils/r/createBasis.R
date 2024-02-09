@@ -196,7 +196,7 @@ get_basis_values <- function(data, basis, varname){
   basis_values <- lapply(data[,varname], extract_basis, basis=basis)
   
   # Combine basis values as columns in dataframe
-  basis_values_df <- rbindlist(lapply(basis_values, function(x) if(is.null(x[])) data.frame(matrix(ncol = dim(basis)[2], nrow = 1)) else transpose(x)), use.names=FALSE)
+  basis_values_df <- rbindlist(lapply(basis_values, function(x) if(is.null(x[])) data.frame(matrix(ncol = dim(basis)[2], nrow = 1)) else x), use.names=FALSE)
   
   return (basis_values_df)
   
