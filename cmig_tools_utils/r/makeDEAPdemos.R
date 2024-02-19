@@ -1,13 +1,12 @@
-
 makeDEAPdemos<-function(datapath){
 
   #Need to source('~/github/cmig_library/loadtxt.R')
-  
-library(dplyr)  
+
+library(dplyr)
 library(data.table)
-  
+
   files<-dir(datapath)
-  
+
   txt_tmp<-grep('txt',files)
   csv_tmp<-grep('csv',files)
   if (!isempty(txt_tmp)){
@@ -17,18 +16,17 @@ library(data.table)
   } else if (isempty(txt_tmp) & isempty(csv_tmp)) {
     warning('Files in datapath not csv or txt files. Script will not read files correctly.')
   }
-  
+
   acsfile<-files[grep('acspsw03',files)]
   basedemsfile<-files[grep('pdem02',files)]
   longdemsfile<-files[grep('abcd_lpds01',files)]
   ltsitefile<-files[grep('abcd_lt01',files)]
-  
-  longdems5.0file <- files[grep('abcd_p_demo',files)]
-  ltsite5.0file <- files[grep('abcd_y_lt',files)]
 
-  if (!isempty(grep('5.0',datapath))){
+  if (!isempty(grep('5.?',datapath))){
+    longdems5.0file <- files[grep('abcd_p_demo',files)]
+    ltsite5.0file <- files[grep('abcd_y_lt',files)]
     alldems <- read.table(paste0(datapath,'/',longdems5.0file), header=T, sep=",")
-    lt_site<-read.table(paste0(datapath,'/',ltsite5.0file), header=T, sep=",")
+    lt_site <- read.table(paste0(datapath,'/',ltsite5.0file), header=T, sep=",")
   } else {
     if (ext=='csv'){
         acsdems<-read.table(paste0(datapath,'/',acsfile), header=T, sep=",")
@@ -45,7 +43,6 @@ library(data.table)
         lt_site<-loadtxt(paste0(datapath,'/',ltsitefile))
         lt_site<-lt_site[,-c(which(colnames(lt_site) %in% c('collection_id','dataset_id')))]
       }
-
     alldems<-join(longdems,basedems)
   }
 
@@ -61,7 +58,7 @@ alldems[,'demo_prnt_marital_p']<-coalesce(alldems$demo_prnt_marital_v2, alldems$
 
 alldems<-join(alldems,lt_site)
 
-if (!isempty(grep('5.0',datapath))) {
+if (!isempty(grep('5.?',datapath))) {
   deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age')])
 } else if (!isempty(grep('4.0',datapath))){
   deap_demos<-data.frame(alldems[,c('src_subject_id','eventname','interview_date','interview_age','sex','sched_delay','sched_hybrid')])
@@ -74,9 +71,9 @@ if (!isempty(grep('5.0',datapath))) {
 
 deap_demos$abcd_site = alldems$site_id_l #site_id_l is in longitudianl tracking instrument
 
-if (!isempty(grep('5.0',datapath))) {
+if (!isempty(grep('5.?',datapath))) {
   sextmp = data.frame(alldems[alldems$eventname=='baseline_year_1_arm_1',c('src_subject_id','demo_sex_v2')])
-  sextmp$sex = recode(as.factor(sextmp$demo_sex_v2), "1" = "M","2" = "F", "3" = "I") 
+  sextmp$sex = recode(as.factor(sextmp$demo_sex_v2), "1" = "M","2" = "F", "3" = "I")
   deap_demos<-join(deap_demos,sextmp[,c('src_subject_id','sex')], by='src_subject_id', match = "all")
 } else {
   deap_demos$sex[which(deap_demos$sex=="")]=NA
@@ -124,7 +121,7 @@ household.income_10level[alldems$demo_comb_income_p == "999"] = NA # Don't know
 household.income_10level[household.income_10level %in% c(NA, "999", "777")] = NA
 deap_demos$household.income_10level = household.income_10level
 
-#highest education: 5 different levels. These levels correspond to the numbers published by the American Community Survey (ACS). 
+#highest education: 5 different levels. These levels correspond to the numbers published by the American Community Survey (ACS).
 high.educ1 = alldems$demo_prnt_ed_p
 high.educ2 = alldems$demo_prtnr_ed_p
 high.educ1[which(high.educ1 == "999")] = NA
@@ -152,7 +149,7 @@ married = rep(NA, length(alldems$demo_prnt_marital_p))
 married[alldems$demo_prnt_marital_p == 1] = 1
 married[alldems$demo_prnt_marital_p %in% 2:6] = 0
 deap_demos$married = factor( married, levels= 0:1, labels = c("No", "Yes") )
-#Add another variable that also includes couples that just live together. 
+#Add another variable that also includes couples that just live together.
 #married.livingtogether = rep(NA, length(alldems$demo_prnt_marital_p))
 #married.livingtogether[alldems$demo_prnt_marital_p %in% c(1,6)] = 1
 #married.livingtogether[alldems$demo_prnt_marital_p %in% 2:5] = 0
@@ -162,11 +159,11 @@ deap_demos$married = factor( married, levels= 0:1, labels = c("No", "Yes") )
 
 #Race of child not asked again longitudinally? Repeating this from baseline
 race_cols = c("demo_ethn_v2", "demo_race_a_p___10", "demo_race_a_p___11","demo_race_a_p___12", "demo_race_a_p___13",
-              "demo_race_a_p___14", "demo_race_a_p___15", "demo_race_a_p___16", "demo_race_a_p___17", 
+              "demo_race_a_p___14", "demo_race_a_p___15", "demo_race_a_p___16", "demo_race_a_p___17",
               "demo_race_a_p___18", "demo_race_a_p___19", "demo_race_a_p___20", "demo_race_a_p___21", "demo_race_a_p___22","demo_race_a_p___23",
               "demo_race_a_p___24", "demo_race_a_p___25",
               "demo_race_a_p___77", "demo_race_a_p___99")
-if (isempty(grep('5.0',datapath))){
+if (isempty(grep('5.?',datapath))){
   racedf<-basedems[,match(c('src_subject_id','eventname',race_cols), names(basedems))]
   raceind<-which(colnames(alldems) %in% race_cols)
   alldems<-alldems[,-c(raceind)]
@@ -178,7 +175,7 @@ if (isempty(grep('5.0',datapath))){
   raceind<-which(colnames(alldems) %in% race_cols)
   alldems<-alldems[,-c(raceind)]
 
-  alldems<-join(alldems, racedf[racedf$eventname=='baseline_year_1_arm_1',], by='src_subject_id', match = "all") 
+  alldems<-join(alldems, racedf[racedf$eventname=='baseline_year_1_arm_1',], by='src_subject_id', match = "all")
   # racedf<-alldems[,match(c('src_subject_id','eventname',race_cols), names(alldems))]
 }
 
@@ -272,7 +269,7 @@ dat$hisp<- factor(dat$hisp,
 
 dat$src_subject_id<-alldems$src_subject_id
 
-if (isempty(grep('5.0',datapath))) {
+if (isempty(grep('5.?',datapath))) {
   dat$eventname<-alldems$eventname.x
 } else {
   dat$eventname<-alldems$eventname
@@ -282,25 +279,20 @@ racetmp<-data.frame(dat[,c('src_subject_id','eventname','race.4level','race.6lev
 
 deap_demos<-join(deap_demos,racetmp)
 
-############################################ 
+############################################
 
 #Replicating family ID over all time points
-if (!isempty(acsfile)){
+if (!isempty(acsfile)){ # <5.0
   alldems<-merge(alldems, acsdems[acsdems$eventname=='baseline_year_1_arm_1',c('src_subject_id','rel_family_id','rel_group_id')])
   alldems$eventname<-alldems$eventname.x
   famtmp<-data.frame(alldems[,c('src_subject_id','eventname','rel_family_id','rel_group_id')])
-
   deap_demos<-join(deap_demos,famtmp)
-
   deap_demos$rel_group_id<-factor(deap_demos$rel_group_id)
 
-} else{
+} else{ #5.0
   famtmp<-data.frame(alldems[alldems$eventname=='baseline_year_1_arm_1',c('src_subject_id','rel_family_id','rel_birth_id')])
-
   deap_demos<-join(deap_demos,famtmp, by='src_subject_id', match = "all")
-
   deap_demos$rel_birth_id<-factor(deap_demos$rel_birth_id)
-
 }
 
 return(deap_demos)

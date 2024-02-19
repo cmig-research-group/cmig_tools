@@ -12,8 +12,8 @@ function loadPrerenderedIfNeeded(atlas, fodtype)
 %           FOD_p80:  % globally normalized (80%)
 %                T1:  % mean T1 1mm
 %                T2:  % mean T2 1mm
-%                FA:  % Fractional anisotropy
-%                CO:  % mean fiber orientation rgb
+%                FA:  % mean Fractional anisotropy
+%                CO:  % mean fiber orientation rgb (from atlas_dspace)
 %          aseg_rgb:  % aseg atlas rgb
 %         fiber_rgb:  % fiber atlas rgb
 %     aparcaseg_rgb:  % aparcaseg atlas rgb
@@ -24,12 +24,23 @@ function loadPrerenderedIfNeeded(atlas, fodtype)
 %
 %       function loadPrerenderedIfNeeded(atlas, fodtype)
 %         fodtype = 'v';   %voxelwise, emphasizes gray matter FOD
-%         fodtype = 'p80'; %global 80% normlization, emphasizes white matter FOD
+%         fodtype = 'p80'; %global 80% normlization, emphisizes white matter FOD
 %         fodtype = 'p50'; %global 50% normlization 
 %   multiple types can be specified in a cell array
 %
 %
-% Backwards compatibility with older atlases
+% NEW: Dec 2023 ABCD3 is now tentatively available, but without FOD or FA means yet
+%
+% PRI.ABCD3
+%                T1:  % mean T1 1mm (from atlas_dspace)
+%                T2:  % mean T2 1mm (from atlas_dspace)
+%                CO:  % mean fiber orientation rgb (from atlas_dspace)
+%          aseg_rgb:  % aseg atlas rgb
+%         fiber_rgb:  % fiber atlas rgb
+%     aparcaseg_rgb:  % aparcaseg atlas rgb
+%
+%
+% Backwards compatibiilty with older atlases
 %
 %     can also load ABCD1 atlas, or both
 %   loadPrerenderedIfNeeded('ABCD1')
@@ -49,10 +60,10 @@ cfg = abcdConfig('showVol');
 
 if ~exist('atlas','var') || isempty(atlas)
   atlas = 'ABCD2';
-  fprintf('%s: Using ABCD2_cor10 atlas by default. Specify atlas explicitly if you want something else.\n',mfilename)
+    fprintf(2, '%s: Using ABCD2_cor10 atlas by default.\n   Specify atlas explicitly if you want something else.\n',mfilename)
 end
 
-if ~exist('fodtype','var')
+if ~exist('fodtype','var') || isempty(fodtype)
   fodtype = {''}; %no suffix means voxel-wise normalized
   fodsuffix = {''};
 else
@@ -65,8 +76,9 @@ global PRI
 
 % Load if needed
 
+% ################################# ABCD1 ########################################
 if contains(atlas,'ABCD1')
-  if ~exist('PRI','var') || isempty(PRI) || ~isfield(PRI,'vol_fiber_rgb')
+  if ~exist('PRI','var') || isempty(PRI) || ~isfield(PRI,'ABCD1')
     fprintf('%s -- %s.m: Cacheing pre-rendered images for %s (slow, but only have to do it once per session)\r\n', datestr(now), mfilename, atlas);
     
     
@@ -121,7 +133,7 @@ if contains(atlas,'ABCD1')
     maxT1 = max(PRI.vol_T1.imgs(:));
     PRI.vol_fiber_rgb.imgs = PRI.vol_fiber_rgb.imgs + PRI.vol_T1.imgs * (0.15 * maxFV / maxT1);
     
-    % for forward compatibility, (also) put them in ABCD1 field, ditch the 'vol'
+    % for forward compatibility, put them in ABCD1 field, ditch the 'vol'
     if 1
       PRI.ABCD1.FOD = PRI.vol_FOD_1mm;
       PRI.ABCD1.aseg_rgb = PRI.vol_aseg_rgb;
@@ -136,8 +148,9 @@ if contains(atlas,'ABCD1')
   else
     fprintf('%s -- %s.m: Using cached prerendered images for atlas %s (''clear global PRI'' to force reloading)\r\n', datestr(now), mfilename, atlas);
   end
-end
+end %ABCD1
 
+% ################################# ABCD2 ########################################
 if contains(atlas,'ABCD2')
   if ~exist('PRI','var') || isempty(PRI) || ~isfield(PRI,'ABCD2')
     fprintf('%s -- %s.m: Cacheing pre-rendered images for %s (slow, but only have to do it once per session)\r\n', datestr(now), mfilename, atlas);
@@ -181,8 +194,61 @@ if contains(atlas,'ABCD2')
     maxFV = max(PRI.ABCD2.fiber_rgb.imgs(:));
     maxT1 = max(PRI.ABCD2.T1.imgs(:));
     PRI.ABCD2.fiber_rgb.imgs = PRI.ABCD2.fiber_rgb.imgs + PRI.ABCD2.T1.imgs * (0.15 * maxFV / maxT1);
-    
+
   else
       fprintf('%s -- %s.m: Using cached prerendered images for atlas %s (''clear global PRI'' to force reloading)\r\n', datestr(now), mfilename, atlas);
   end
-end
+end % ABCD2
+
+% ################################# ABCD3 ########################################
+if contains(atlas,'ABCD3')
+  if ~exist('PRI','var') || isempty(PRI) || ~isfield(PRI,'ABCD3')
+    fprintf('%s -- %s.m: Cacheing pre-rendered images for %s (slow, but only have to do it once per session)\r\n', datestr(now), mfilename, atlas);
+    
+    % FIXME: for now, no FOD
+    fodsuffix=[];
+    
+    for iF = 1:length(fodsuffix)
+      FOD_path = fullfile(cfg.data.showVolData,'FOD',['FOD_ABCD3_cor10' fodsuffix{iF} '_c.mat']);
+      if ~exist(FOD_path,'file'), disp(['Unable to load FOD. Missing ' FOD_path '!']), continue, end
+      
+      fprintf('%s -- %s.m: Loading FOD%s images (May take a few minutes)\r\n', datestr(now), mfilename,fodsuffix{iF});
+      load(FOD_path) %
+      vol_FOD_1mm.imgs3 = vol_FOD_1mm.imgsRC; %quick hack--rename
+      vol_FOD_1mm.imgs2 = vol_FOD_1mm.imgsRS;
+      vol_FOD_1mm.imgs1 = vol_FOD_1mm.imgsSC;
+      vol_FOD_1mm = rmfield(vol_FOD_1mm,{'imgsRC','imgsRS','imgsSC'});
+      FODname = ['FOD' fodsuffix{iF}];
+      disp(FODname)
+      if isempty(fodsuffix{iF})
+        vol_FOD_1mm.name = 'FOD [ABCD3] voxelwise normalized'; %temporary FIXME
+      end
+      PRI.ABCD3.(FODname) = vol_FOD_1mm;
+    end
+    
+    
+    fprintf('%s -- %s.m: Loading prerendered images \r\n', datestr(now), mfilename);
+
+    vols = {'T1','T2','CO','aseg_rgb','fiber_rgb','aparcaseg_rgb'}; %FIXME: do not have FA (yet?)
+    
+    for iV = 1:length(vols)
+      varname = [vols{iV} '_ABCD3_cor10'];
+      fname = fullfile(cfg.data.showVolData,'Atlas',[varname '.mat']);
+      try
+        tmp = load(fname);
+        fieldname = [vols{iV} '_ABCD3_cor10'];
+        PRI.ABCD3.(vols{iV}) = tmp.(fieldname);
+      catch
+        disp(['problem with ' vols{iV}])
+      end
+    end
+    
+    %JRI preference--add ghost of T1 to fiber atlas image for orientation help
+    maxFV = max(PRI.ABCD3.fiber_rgb.imgs(:)); % FIXME - the fiber_rgb are blown out so we're tweaking it to look good
+    maxT1 = max(PRI.ABCD3.T1.imgs(:));
+    PRI.ABCD3.fiber_rgb.imgs = PRI.ABCD3.fiber_rgb.imgs / (0.65 * maxFV) + PRI.ABCD3.T1.imgs * (0.2 / maxT1);
+
+  else
+      fprintf('%s -- %s.m: Using cached prerendered images for atlas %s (''clear global PRI'' to force reloading)\r\n', datestr(now), mfilename, atlas);
+  end
+end %ABCD3
