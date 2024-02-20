@@ -49,6 +49,5 @@ if exist('outpath', 'var')
     % keyboard;
 
     % save vols as nifti
-    % niftiwrite_amd(vols,outpath,M_atl_sub); % causes error due to incorrect header size
-    niftiwrite(vols,outpath); % this version works
+    niftiwrite_amd(vols,outpath,M_atl_sub);
 end
