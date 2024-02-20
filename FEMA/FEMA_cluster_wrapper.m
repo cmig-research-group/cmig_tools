@@ -6,7 +6,8 @@ function FEMA_cluster_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tab
       jsystem(sprintf('rm -rf %s/job*.m %s/pbsout',batchdir,batchdir));
       fname = sprintf('%s/scriptlist.txt',batchdir);
       fid_list = fopen(fname,'wb');
-      nperms_per_job=varargin{find(strcmpi(varargin,'nperms'))+1};
+      nperms = varargin{find(strcmpi(varargin,'nperms'))+1}; 
+      nperms_per_job = nperms/njobs;
       dirname_out = fullfile(dirname_out, sprintf('dt-%s_img-%s_njobs-%d_nperms-%d',datatype,fstem_imaging,njobs,nperms_per_job));
       for outnum=1:length(dirname_out)
             fprintf('\nCluster output for design matrix %d will be written to: %s ',outnum,dirname_out{outnum});
