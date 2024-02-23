@@ -873,12 +873,12 @@ for permi = 0:nperms
 
                 % Save coefficient covariance matrix
                 if permi == 0
-                    tmpCov                   = cellfun(@(x) Cov_beta .* x, num2cell(sig2tvec(ivec_bin)), 'UniformOutput', false);
-                    coeffCovar(:,:,ivec_bin) = cat(3, tmpCov{:});
-                    % Alternate solution: maybe faster?
-                    % for ii = 1:length(ivec_bin)
-                    %     coeffCovar(:,:,ivec_bin(ii)) = Cov_beta .* sig2tvec(ivec_bin(ii));
-                    % end
+                    for ii = 1:length(ivec_bin)
+                        coeffCovar(:,:,ivec_bin(ii)) = Cov_beta .* sig2tvec(ivec_bin(ii));
+                    end
+                    % Using cellfun is typically slower than loop
+                    % tmpCov                   = cellfun(@(x) Cov_beta .* x, num2cell(sig2tvec(ivec_bin)), 'UniformOutput', false);
+                    % coeffCovar(:,:,ivec_bin) = cat(3, tmpCov{:});
                 end
 
                 % Evaluate contrasts
