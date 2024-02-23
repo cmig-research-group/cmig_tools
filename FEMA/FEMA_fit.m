@@ -2,7 +2,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
           sig2tvec,      sig2mat,        Hessmat,     logLikvec,            ...
           beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,        ...
           sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,            ...
-          tvec_bins,     FamilyStruct,   reusableVars] =                    ...
+          tvec_bins,     FamilyStruct,   coeffCovar,  reusableVars] =       ...
           FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, ...
                    pihatmat, varargin)
 % Function to fit fast and efficient linear mixed effects model
@@ -14,9 +14,10 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 % c = number of contrasts to evaluate
 % r = number of random effects
 %
-% Parekh et al., (2021) - Fast and efficient mixed-effects algorithm for 
-%                         large sample whole-brain imaging data, bioRxiv 
-%                         https://doi.org/10.1101/2021.10.27.466202
+% Parekh et al., (2024) - Fast and efficient mixed-effects algorithm for 
+%                         large sample whole-brain imaging data, 
+%                         Human Brain Mapping,  
+%                         https://doi.org/10.1002/hbm.26579
 %
 %% Inputs:
 % X               <num>            [n x p]    design matrix, with intercept if needed
@@ -56,14 +57,15 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 % returnReusable  <boolean>        default false - if true, additionally returns reusableVars as a structure with some variables that can be reused (primarily by FEMA-GWAS)
 %
 %% Outputs:
-% beta_hat                         [c+p x v]  estimated beta coefficients
-% beta_se                          [c+p x v]  estimated beta standard errors
-% zmat                             [c+p x v]  z statistics
-% logpmat                          [c+p x v]  log10 p-values
-% sig2tvec                         [1   x v]  total residual error of model at each vertex/voxel
-% sig2mat                          [r   x v]  normalized random effect variances
-% binvec_save                      [1   x v]  bin number(s) for non-permuted ymat
-% FamilyStruct                                structure type (can be passed as input to avoid re-parsing family structure etc.)
+% beta_hat        <num>            [c+p x v]   estimated beta coefficients
+% beta_se         <num>            [c+p x v]   estimated beta standard errors
+% zmat            <num>            [c+p x v]   z statistics
+% logpmat         <num>            [c+p x v]   log10 p-values
+% sig2tvec        <num>            [1   x v]   total residual error of model at each vertex/voxel
+% sig2mat         <num>            [r   x v]   normalized random effect variances
+% binvec_save     <num>            [1   x v]   bin number(s) for non-permuted ymat
+% FamilyStruct    <struct>                     can be passed as input to avoid re-parsing family structure etc.)
+% coeffCovar      <num>            [p x p x v] estimated coefficient covariance matrix for every v
 %
 % This software is Copyright (c) 2021 
 % The Regents of the University of California. 
@@ -363,6 +365,7 @@ for permi = 0:nperms
         zmat_bak      = zmat;
         ymat_bak      = ymat;
         ymat_res_bak  = ymat_res;
+        coeffCovarPerm = zeros(size(X,2), size(X,2), length(binvec), nperms);
 
         if ismember(lower(PermType), {'wildbootstrap'}) % Residual bootstrap - DEFAULT
             ymat_hat_bak = zeros(size(ymat));
@@ -733,6 +736,9 @@ for permi = 0:nperms
         Ws_fam      = cell(1, nfam);
         [betacon_hat, betacon_se] = deal(zeros(size(contrasts,1), size(ymat,2), class(ymat)));
         [beta_hat,    beta_se]    = deal(zeros(size(X,2), size(ymat,2), class(ymat)));
+        if permi == 0
+            coeffCovar = zeros(size(X,2), size(X,2), size(ymat,2));
+        end
 
         % Get ordering of fields in clusterinfo - reasonable to assume that
         % fields are always ordered in the same way since clusterinfo is
@@ -863,6 +869,16 @@ for permi = 0:nperms
                     Cov_beta              = nearestSPD(Bi);
                     beta_hat(:, ivec_bin) = beta_hat_tmp; 
                     beta_se(:,  ivec_bin) = sqrt(diag(Cov_beta) * sig2tvec(ivec_bin));
+                end
+
+                % Save coefficient covariance matrix
+                if permi == 0
+                    tmpCov                   = cellfun(@(x) Cov_beta .* x, num2cell(sig2tvec(ivec_bin)), 'UniformOutput', false);
+                    coeffCovar(:,:,ivec_bin) = cat(3, tmpCov{:});
+                    % Alternate solution: maybe faster?
+                    % for ii = 1:length(ivec_bin)
+                    %     coeffCovar(:,:,ivec_bin(ii)) = Cov_beta .* sig2tvec(ivec_bin(ii));
+                    % end
                 end
 
                 % Evaluate contrasts
