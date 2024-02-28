@@ -24,9 +24,6 @@ function vols = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat, mask, ...
 % vols:         4D array of volumes to be read by a 3D volume viewer; 4th 
 %               dimension represents different values of x over which spline 
 %               function is evaluated
-%% TODO:
-% - currently experiencing an error with niftiwrite_amd function
-% - check to make sure 4D vol is saved correctly
 
 %% calculate derivatives of basis functions
 bfmat = table2array(tbl_bf);
