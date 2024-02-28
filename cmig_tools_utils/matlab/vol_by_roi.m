@@ -13,7 +13,19 @@ function [roi_sum, roi_vox] = vol_by_roi(vol, varargin)
 % incl_thalamus_rois    list of thalamus ROIs to include; default is to
 %                       include all ROIs in 'annot.thalamus.roinames'
 
-    if ~exist('atlas')
+p = inputParser;
+addParamValue(p,'atlas', '');
+addParamValue(p,'incl_aseg_rois', '');
+addParamValue(p,'incl_pauli_rois', '');
+addParamValue(p,'incl_thalamus_rois', '');
+
+parse(p,varargin{:})
+atlas                   = p.Results.atlas;
+incl_aseg_rois          = p.Results.incl_aseg_rois;
+incl_pauli_rois         = p.Results.incl_pauli_rois;
+incl_thalamus_rois      = p.Results.incl_thalamus_rois;
+
+    if isempty(atlas)
         disp("No atlas specified; defaulting to ABCD3");
         atlas = 'ABCD3';
     end
@@ -24,14 +36,14 @@ function [roi_sum, roi_vox] = vol_by_roi(vol, varargin)
     prob(c{2}) = c{3};
     annot.aseg.prob = prob;
     prob = prob(1:2:end, 1:2:end, 1:2:end, :);
-    if ~exist('incl_aseg_rois') incl_aseg_rois = annot.aseg.roinames; end
+    if isempty(incl_aseg_rois) incl_aseg_rois = annot.aseg.roinames; end
     % roinames = incl_aseg_rois;
     
     if exist('annot.pauli')
         pauli_prob = zeros(annot.pauli.prob{1}, 'single');
         pauli_prob(annot.pauli.prob{2}) = annot.pauli.prob{3};
         pauli_prob = pauli_prob(1:2:end, 1:2:end, 1:2:end, :);
-        if ~exist('incl_pauli_rois') incl_pauli_rois = annot.pauli.roinames; end
+        if isempty(incl_pauli_rois) incl_pauli_rois = annot.pauli.roinames; end
         % roinames = [roinames; incl_pauli_rois];
     end
     
@@ -46,7 +58,7 @@ function [roi_sum, roi_vox] = vol_by_roi(vol, varargin)
         fiber_prob = zeros(annot.fiber.prob{1}, 'single');
         fiber_prob(annot.thalamus.prob{2}) = annot.fiber.prob{3};
         fiber_prob = fiber_prob(1:2:end, 1:2:end, 1:2:end, :);
-        if ~exist('incl_fiber_rois') incl_fiber_rois = annot.fiber.roinames; end
+        if isempty(incl_fiber_rois) incl_fiber_rois = annot.fiber.roinames; end
     end
 
     % Create output table
