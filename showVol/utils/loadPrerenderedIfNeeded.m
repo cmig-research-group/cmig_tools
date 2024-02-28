@@ -59,8 +59,8 @@ function loadPrerenderedIfNeeded(atlas, fodtype)
 cfg = abcdConfig('showVol');
 
 if ~exist('atlas','var') || isempty(atlas)
-  atlas = 'ABCD2';
-    fprintf(2, '%s: Using ABCD2_cor10 atlas by default.\n   Specify atlas explicitly if you want something else.\n',mfilename)
+  atlas = 'ABCD3';
+    fprintf(2, '%s: Using ABCD3_cor10 atlas by default.\n   Specify atlas explicitly if you want something else.\n',mfilename)
 end
 
 if ~exist('fodtype','var') || isempty(fodtype)
