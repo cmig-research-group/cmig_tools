@@ -3,27 +3,26 @@ function img = maskBrain(img, atlas)
 %
 %   img = maskBrain(img, atlas)
 %
-%  atlas is ABCD1_cor10,  ABCD2_cor10 or ABCD3_cor10 (or just ABCD1, ABCD2 or ABCD3) - As of Dec 2023, ABCD3 by default if not specified
+%  atlas is one of 3.0_ABCD1_cor10, 4.0_ABCD2_cor10 or 5.0_ABCD3_cor10 (or unambiguous abbreviations, e.g. 5.0 or ABCD2: see validateAtlasVersion.m)
 %
 %   if input img is [] just returns the mask
 %
-% mask is computed by summing all aseg rois and taking any voxel with summed probability > 0.01
+% mask is computed by summing all aseg rois and taking any voxel with summed probability > 0.01%
+%
+% demo, compare brain masks for atlas versions:
+%   showVol(maskBrain([],'ABCD1'),maskBrain([],'ABCD2'),maskBrain([],'5.0_ABCD3'))
+%
 % TODO: check that this method matches vol_mask_aseg
-%
-%
-% demo, comparing brain masks for atlas versions:
-%   showVol(atlas_T1,atlas_T1('ABCD1',true),atlas_T1('ABCD2'),atlas_T1('ABCD2',true),maskBrain([],'ABCD1'),maskBrain([],'ABCD2'))
-%
-% TODO: check that this method of finding aseg_mask matches
 % this caches the loaded brainMask
 
 persistent brainMask
 persistent lastAtlas
 
 if ~exist('atlas','var') || isempty(atlas)
-  atlas = 'ABCD3_cor10';
-  warning('maskBrain; Using ABCD3 atlas by default. Specify atlas if you want something else.')
+    error('maskBrain: must specify an atlas version including release e.g. 5.0_ABCD3_cor10. See validateAtlasVersion.m')
 end
+
+atlas = validateAtlasVersion(atlas); %expand to canonical form
 
 sameAtlas = strncmp(atlas, lastAtlas, 5);
 
@@ -34,12 +33,12 @@ if isempty(brainMask) || ~sameAtlas
   lastAtlas = atlas;
   
   switch atlas
-    case {'ABCD1_cor10','ABCD1'}
+    case '3.0_ABCD1_cor10'
       
       load(fullfile(cfg.data.showVolData,'atlas_dspace','rgbsnap_ABCD1_cor10.mat'),'vol_mask_aseg');
       brainMask = vol_mask_aseg > 0.01;
       
-    case {'ABCD2_cor10','ABCD2'}
+    case '4.0_ABCD2_cor10'
       
       load(fullfile(cfg.data.showVolData,'Atlas',['showVolAtlases_ABCD2_cor10.mat']),'aseg')
       c = aseg.prob;
@@ -50,10 +49,10 @@ if isempty(brainMask) || ~sameAtlas
       brainMask = sum(aseg.prob, 4);
       brainMask = brainMask > 0.01;
       
-    case {'ABCD3_cor10','ABCD3'}
+    case '5.0_ABCD3_cor10'
       
       disp('Loading ABCD3 aseg to cache brainMask')
-      load(fullfile(cfg.data.showVolData,'Atlas',['showVolAtlases_ABCD3_cor10.mat']),'aseg')
+      load(fullfile(cfg.data.showVolData,'Atlas',atlas,['showVolAtlases_5.0_ABCD3_cor10.mat']),'aseg')
       c = aseg.prob;
       if iscell(c) %decompress
         aseg.prob = zeros(c{1}, 'single');
