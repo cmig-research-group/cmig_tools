@@ -77,7 +77,7 @@ inputs = inputParser;
 addParamValue(inputs,'ranknorm',0);
 addParamValue(inputs,'ico',5);
 addParamValue(inputs,'contrasts',[]);
-addParamValue(inputs,'output','mat');
+addParamValue(inputs,'output',[]);
 addParamValue(inputs,'synth',0); % AMD - put back synth option
 addParamValue(inputs,'ivnames','');
 addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
@@ -116,8 +116,11 @@ if ~isfinite(contrasts)
 end
 ranknorm = str2num_amd(inputs.Results.ranknorm);
 outputFormat = inputs.Results.output;
+if isempty(outputFormat)
+  if strcmp(datatype,'external') outputFormat = 'csv'; else outputFormat = 'mat'; end % external data defaults to csv output
+end
 nbins = str2num_amd(inputs.Results.nbins);
-if ~(contains(outputFormat,'mat') || contains(outputFormat,'nifti'))
+if ~(contains(outputFormat,'mat') || contains(outputFormat,'nifti') || contains(outputFormat,'csv'))
   error('Incorrect output format (%s)',outputFormat)
 end
 
@@ -479,14 +482,33 @@ for des=1:length(fname_design)
     % =========================================================================
   elseif strcmpi(datatype, 'external')
 
-    if contains(outputFormat, 'mat')
-      warning('Only outputFormat "mat" currently supported for external csv data')
+    if contains(outputFormat, 'csv')
+      warning('Defaulting to output format "csv" for external csv data. Use output = "mat" for MATLAB output file.')
+      if nperms > 0
+        csv_vars_to_save = {base_variables_to_save{:}, 'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest'};
+      elseif nperms==0
+        csv_vars_to_save = {base_variables_to_save{:}, 'colnames_imaging'};
+      end
+      % save to fpath_out
+      for v =1:length(csv_vars_to_save)
+        % save
+        filename = strrep(fpath_out,'.mat',sprintf('_%s.csv',csv_vars_to_save{v}));
+        if strcmp(class(eval(csv_vars_to_save{v})),'cell')
+          writecell(eval(csv_vars_to_save{v}), filename);
+        elseif strcmp(class(eval(csv_vars_to_save{v})),'inputParser') || strcmp(class(eval(csv_vars_to_save{v})),'struct') 
+          continue; % consider saving inputs as well?
+        else 
+          writematrix(eval(csv_vars_to_save{v}), filename);
+        end
+      end
     end
 
-    if nperms>0
-      save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
-    elseif nperms==0
-      save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
+    if contains(outputFormat, 'mat')
+      if nperms>0
+        save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
+      elseif nperms==0
+        save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
+      end
     end
 
     logging('Results written to %s',fpath_out);
