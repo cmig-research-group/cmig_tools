@@ -854,7 +854,7 @@ for permi = 0:nperms
                     B  = XtW * X;
 
                     % Calculate inverse of XtWX
-                    if lowRank
+                    if rank(B) < size(B,2)
                         if useLSQ
                             Bi = lsqminnorm(B, eye(size(B)));
                         else
