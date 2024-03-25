@@ -1,4 +1,4 @@
-function vols = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat, mask, ...
+function [vols beta_hat_spline] = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat, mask, ...
                                         outpath)
 % Function to convert the test statistics of a FEMA analysis using spline
 % basis functions to a 4D vols variable.
@@ -24,9 +24,6 @@ function vols = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat, mask, ...
 % vols:         4D array of volumes to be read by a 3D volume viewer; 4th 
 %               dimension represents different values of x over which spline 
 %               function is evaluated
-%% TODO:
-% - currently experiencing an error with niftiwrite_amd function
-% - check to make sure 4D vol is saved correctly
 
 %% calculate derivatives of basis functions
 bfmat = table2array(tbl_bf);
@@ -34,9 +31,11 @@ bfmat = table2array(tbl_bf);
 
 %% compute spline function as weighted sum of betas for basis functions
 vols = NaN([size(mask) length(xvec)]);
+beta_hat_spline = NaN([length(xvec) size(beta_hat,2)]);
 for agei = 1:length(xvec)
     wvec = dbfmat(agei,:)';
     valvec = sum(beta_hat.*wvec,1);
+    beta_hat_spline(agei, :) = valvec;
     vols(:,:,:,agei) = fullvol(valvec,mask);
 end
 

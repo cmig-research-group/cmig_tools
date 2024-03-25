@@ -1,37 +1,74 @@
-function [roi_sum, roi_vox] = vol_by_roi(vol)
+function [roi_sum, roi_vox] = vol_by_roi(vol, varargin)
+% Function to group voxelwise statistics into their ROIs for a given ABCD
+% atlas.
+%% Inputs:
+% vol                   voxelwise statmap (e.g., from FEMA output)
+%% Optional inputs:
+% atlas                 string indicating which ABCD atlas to use (default:
+%                       'ABCD3')
+% incl_aseg_rois        list of aseg ROIs to include; default is to
+%                       include all ROIs in 'annot.aseg.roinames'
+% incl_pauli_rois       list of pauli ROIs to include; default is to
+%                       include all ROIs in 'annot.pauli.roinames'
+% incl_thalamus_rois    list of thalamus ROIs to include; default is to
+%                       include all ROIs in 'annot.thalamus.roinames'
+
+p = inputParser;
+addParamValue(p,'atlas', '');
+addParamValue(p,'incl_aseg_rois', '');
+addParamValue(p,'incl_pauli_rois', '');
+addParamValue(p,'incl_thalamus_rois', '');
+
+parse(p,varargin{:})
+atlas                   = p.Results.atlas;
+incl_aseg_rois          = p.Results.incl_aseg_rois;
+incl_pauli_rois         = p.Results.incl_pauli_rois;
+incl_thalamus_rois      = p.Results.incl_thalamus_rois;
+
+    if isempty(atlas)
+        disp("No atlas specified; defaulting to ABCD3");
+        atlas = 'ABCD3';
+    end
     cfg = abcdConfig;                
-    annot = load(fullfile(cfg.data.showVolData,'Atlas','showVolAtlases_1mm.mat'));
+    annot = load(fullfile(cfg.data.showVolData,'Atlas',sprintf('showVolAtlases_%s_cor10.mat',atlas)));
     c = annot.aseg.prob;
     prob = zeros(c{1}, 'single');
     prob(c{2}) = c{3};
     annot.aseg.prob = prob;
     prob = prob(1:2:end, 1:2:end, 1:2:end, :);
-    aseg_names = annot.aseg.roinames(annot.aseg.filist+1);
+    if isempty(incl_aseg_rois) incl_aseg_rois = annot.aseg.roinames; end
+    % roinames = incl_aseg_rois;
+    
+    if exist('annot.pauli')
+        pauli_prob = zeros(annot.pauli.prob{1}, 'single');
+        pauli_prob(annot.pauli.prob{2}) = annot.pauli.prob{3};
+        pauli_prob = pauli_prob(1:2:end, 1:2:end, 1:2:end, :);
+        if isempty(incl_pauli_rois) incl_pauli_rois = annot.pauli.roinames; end
+        % roinames = [roinames; incl_pauli_rois];
+    end
+    
+    if exist('annot.thalamus')
+        thalamus_prob = zeros(annot.thalamus.prob{1}, 'single');
+        thalamus_prob(annot.thalamus.prob{2}) = annot.thalamus.prob{3};
+        thalamus_prob = thalamus_prob(1:2:end, 1:2:end, 1:2:end, :);
+        if ~exist('incl_thalamus_rois') incl_thalamus_rois = annot.thalamus.roinames; end
+    end
 
-    pauli_prob = zeros(annot.pauli.prob{1}, 'single');
-    pauli_prob(annot.pauli.prob{2}) = annot.pauli.prob{3};
-    pauli_prob = pauli_prob(1:2:end, 1:2:end, 1:2:end, :);
-    pauli_names = annot.pauli.roinames;
-
-    thalamus_prob = zeros(annot.thalamus.prob{1}, 'single');
-    thalamus_prob(annot.thalamus.prob{2}) = annot.thalamus.prob{3};
-    thalamus_prob = thalamus_prob(1:2:end, 1:2:end, 1:2:end, :);
-    thalamus_names = annot.thalamus.roinames;
+    if exist('annot.fiber')
+        fiber_prob = zeros(annot.fiber.prob{1}, 'single');
+        fiber_prob(annot.thalamus.prob{2}) = annot.fiber.prob{3};
+        fiber_prob = fiber_prob(1:2:end, 1:2:end, 1:2:end, :);
+        if isempty(incl_fiber_rois) incl_fiber_rois = annot.fiber.roinames; end
+    end
 
     % Create output table
-    roi_names  = [aseg_names; pauli_names];
     roi_sum = struct('sum', [], 'cats', [], 'region_size', []);
     roi_vox = struct('vox', [], 'cats', []);
-    incl_aseg_rois = {'Cerebellum-White-Matter', 'Cerebellum-Cortex', 'Thalamus-Proper', 'Pallidum'};
-    incl_pauli_rois = {'Caudate', 'Putamen', 'Subthalamic Nucleus', 'Red Nucleus', 'Substantia Nigra pars compacta ', 'Substantia Nigra pars reticulata'};
-    incl_thalamus_rois = {'Pulvinar', 'Anterior', 'Medio_Dorsal', 'Ventral_Latero_Dorsal','Central_Lateral-Lateral_Posterior-Medial_Pulvinar','Ventral_Anterior','Ventral_Latero_Ventral'};
-    incl_aseg_rois = aseg_names;
-    incl_pauli_rois = pauli_names;
-    incl_thalamus_rois = thalamus_names;
 
     % NB: probability hard coded, consider letting user specify
-    [roi_sum, roi_vox] = extract_roi_val(vol, aseg_names, 0.8, incl_aseg_rois, prob, roi_sum, roi_vox);
-    [roi_sum, roi_vox] = extract_roi_val(vol, pauli_names, 0.8,  incl_pauli_rois, pauli_prob, roi_sum, roi_vox);
-    [roi_sum, roi_vox] = extract_roi_val(vol, thalamus_names, 0.8,  incl_thalamus_rois, thalamus_prob, roi_sum, roi_vox);
+    [roi_sum, roi_vox] = extract_roi_val(vol, annot.aseg.roinames, 0.8, incl_aseg_rois, prob, roi_sum, roi_vox);
+    if exist('pauli_names') [roi_sum, roi_vox] = extract_roi_val(vol, annot.pauli.roinames, 0.8,  incl_pauli_rois, pauli_prob, roi_sum, roi_vox); end
+    if exist('thalamus_names') [roi_sum, roi_vox] = extract_roi_val(vol, annot.thalamus.roinames, 0.8,  incl_thalamus_rois, thalamus_prob, roi_sum, roi_vox); end
+    if exist('fiber_names') [roi_sum, roi_vox] = extract_roi_val(vol, annot.fiber.roinames, 0.8,  incl_fiber_rois, fiber_prob, roi_sum, roi_vox); end
 
 end

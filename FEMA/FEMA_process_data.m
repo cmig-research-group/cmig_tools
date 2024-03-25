@@ -211,8 +211,13 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       tmp = load(fname_corrmat);
     end
     nframes_min = 375; % This should be optional  input param
-    ivec_tmp = find(tmp.nsumvec>=nframes_min);
-    measmat = tmp.measmat(ivec_tmp,:);
+    if isfield(tmp,'nsumvec')  %  Release 4.0
+      ivec_tmp = find(tmp.nsumvec>=nframes_min); 
+      measmat = tmp.measmat(ivec_tmp,:);
+    else %  Release 5.1
+      ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
+      measmat = tmp.corrmat(ivec_tmp,:);
+    end
     dirlist = tmp.dirlist(ivec_tmp);
     dims = size(measmat); measmat = reshape(measmat,[dims(1) prod(dims(2:end))]);
     ymat = measmat;
