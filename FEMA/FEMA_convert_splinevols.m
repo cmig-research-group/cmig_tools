@@ -1,4 +1,4 @@
-function [vols beta_hat_spline] = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat, mask, ...
+function [vols statmat_spline] = FEMA_convert_splinevols(tbl_bf, xvec, statmat, mask, ...
                                         outpath)
 % Function to convert the test statistics of a FEMA analysis using spline
 % basis functions to a 4D vols variable.
@@ -8,9 +8,10 @@ function [vols beta_hat_spline] = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat
 % xvec:         1-D array of x-values, length is equal to number of 
 %               observations in model
 %
-% beta_hat:     array of betas for basis function variables, derived from 
-%               FEMA output; number of columns is equal to number of basis 
-%               functions used in FEMA analysis
+% statmat:      array of test statistics (e.g. betas, z scores) for basis 
+%               function variables, derived from FEMA output; number of 
+%               columns is equal to number of basis functions used in FEMA 
+%               analysis
 %
 % mask:         mask for use in calculating volume
 %
@@ -31,12 +32,16 @@ bfmat = table2array(tbl_bf);
 
 %% compute spline function as weighted sum of betas for basis functions
 vols = NaN([size(mask) length(xvec)]);
-beta_hat_spline = NaN([length(xvec) size(beta_hat,2)]);
+beta_hat_spline = NaN([length(xvec) size(statmat,2)]);
+nframes = size(statmat,2)/length(find(mask>=0.5));
+if floor(nframes)~=nframes
+    warning('Size of stat matrix is incompatible with running fullvol.');
+end
 for agei = 1:length(xvec)
     wvec = dbfmat(agei,:)';
-    valvec = sum(beta_hat.*wvec,1);
-    beta_hat_spline(agei, :) = valvec;
-    vols(:,:,:,agei) = fullvol(valvec,mask);
+    valvec = sum(statmat.*wvec,1);
+    statmat_spline(agei, :) = valvec;
+    if floor(nframes)==nframes vols(:,:,:,agei) = fullvol(valvec,mask); end
 end
 
 % if outpath exists
