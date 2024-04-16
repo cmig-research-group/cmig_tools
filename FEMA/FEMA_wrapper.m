@@ -1,4 +1,4 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
 %
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
@@ -256,7 +256,7 @@ for des=1:length(fname_design)
 
 
 % FIT MODEL
-  [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
+  [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
     'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
     'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
 
@@ -345,7 +345,7 @@ for des=1:length(fname_design)
   end
 
   save_params = struct('fstem_imaging',fstem_imaging,'datatype',datatype,'outdir',dirname_out{des},'synth',synth);
-  base_variables_to_save = {'X','iid','eid','colnames_model','contrasts','datatype','inputs','zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec','save_params','mask'};
+  base_variables_to_save = {'X','iid','eid','colnames_model','contrasts','datatype','inputs','zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec', 'coeffCovar', 'save_params','mask'};
 
   if ~exist(dirname_out{des},'dir'), mkdir(dirname_out{des}); end
 
