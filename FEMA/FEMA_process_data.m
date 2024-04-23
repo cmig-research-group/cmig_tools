@@ -93,7 +93,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
         visitid_concat = tmp_volinfo.visitidvec;
         datenumlist_concat = datenum(tmp_volinfo.datevec,'yyyymmdd');
         corrmat_concat = tmp_volinfo.corrmat;
-      case {'4.0','5.0'}
+      case {'4.0','5.0', '6.0'}
         dirlist = tmp_volinfo.dirlist;
         subjidvec = cell(size(dirlist)); sitevec = cell(size(dirlist)); datevec = cell(size(dirlist)); visitidvec = cell(size(dirlist));
         for diri = 1:length(dirlist)
@@ -176,7 +176,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       switch dataRelease
         case '3.0'
           tmp = regexp(dirlist{diri}, '^FSURF_(?<site>\w+)_(?<SubjID>\w+)_(?<date>\d+)_', 'names'); % 3.0 directory naming convention
-        case {'4.0', '5.0'}
+        case {'4.0', '5.0', '6.0'}
           tmp = regexp(dirlist{diri}, '^[^_]*_(?<site>\w+)_(?<SubjID>\w+)_(?<event>[^_]*)_(?<date>\d+).(?<time>[^_]+)_', 'names'); % 4.0 directory naming convention (with 3.0 data, tmp.event has duplicate of date
       end
 
@@ -192,7 +192,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       switch dataRelease
         case '3.0'
           visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.date);
-        case {'4.0', '5.0'}
+        case {'4.0', '5.0', '6.0'}
           visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
       end
     end
@@ -356,6 +356,53 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       idevent = strcat(iid_concat(:),'_',eid_concat(:));
       imgtable=imgtable(IB,:);
       ymat=ymat(IA,:);
+    
+    case '6.0'
+      tic
+      % if using "released"
+      if contains(dirname_tabulated, 'released')
+        fname_mri_info = 'mri_y_adm_info';
+        fname_imgincl = 'mri_y_qc_incl';
+      elseif contains(dirname_tabulated, 'img')
+        fname_mri_info = 'abcd_mri01';
+        fname_imgincl = 'abcd_imgincl01';
+      end
+      % mri_info file
+      files=dir([dirname_tabulated '/', fname_mri_info, '*']);
+      fname_tabulated=[dirname_tabulated '/' files.name];
+      logging('Reading tabulated imaging data from %s',fname_tabulated);
+      imgtable = readtable(fname_tabulated);
+      % imgtable.idevent=strcat(imgtable.src_subject_id,'_',imgtable.eventname);
+      % imgincl file
+      files=dir([dirname_tabulated '/', fname_imgincl, '*']);
+      fname_incflag=[dirname_tabulated '/' files.name];
+      inctable = readtable(fname_incflag);
+      % inctable.idevent=strcat(inctable.src_subject_id,'_',inctable.eventname);
+
+      [dummy IA IB] = intersect(imgtable.VisitID,inctable.VisitID,'stable');
+      imgtable=join(imgtable(IA,:),inctable(IB,:));
+
+      iid_imgtable = imgtable.src_subject_id;
+      eid_imgtable = imgtable.eventname;
+      date_imgtable = imgtable.mri_info_studydate;
+      visitid_imgtable = imgtable.mri_info_visitid;
+
+      %for dati=1:length(date_imgtable)
+      %tmp = regexp(imgtable.mri_info_studydate{2}, '^(?<month>\d+)/(?<day>\d+)/(?<year>\d+)', 'names');
+      %datevec{dati}=sprintf('%s%s%s',tmp.year,tmp.month,tmp.day);
+      %      visitid_imgtable{dati}=sprintf('%s_%d',visitid_imgtable{dati},date_imgtable(dati));
+      %end
+      toc
+
+      % Merge vertex/voxelwise and tabulated imaging data
+      tmplist_concat = visitid_concat;
+      tmplist_imgtable = visitid_imgtable;
+      [dummy IA IB] = intersect(tmplist_concat,tmplist_imgtable,'stable');
+      eid_concat = eid_imgtable(IB);
+      iid_concat = iid_concat(IA);
+      idevent = strcat(iid_concat(:),'_',eid_concat(:));
+      imgtable=imgtable(IB,:);
+      ymat=ymat(IA,:);
 
   end
 
@@ -368,7 +415,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
         defvec=find(corrvec>=thresh);
       case '4.0'
         defvec=find(corrvec>=thresh & str2double(imgtable.imgincl_dmri_include)==1 & str2double(imgtable.imgincl_t1w_include)==1);
-      case '5.0'
+      case {'5.0', '6.0'}
         defvec=find(corrvec>=thresh & imgtable.imgincl_dmri_include==1 & imgtable.imgincl_t1w_include==1); 
     end
     ymat=ymat(defvec,:);
