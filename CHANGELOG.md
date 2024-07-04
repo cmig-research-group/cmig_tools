@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2024-07-04]
+
+### Changed
+* ``createBasisFunctions``:
+    - fixed dropping columns
+    - additionally saving settings and returning timing information
+    - added SVD based modification of basis functions
+    - default splineType is now ns, consistent with the R version
+    - default column to drop is now the middle column, consistent with R version
+    - added functionality for instance number (useful if called in parallel)
+    - cleaned up documentation / explanation of settings
+    - now allows character type input for toDrop
+    - generates a warning if there is a mismatch in number of observations being read back into MATLAB
+* ``caller_createBasis.R``: 
+    - remove_col is set to "none"
+    - added a comment explaining that the functionality for dropping columns is handled directly within MATLAB
+
+### Deleted
+* ``createBasisNS.R``
+* ``FEMA_create_basisFunctions.m``: functionality merged with ``create_basisFunctions.m``
+
 ## [Unreleased - 2023-11-11]
 
 ### Added

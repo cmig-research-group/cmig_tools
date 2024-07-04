@@ -75,7 +75,7 @@ createBasis <- function(xvec, splineType = "ns", knots  = NULL, df = NULL,
   if (splineType == "bs")
   {
     basis <- bs(xvec, knots = knots, df = df, intercept = intercept, 
-                Boundary.knots = Boundary.knots)
+                degree = 3, Boundary.knots = Boundary.knots)
   } else
   {
     if (splineType == "ns")

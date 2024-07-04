@@ -7,6 +7,9 @@ df         <- as.logical(args[5])
 outName    <- args[6]
 callPath   <- args[7]
 
+# Note that this script is designed to be called via MATLAB and does not 
+# support dropping columns; columns are dropped later in MATLAB
+
 # Read data
 xvec <- as.matrix(read.table(file = xvec, header = F))
 
@@ -27,7 +30,7 @@ if (df)
 source(file.path(callPath, "createBasis.R"))
 basis <- createBasis(xvec, splineType = splineType, knots = knots, df = df, 
                      intercept  = intercept,  demean = FALSE, Boundary.knots = range(xvec), 
-                     remove_col = NULL, dframe = FALSE)
+                     remove_col = "none", dframe = FALSE)
   
 # Write output
 write.table(basis, file = outName, sep = "\t", row.names = F, col.names = F, na = "NaN")
