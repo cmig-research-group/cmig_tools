@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased - 2024-07-04]
 
+### Added
+* ``FEMA_parse_PLINK`` function that calls either ``PlinkRead_binary2`` or ``PlinkRead_binary2_subj`` for reading genotyping data
+* ``FEMA_compileTerms`` for compiling inverse of the V term for every bin
+* ``FEMA_OLSResiduals`` for calculating OLS residuals, given a set of fixed effects
+* ``FEMA_GLSResiduals`` for calculating GLS residuals, given a set of fixed effects and random effects information (output from ``FEMA_compileTerms``)
+
 ### Changed
 * ``createBasisFunctions``:
     - fixed dropping columns
