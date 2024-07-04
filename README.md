@@ -2,7 +2,9 @@
 
 This package includes code to run mass univariate linear mixed effects analysis in a fast and efficient manner.  This can be done at the whole brain level using vertexwise and voxelwise data, and connectivity matrices.  FEMA includes an external data option (.txt format) which can include columms of imaging or behavioral data.  The code includes an ABCD Study specific wrapper ([`FEMA_wrapper.m`](FEMA/FEMA_wrapper.m)), which uses the concatenated imaging files saved on abcd-sync.  The internal functions within the wrapper can be used to analyse any data as long as its inputs are in the correct format within MATLAB.  The code was developed and tested using MATLAB 2020a.
 
-Preprint describing the technical details on how FEMA works can be found here: https://doi.org/10.1101/2021.10.27.466202
+Technical details on how FEMA works can be found [here](https://doi.org/10.1002/hbm.26579)
+
+**Citation**: Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579 
 
 Please see the user guide in docs for more details on how to use FEMA.
 
@@ -28,7 +30,7 @@ For ABCD Investigators - To run FEMA using the ABCD specific `FEMA_wrapper` we a
 ### Code dependencies
 Necessary directories to add to MATLAB path, all part of this repository:
 - [`FEMA`](FEMA)
-- [`utils/matlab`](utils/matlab)
+- [`cmig_tools_utils/matlab`](cmig_tools_utils/matlab)
 - [`PALM`](PALM), included here for convenience ([source](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/PALM))
 
 To visualize results:
@@ -184,8 +186,8 @@ Use `showVol` to plot results
  + The voxelwise mask is saved with the FEMA output so other masked voxelwise data can be converted to volumes for viewing in showVol
       e.g. `vol_beta = fullvol(beta_hat, vol_mask)`
 
-## Authors
-Authors that contributed to the code are Clare E Palmer, Pierre Nedelec, Diliana Pecheva, John Iversen and Anders Dale.
+## Citation
+Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579
 
 ## Copyright
 
