@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * ``FEMA_compileTerms`` for compiling inverse of the V term for every bin
 * ``FEMA_OLSResiduals`` for calculating OLS residuals, given a set of fixed effects
 * ``FEMA_GLSResiduals`` for calculating GLS residuals, given a set of fixed effects and random effects information (output from ``FEMA_compileTerms``)
+* ``divideSNPs`` for dividing SNP data into chunks or dividing based on chromosome
 
 ### Changed
 * ``createBasisFunctions``:
