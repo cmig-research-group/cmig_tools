@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * ``createBasisNS.R``
 * ``FEMA_create_basisFunctions.m``: functionality merged with ``create_basisFunctions.m``
 
+## Miscellaneous
+* Included license information for various external code
+
 ## [Unreleased - 2023-11-11]
 
 ### Added

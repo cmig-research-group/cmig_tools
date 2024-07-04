@@ -1,0 +1,1 @@
+The ``licenses`` folder contains various license/copyright information for some of the external functions or tools that are used by FEMA
