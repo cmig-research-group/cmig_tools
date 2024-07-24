@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2024-07-24]
+### Changed
+* ``FEMA_parse_PLINK``:
+    - returns ``genInfo`` with ``locIID``, ``locSNPs``, and ``numSubjs`` as fields
+    - accepts ``genInfo`` as an input and skips checking of data
+    - output ``benchmark`` renamed to ``tInfo``
+    - output ``basePair`` renamed to ``BP``
+    - additionally calculates overall timing information
+* ``divideSNPs``: 
+    - documentation update
+    - ``bFile`` is mandatory input now; the file is not parsed if ``Chr``, ``SNPID``, ``BP``, and ``genInfo`` are provided as additional inputs
+    - additional fields are now output for each part: ``fname``, ``Locs``, ``Chr``, ``SNPID``, ``BP``, ``outName``, and ``genInfo``
+
 ## [Unreleased - 2024-07-11]
 ### Added
 * ``FEMA_fit_GWAS`` function for performing GWAS using FEMA
