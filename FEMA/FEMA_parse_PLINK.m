@@ -1,6 +1,6 @@
-function [genomat, Chr,  SNPID, basePair, check, errMsg, benchmark] =   ...
-         FEMA_parse_PLINK(bFile,  iid,        SNPList,   onlyCheck,     ...
-                          lowMem, meanImpute, roundOff,  transform, stdType)
+function [genomat, Chr, SNPID, BP, check, errMsg, genInfo, tInfo] =             ...
+          FEMA_parse_PLINK(bFile,      iid,      SNPList,   onlyCheck, lowMem,  ...
+                           meanImpute, roundOff, transform, stdType,   genInfo)
 % Function to parse PLINK files
 %% Inputs:
 % bFile:            character       full path to a PLINK file (no extension)
@@ -51,6 +51,12 @@ function [genomat, Chr,  SNPID, basePair, check, errMsg, benchmark] =   ...
 %                                       * 'emperical'
 %                                       * 'gcta'
 %
+% genInfo:          structure       if genInfo structure containing the
+%                                   fields 'locIID', 'locSNPs', and
+%                                   'numSubjs' is present, checking is
+%                                   skipped (see outputs for details on
+%                                   these fields)
+%
 %% Outputs:
 % genomat:          [n x m]         matrix of m SNPs for n subjects (iid)
 %
@@ -59,7 +65,7 @@ function [genomat, Chr,  SNPID, basePair, check, errMsg, benchmark] =   ...
 %
 % SNPID:            [m x 1]         cell type having SNP ID for the m SNPs
 %
-% basePair:         [m x 1]         cell type having base pair coordinates
+% BP:               [m x 1]         cell type having base pair coordinates
 %                                   for the m SNPs
 %
 % check:            logical         true if all IDs in IID are present in
@@ -71,10 +77,23 @@ function [genomat, Chr,  SNPID, basePair, check, errMsg, benchmark] =   ...
 % errMsg:           character       if check fails, a message indicating
 %                                   which of the checks (IID/SNPs) failed;
 %                                   empty otherwise
-%
-% benchmark:        structure       timing information for different
+% 
+% tInfo:            structure       timing information for different
 %                                   aspects of this script; useful for
 %                                   identifying bottleneck
+%
+% genInfo:          structure       contains variables that can be reused
+%                                   when reading the full data;
+%                                   specifically, contains the following:
+%
+% locIID:           [n x 1]         vector having the location in the
+%                                   genomat for the subjects in IID
+%
+% locSNPs:          [m x 1]         vector having the location of the SNPs
+%                                   within the PLINK files for the SNPs in
+%                                   SNPList
+%
+% numSubjs:         [1 x 1]         number of subjects in the genetics file
 %
 %% Notes:
 % Genotyping matrix can be transformed in the following mways:
@@ -124,9 +143,12 @@ function [genomat, Chr,  SNPID, basePair, check, errMsg, benchmark] =   ...
 % roundOff:         false
 % transform:        'none'
 % stdType:          'emperical'
+% locIID:           []
+% locSNPs:          []
 
 %% Check inputs and assign defaults
 % Initialize timer
+tInit         = tic;
 ticInputCheck = tic;
 
 % Check for fam, bim, and bed files
@@ -215,73 +237,116 @@ else
     end
 end
 
+% Check if reading fam and bim files can be skipped
+if ~exist('genInfo', 'var') || isempty(genInfo)
+    skipCheck = false;
+else
+    if ~isstruct(genInfo)
+        error('genInfo should be a structure with locIID, locSNPs, and numSubjs fields');
+    else
+        if ~all(isfield(genInfo, {'locIID', 'locSNPs', 'numSubjs'}))
+            warning('genInfo was provided but one of the following was missing: locIID, locSNPs, numSubjs');
+            skipCheck = false;
+        else
+            skipCheck = true;
+        end
+    end
+end
+
+% If skipCheck is true, set readsubjAll to false
+if skipCheck
+    readsubjAll = false;
+end
+
 % End of input checking
-benchmark.inputChecking = toc(ticInputCheck);
+tInfo.inputChecking = toc(ticInputCheck);
 
 %% Sanity check
 % Initialize timer
 ticSanityCheck = tic;
 
-% Read fam file
-fhandle  = fopen([bFile, '.fam'], 'r');
-fam_file = textscan(fhandle, '%s %s %s %s %s %s');
-fclose(fhandle);
-
-% Read bim file
-fhandle  = fopen([bFile, '.bim'], 'r');
-bim_file = textscan(fhandle, '%s %s %s %s %s %s');
-fclose(fhandle);
-
-% Find the location of the IIDs in the fam file
-if readsubjAll
-    iid = fam_file{2};
-end
-[~, locIID] = ismember(iid, fam_file{2});
-if sum(locIID == 0) ~= 0
-    check_IID = false;
-else
-    check_IID = true;
-end
-
-% Make sure that all SNPs in listSNPs exist in bim file
-if readSNPAll
-    SNPList = bim_file{2};
-end
-% Find the location of the SNPs
-[~, locSNPs] = ismember(SNPList, bim_file{2});
-if sum(locSNPs == 0) ~= 0
-    check_SNPs = false;
-else
-    check_SNPs = true;
-end
-
-% Overall check variable
-check = check_IID & check_SNPs;
-if ~check
-    if check_IID && ~check_SNPs
-        errMsg = 'One or more SNPs not present in the bim file';
-    else
-        if ~check_IID && check_SNPs
-            errMsg = 'One or more IDs not present in the fam file';
-        else
-            errMsg = 'One or more IDs and one or more SNPs not present in fam/bim files';
-        end
+if ~skipCheck
+    % Read fam file
+    fhandle  = fopen([bFile, '.fam'], 'r');
+    fam_file = textscan(fhandle, '%s %s %s %s %s %s');
+    fclose(fhandle);
+    
+    % Read bim file
+    fhandle  = fopen([bFile, '.bim'], 'r');
+    bim_file = textscan(fhandle, '%s %s %s %s %s %s');
+    fclose(fhandle);
+    
+    % Find the location of the IIDs in the fam file
+    if readsubjAll
+        iid = fam_file{2};
     end
+    [~, locIID] = ismember(iid, fam_file{2});
+    if sum(locIID == 0) ~= 0
+        check_IID = false;
+    else
+        check_IID = true;
+    end
+    
+    % Make sure that all SNPs in listSNPs exist in bim file
+    if readSNPAll
+        SNPList = bim_file{2};
+    end
+    % Find the location of the SNPs
+    [~, locSNPs] = ismember(SNPList, bim_file{2});
+    if sum(locSNPs == 0) ~= 0
+        check_SNPs = false;
+    else
+        check_SNPs = true;
+    end
+    
+    % Overall check variable
+    check = check_IID & check_SNPs;
+    if ~check
+        if check_IID && ~check_SNPs
+            errMsg = 'One or more SNPs not present in the bim file';
+        else
+            if ~check_IID && check_SNPs
+                errMsg = 'One or more IDs not present in the fam file';
+            else
+                errMsg = 'One or more IDs and one or more SNPs not present in fam/bim files';
+            end
+        end
+    else
+        errMsg = '';
+    end
+
+    % Chromosome number is bim{1}, rsID is bim{2}, and basePair is bim{4};
+    % number of subjects in the genetics file is the length of fam_file{2}
+    Chr      = bim_file{1}(locSNPs);
+    SNPID    = bim_file{2}(locSNPs);
+    BP       = bim_file{4}(locSNPs);
+    numSubjs = length(fam_file{2});
+
+    % Save some information for posteriety
+    genInfo.locIID   = locIID;
+    genInfo.locSNPs  = locSNPs;
+    genInfo.numSubjs = numSubjs;
 else
-    errMsg = '';
+    % Extract values from structure
+    locIID   = genInfo.locIID;
+    locSNPs  = genInfo.locSNPs;
+    numSubjs = genInfo.numSubjs;
+
+    % Assign empty output values
+    errMsg  = '';
+    Chr     = '';
+    SNPID   = '';
+    BP      = '';
+    check   = true;
 end
 
 % End of sanity check
-benchmark.sanityCheck = toc(ticSanityCheck);
+tInfo.sanityCheck = toc(ticSanityCheck);
 
 %% Exit, if onlyCheck
-% Chromosome number is bim{1}, rsID is bim{2}, and basePair is bim{4}
-Chr      = bim_file{1}(locSNPs);
-SNPID    = bim_file{2}(locSNPs);
-basePair = bim_file{4}(locSNPs);
-
 if onlyCheck
-    genomat  = [];
+    tInfo.overall = toc(tInit);
+    genomat       = [];
     return
 else
     error(errMsg);
@@ -290,11 +355,11 @@ end
 %% Read data
 ticRead = tic;
 if readsubjAll
-    genmat  = PlinkRead_binary2(length(fam_file{2}), locSNPs, bFile);
+    genmat  = PlinkRead_binary2(numSubjs, locSNPs, bFile);
 else
-    genmat  = PlinkRead_binary2_subj(length(fam_file{2}), locSNPs, locIID, bFile);
+    genmat  = PlinkRead_binary2_subj(numSubjs, locSNPs, locIID, bFile);
 end
-benchmark.readPlink = toc(ticRead);
+tInfo.readPlink = toc(ticRead);
 
 %% If lowMemMode, exit
 if lowMem
@@ -313,14 +378,14 @@ if readsubjAll
 else
     genomat = single(genmat);
 end
-benchmark.singlePrecision = toc(ticSingle);
+tInfo.singlePrecision = toc(ticSingle);
 
 %% Set out of range to NaN
 % tmpLocs = genomat ~= 0 & genomat ~= 1 & genomat ~= 2;
 ticNaN           = tic;
 tmpLocs          = genmat == -1;
 genomat(tmpLocs) = NaN;
-benchmark.setNaN = toc(ticNaN);
+tInfo.setNaN     = toc(ticNaN);
 
 %% Mean impute NaN, if necessary
 if meanImpute
@@ -330,7 +395,7 @@ if meanImpute
     tmp                  = repmat(colMeans, [size(genomat, 1), 1]);
     toImpute             = isnan(genomat(:));
     genomat(toImpute)    = tmp(toImpute);
-    benchmark.meanImpute = toc(ticMeanImpute);
+    tInfo.meanImpute     = toc(ticMeanImpute);
 end
 
 %% Round up mean imputed data, if necessary
@@ -344,13 +409,13 @@ switch transform
     case 'center'
         ticTransform          = tic;
         genomat               = (genomat - mean(genomat, 'omitnan'));
-        benchmark.standardize = toc(ticTransform);
+        tInfo.standardize     = toc(ticTransform);
         
     case 'std'
         if strcmpi(stdType, 'emperical')
             ticTransform          = tic;
             genomat               = (genomat - mean(genomat, 'omitnan'))./std(genomat, [], 'omitnan');
-            benchmark.standardize = toc(ticTransform);
+            tInfo.standardize     = toc(ticTransform);
         else
             ticTransform          = tic;
             counter0              = sum(genomat == 0);
@@ -360,6 +425,9 @@ switch transform
             alleleFreq            = (counter1 + counter2*2)./(numObs*2);
             genomat               = (genomat - (2 * alleleFreq)) ./ ...
                                     (sqrt(2 * alleleFreq .* (1 - alleleFreq)));
-            benchmark.standardize = toc(ticTransform);
+            tInfo.standardize     = toc(ticTransform);
         end
 end
+
+% Overall time taken
+tInfo.overall = toc(tInit);
