@@ -1,31 +1,57 @@
-function [splitInfo, timing] = divideSNPs(bFile, splitBy, chunkSize, SNPID, Chr)
+function [splitInfo, timing] = divideSNPs(bFile, splitBy, chunkSize, SNPID, Chr, BP, genInfo)
 % Function that divides SNPs into chunks or by chromosomes
-%% Inputs:
-% bFile:        full path to a bFile without extension
+%% Input(s):
+% bFile:        character       full path to a bFile without extension
 %
-% splitBy:      should be either of the following:
-%                   * 'snp' (default)
-%                   * 'chromosome'
+%% Optional inputs: 
+% splitBy:      character       should be either of the following:
+%                                   * 'snp' (default)
+%                                   * 'chromosome'
 %
-% chunkSize:    if splitBy is 'snp', then chunkSize indicates the number of
-%               SNPs in each chunk - defaults to 1000
+% chunkSize:    [1 x 1]         if splitBy is 'snp', then chunkSize
+%                               indicates the number of SNPs in each chunk
+%                               (defaults to 1000); if splitBy is
+%                               'chromosome', then chunkSize is not
+%                               relevant
 %
-% Optionally, it is possible to skip parsing a bFile by providing SNPID and
-% (optionally Chr) along with other inputs
+%% Other inputs:
+% Parsing of bFile can be skipped if these are additionally input:
+% Chr:          [m x 1]         cell type having chromosome number for
+%                               the m SNPs
+%
+% SNPID:        [m x 1]         cell type having SNP ID for the m SNPs
+%
+% BP:           [m x 1]         cell type having base pair coordinates
+%                               for the m SNPs
+%
+% genInfo:      structure       should contain the following fields:
+%                                   * 'locSNPs'
+%                                   * 'locIID'
+%                                   * 'numSubjs'
 %
 %% Output(s):
-% splitInfo:    cell type; each cell contains a structure with the
-%               following fields:
-%                   * 'Locs':       locations of the SNPs
-%                   * 'SNPs':       names of the SNPs
-%                   * 'outName':    temporary name for saving mat file for
-%                                   every chromosome/chunk
+% splitInfo:    cell type       each cell contains a structure with the
+%                               following fields for chunk/chromosome: 
+%                                   * 'fname':   full path to PLINK file
+%                                   * 'Locs':    index locations of SNPs
+%                                   * 'Chr':     chromosome number of SNPs
+%                                   * 'SNPs':    names of the SNPs
+%                                   * 'BP':      base pair position
+%                                   * 'outName': temporary name for saving
+%                                                mat file for every part
+%                                   * 'genInfo': contains 'locSNPs',
+%                                                'locIID', and 'numSubjs'
 %
-% timing:       structure containing timing information
+% timing:       structure       contains timing information
 
 %% Parse inputs and assign defaults
 tOver = tic;
 tInit = tic;
+
+% Check bFile
+if ~exist('bFile', 'var') || isempty(bFile)
+    error('Please provide a full path to a PLINK file');
+end
 
 % Check splitBy
 if ~exist('splitBy', 'var') || isempty(splitBy)
@@ -40,22 +66,21 @@ end
 % Check chunkSize
 if ~exist('chunkSize', 'var') || isempty(chunkSize)
     chunkSize = 1000;
-end
-
-% Check bFile and other parameters
-if ~exist('bFile', 'var') || isempty(bFile)
-    skipBFile = true;
-    % Check if SNPID exists
-    if ~exist('SNPID', 'var') || isempty(SNPID)
-        error('Both bFile and SNPID not provided; unable to proceed');
-    else
-        % Check if splitBy is chromosome; if so, check if Chr exists
-        if strcmpi(splitBy, 'chromosome')
-            if ~exist('Chr', 'var') || isempty(Chr)
-                error('Both bFile and Chr not provided; unable to proceed');
-            end
+else
+    if strcmpi(splitBy, 'snp')
+        if ~isnumeric(chunkSize) && ~isscalar(chunkSize)
+            error('If splitBy is snp, chunkSize should be a numeric scalar');
         end
     end
+end
+
+% Check if bFile reading can be skipped
+if (exist('SNPID',   'var') && ~isempty(SNPID))   && ...
+   (exist('Chr',     'var') && ~isempty(Chr))     && ...
+   (exist('BP',      'var') && ~isempty(BP))      && ...
+   (exist('genInfo', 'var') && ~isempty(genInfo)) && ...
+    all(isfield(genInfo, {'locIID', 'locSNPs', 'numSubjs'}))
+    skipBFile = true;
 else
     skipBFile = false;
 end
@@ -66,7 +91,7 @@ timing.tChecks = toc(tInit);
 %% Parse the PLINK file, if required
 tPLINK = tic;
 if ~skipBFile
-    [~, Chr, SNPID, ~, check, errMsg] = FEMA_parse_PLINK(bFile, [], [], true);
+    [~, Chr, SNPID, BP, check, errMsg, genInfo] = FEMA_parse_PLINK(bFile, [], [], true);
     if ~check
         error(errMsg);
     end
@@ -90,9 +115,17 @@ if strcmpi(splitBy, 'snp')
         else
             tmpLocs = allChunks(chunk):allChunks(chunk)+chunkSize-1;
         end
-        splitInfo{chunk}.Locs    = tmpLocs;
-        splitInfo{chunk}.SNPs    = SNPID(tmpLocs);
-        splitInfo{chunk}.outName = ['FEMA_GWAS_Chunk-', num2str(chunk, '%05d')];
+
+        % Assign fields
+        splitInfo{chunk}.fname            = bFile;
+        splitInfo{chunk}.Locs             = tmpLocs;
+        splitInfo{chunk}.Chr              = Chr(tmpLocs);
+        splitInfo{chunk}.SNPs             = SNPID(tmpLocs);
+        splitInfo{chunk}.BP               = BP(tmpLocs);
+        splitInfo{chunk}.outName          = ['FEMA_GWAS_Chunk-', num2str(chunk, '%05d')];
+        splitInfo{chunk}.genInfo.locSNPs  = genInfo.locSNPs(tmpLocs);
+        splitInfo{chunk}.genInfo.locIID   = genInfo.locIID;
+        splitInfo{chunk}.genInfo.numSubjs = genInfo.numSubjs;
     end
 else
     % Identify chromosomes
@@ -102,10 +135,16 @@ else
     % Split genotype across chromosomes
     splitInfo  = cell(numChr,1);
     for chromo = 1:numChr
-        tmpLocs                   = strcmpi(Chr, chr{chromo});
-        splitInfo{chromo}.Locs    = tmpLocs;
-        splitInfo{chromo}.SNPs    = SNPID(tmpLocs);
-        splitInfo{chromo}.outName = ['FEMA_GWAS_Chr-', num2str(chr{chromo}, '%02d')];
+        tmpLocs                            = strcmpi(Chr, chr{chromo});
+        splitInfo{chromo}.fname            = bFile;
+        splitInfo{chromo}.Locs             = tmpLocs;
+        splitInfo{chromo}.Chr              = Chr(tmpLocs);
+        splitInfo{chromo}.SNPs             = SNPID(tmpLocs);
+        splitInfo{chromo}.BP               = BP(tmpLocs);
+        splitInfo{chromo}.outName          = ['FEMA_GWAS_Chr-', num2str(chr{chromo}, '%02d')];
+        splitInfo{chromo}.genInfo.locSNPs  = genInfo.locSNPs(tmpLocs);
+        splitInfo{chromo}.genInfo.locIID   = genInfo.locIID;
+        splitInfo{chromo}.genInfo.numSubjs = genInfo.numSubjs;
     end
 end
 
