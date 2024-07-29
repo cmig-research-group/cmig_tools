@@ -1,5 +1,5 @@
 function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = ...
-          FEMA_fit_GWAS(genoMat, ymat_res, binvec, sig2tvec, Xvars, genStruct, allWsTerms, varargin)
+          FEMA_fit_GWAS(genoMat, ymat_res, binvec, Xvars, genStruct, allWsTerms, varargin)
 % Function to perform GWAS using FEMA
 %% Inputs:
 % genoMat:          [n x m]     matrix containing genotype data of n
@@ -12,12 +12,6 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 % binvec:           [1 x b]     vector of bin values on which random
 %                               effects were evaluated in FEMA_fit
 % 
-% sig2tvec:         [1 x v]     total residual variance of v phenotypes as
-%                               output from FEMA_fit (alternatively, if
-%                               these are corrected for the number of
-%                               variables, specify the optional variable
-%                               'adjustMSE' to false
-%
 % Xvars:            [n x p]     matrix containing X variables (or
 %                               covariates) that were used for creating
 %                               ymat_res when calling FEMA_fit
@@ -110,6 +104,14 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 %
 % logpValues:       [m x q x v] -log10 p values for the T statistics
 %
+% Wald_F:           [m x v x l] Wald statistic (omnibus test across q basis
+%                               functions) for m SNPs, v phenotypes, and l
+%                               weights specified in L
+%
+% Wald_p:           [m x v x l] p value associated with omnibus Wald test
+%
+% timeStruct:       structure   contains various timing information
+% 
 %% Notes
 % Results are only saved as a mat file if both outDir and outName are
 % specified in the input
@@ -203,7 +205,7 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 %
 % Now, replaced the use of pinv for calculating Bi as:
 % Bi = lsqminnorm(XtWVsWtX, eye(size(XtWVsWtX)));
-%
+
 %% Checking mandatory inputs
 tOver  = tic;
 tCheck = tic;
@@ -227,15 +229,6 @@ end
 % Check binvec
 if ~exist('binvec', 'var') || isempty(binvec)
     error('Please specify binvec');
-end
-
-% Check sig2tvec
-if ~exist('sig2tvec', 'var') || isempty(sig2tvec)
-    error('Please specify sig2tvec for every y variable');
-else
-    if size(sig2tvec, 2) ~= size(ymat_res, 2)
-        error('Mismatch between number of y variables and number of sig2tvec entries');
-    end
 end
 
 % Check Xvars
@@ -293,6 +286,11 @@ if toRead
     if ~isfield(genStruct, 'lowMem')
         genStruct.lowMem = false;
     end
+
+    % Check if genInfo structure is present
+    if ~isfield(genStruct, 'genInfo')
+        genStruct.genInfo = [];
+    end
 end
 
 %% Checking optional inputs
@@ -305,7 +303,6 @@ p.addParameter('pValType',       'z');
 p.addParameter('df',             []);
 p.addParameter('OLSflag',        false);
 p.addParameter('SingleOrDouble', 'double');
-p.addParameter('adjustMSE',      true);
 p.addParameter('outDir',         '');
 p.addParameter('outName',        '');
 p.addParameter('useShortcut',    false);
@@ -325,7 +322,6 @@ pValType        = p.Results.pValType;
 df              = p.Results.df;
 OLSflag         = p.Results.OLSflag;
 SingleOrDouble  = p.Results.SingleOrDouble;
-adjustMSE       = p.Results.adjustMSE;
 outDir          = p.Results.outDir;
 outName         = p.Results.outName;
 useLSQ          = p.Results.useLSQ;
@@ -362,20 +358,14 @@ if ~ismember(pValType, {'t', 'z', 'chi'})
 end
 
 % Check degrees of freedom
-if isempty(df) && strcmpi(pValType, 't')
-    warning('Degrees of freedom not specified; using df = sample size - (numX + basisFunc + 1)');
-    df = size(ymat_res, 1) - (size(Xvars, 2) + numBasisFunc + 1);
+if isempty(df)
+    df = size(ymat_res, 1) - (size(Xvars, 2) + numBasisFunc);
 end
 
 % Check SingleOrDouble
 SingleOrDouble = lower(SingleOrDouble);
 if ~ismember(SingleOrDouble, {'single', 'double'})
     error('Unknown value for SingleOrDouble specified');
-end
-
-% Check adjustMSE
-if ~islogical(adjustMSE)
-    error('adjustMSE should be either true or false');
 end
 
 % Check L
@@ -429,13 +419,22 @@ timeStruct.tCheck = toc(tCheck);
 
 %% Read genotyping data (if required)
 if toRead
-    [genoMat, ~, ~, ~, ~, ~,  timingRead] =                                            ...
+    [genoMat, ~, ~, ~, ~, ~, ~, timingRead] =                                          ...
      FEMA_parse_PLINK(genStruct.fname,     genStruct.iid,       genStruct.snpList,     ...
                       genStruct.onlyCheck, genStruct.lowMem,    genStruct.meanImpute,  ...
-                      genStruct.roundOff,  genStruct.transform, genStruct.stdType);
-
+                      genStruct.roundOff,  genStruct.transform, genStruct.stdType,     ...
+                      genStruct.genInfo);
     timeStruct.tRead = timingRead;
+else
+    genStruct = '';
 end
+
+%% Cast genoMat as double precision, if required
+tDouble = tic;
+if strcmpi(SingleOrDouble, 'double')
+    genoMat = double(genoMat);
+end
+timeStruct.tDouble = toc(tDouble);
 
 %% Initialize
 t1                = tic;
@@ -450,11 +449,6 @@ if numBasisFunc > 1
 else
     beta_hat = zeros(numSNPs, numYvars, class(ymat_res));
     beta_se  = zeros(numSNPs, numYvars, class(ymat_res));
-end
-
-%% Adjust sig2tvec
-if adjustMSE
-    sig2tvec = sum(ymat_res .^ 2, 1)/(numObs - (size(Xvars, 2) + size(bfSNP, 2)));
 end
 
 %% Check if this is a case of standard GWAS
@@ -490,47 +484,41 @@ statusNearSing = warning('off', 'MATLAB:nearlySingularMatrix');
 lastwarn('');
 
 if standardGWAS
-    for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
-        ivec_bin = find(binvec == sig2bini);
+    if OLSflag
+        % In case of OLS, there are no bins
+        numY = size(ymat_res, 2);
 
-        % Cast genoMat as double precision, if required
-        if strcmpi(SingleOrDouble, 'double')
-            genoMat = double(genoMat);
+        % Residualize genotype for X variables
+        if regressX
+            genoMat = FEMA_OLSResiduals(genoMat, Xvars);
         end
 
-        if OLSflag
-            % Account for OLS case:
-            % beta       = inv(X' * X) * X' * y
-            % covariance = sigma2 * inv(X' * X)
-            % SE         = sqrt(diag(covariance))
-            % Since each SNP is being treated independently, we can use
-            % element-wise multiplication; additionally, there is no need
-            % to perform any omnibus test across basis functions - the
-            % results will be the same as the estimates
+        % Calculate inverse of X'X: since each SNP is treated
+        % independently, we can use element-wise multiplication for XtX
+        % and then use 1/scalar for the inverse
+        % term1 = sum(genoMat .* genoMat);
+        iterm1 = 1./sum(genoMat .* genoMat);
 
-            % First, residualize SNPs for X variables
-            if regressX
-                genoMat = FEMA_OLSResiduals(genoMat, Xvars);
-            end
+        % Calculate beta coefficient
+        tmpCoeff = iterm1' .* (genoMat' * ymat_res);
+        beta_hat = tmpCoeff;
 
-            % Next, compute X' * X - can run out of memory for very large
-            % sizes of genoMat; maybe in that case, chunking?
-            term1 = sum(genoMat .* genoMat);
+        % Calculate standard error for every phenotype
+        for yy = 1:numY
 
-            % Inverse of term1
-            iterm1 = 1./term1;
+            % Mean squared error - where mean is calculated using df
+            tmp_MSE = sum((ymat_res(:,yy) - (genoMat .* tmpCoeff(:,yy)')).^2)/df;
 
-            % Calculate beta coefficient
-            beta_hat(:, ivec_bin) = iterm1' .* (genoMat' * ymat_res(:,ivec_bin));
+            % Standard error
+            beta_se(:, yy) = sqrt(iterm1 .* tmp_MSE);
+        end
+    else
+        for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
+            % Find the bins
+            ivec_bin = find(binvec == sig2bini);
 
-            % Calculate standard error
-            beta_se(:, ivec_bin) = sqrt(iterm1' * sig2tvec(ivec_bin));
-        else
-            % Account for GLS case:
-            % beta = inv(X' * W * X) * X' * W * y; W = inv(V)
-            % covariance = sigma2 * inv(X' * W * X)
-            % SE = sqrt(diag(covariance))
-            % No need to perform omnibus test across basis functions
+            % Current value of y
+            tmpY = ymat_res(:,ivec_bin);
 
             % First, get the inv(V) term for this bin
             currWsTerm = allWsTerms{binLoc};
@@ -576,20 +564,25 @@ if standardGWAS
             %
             % It is faster to implement XtW * ymat, resulting in [chunk x bins]
             % which is then multiplied element-wise by Bi
-            beta_hat(:,ivec_bin) = Bi' .* (XtW * ymat_res(:, ivec_bin));
+            % beta_hat(:,ivec_bin) = Bi' .* (XtW * ymat_res(:, ivec_bin));
+            tmpCoeff             = Bi' .* (XtW * tmpY);
+            beta_hat(:,ivec_bin) = tmpCoeff;
 
-            % Standard error of beta
-            beta_se(:,ivec_bin) = sqrt(Bi' * sig2tvec(ivec_bin));
+            % Calculate standard error - likely faster to loop over y 
+            % variables in ivec_bin than looping over columns of genoMat
+            for yy = 1:length(ivec_bin)
+                % Mean squared error - where mean is calculated using df
+                tmp_MSE = sum((tmpY(:,yy) - (genoMat .* tmpCoeff(:,yy)')).^2)/df;
+
+                % Standard error
+                beta_se(:, ivec_bin(yy)) = sqrt(Bi .* tmp_MSE);
+            end
+
+            % Update bin counter
+            binLoc = binLoc + 1;
         end
-        % Update bin counter
-        binLoc = binLoc + 1;
     end
 else
-    % Cast genoMat as double precision, if required
-    if strcmpi(SingleOrDouble, 'double')
-        genoMat = double(genoMat);
-    end
-
     % Use basis function to create new genotype matrix
     tmpGenotype = zeros(numObs, numBasisFunc, numSNPs, SingleOrDouble);
     for basis   = 1:numBasisFunc
@@ -610,56 +603,76 @@ else
     beginLocs  = 1:numBasisFunc:size(genoMat,2);
     endLocs    = numBasisFunc:numBasisFunc:size(genoMat,2);
 
-    for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
-        ivec_bin = find(binvec == sig2bini);
-                
-        % Ws term for this bin
-        currWsTerm = allWsTerms{binLoc};
-                
-        % For this bin, the y value - faster than repeated indexing
-        tmpY = ymat_res(:, ivec_bin);
+    if OLSflag
+        % In case of OLS, there are no bins
+        numY = size(ymat_res, 2);
 
         % Residualize genoMat
         if regressX
-            genoMat = FEMA_GLSResiduals(genoMat, Xvars, [], [], currWsTerm, [], useLSQ, lowRank);
+            genoMat = FEMA_OLSResiduals(genoMat, Xvars);
         end
 
-        % Perform estimation - in this case, loop seems to be unavoidable
-        % because parts of genoMat need to be considered together - for
-        % every SNP, there are as many columns as the number of basis
-        % functions. They cannot be considered together because that would
-        % violate the assumption of each SNP acting independently (standard
-        % GWAS assumption)
+        % Loop over every SNP
         for snps = 1:numSNPs
             % Prepare matrix of X variables
             tmpX = genoMat(:, beginLocs(snps):endLocs(snps));
 
-            % Handle case of OLS solution
-            if OLSflag
-                % First compute X' * X
-                term1 = tmpX' * tmpX;
+            % First compute X' * X
+            term1 = tmpX' * tmpX;
 
-                % Inverse of term1
-                I      = eye(size(term1));
-                iterm1 = term1 \ I;
-                msg    = lastwarn;
-                if ~isempty(msg)
-                    if useLSQ
-                        iterm1 = lsqminnorm(term1, I);
-                    else
-                        iterm1 = pinv(term1);
-                    end
-                    msg = ''; %#ok<NASGU>
-                    lastwarn('');
+            % Inverse of term1
+            I      = eye(size(term1));
+            iterm1 = term1 \ I;
+            msg    = lastwarn;
+            if ~isempty(msg)
+                if useLSQ
+                    iterm1 = lsqminnorm(term1, I);
+                else
+                    iterm1 = pinv(term1);
                 end
-                iterm1 = nearestSPD(iterm1);
+                msg = ''; %#ok<NASGU>
+                lastwarn('');
+            end
+            iterm1 = nearestSPD(iterm1);
 
-                % Calculate beta coefficient
-                beta_hat(snps, :, ivec_bin) = iterm1 * (tmpX' * ymat_res(:,ivec_bin));
+            % Calculate beta coefficient
+            tmpCoeff             = iterm1 * (tmpX' * ymat_res);
+            beta_hat(snps, :, :) = tmpCoeff;
 
-                % Calculate standard error
-                beta_se(snps, :, ivec_bin) = sqrt(diag(iterm1) * sig2tvec(ivec_bin));
-            else
+            % Mean squared error - where mean is calculated using df
+            tmp_MSE = sum((ymat_res - (tmpX * tmpCoeff)).^2)/df;
+
+            % Calculate standard error
+            beta_se(snps, :, :) = sqrt(diag(iterm1) * tmp_MSE);
+
+            % Do Wald test
+            for ii = 1:numY
+                coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
+                [Wald_F(snps, ii, :), Wald_p(snps, ii, :)] =  ...
+                FEMA_WaldTest(L, tmpCoeff(:, ii), coeffCovar, hypValue, doF, numObs);
+            end
+        end
+    else
+        for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
+            ivec_bin = find(binvec == sig2bini);
+
+            % Ws term for this bin
+            currWsTerm = allWsTerms{binLoc};
+
+            % For this bin, the y value - faster than repeated indexing
+            tmpY = ymat_res(:, ivec_bin);
+
+            % Residualize genoMat
+            if regressX
+                genoMat = FEMA_GLSResiduals(genoMat, Xvars, [], [], currWsTerm, [], useLSQ, lowRank);
+            end
+
+            % Loop over every SNP
+            for snps = 1:numSNPs
+
+                % Prepare matrix of X variables
+                tmpX = genoMat(:, beginLocs(snps):endLocs(snps));
+
                 % Prepare XtW
                 XtW = double(tmpX') * currWsTerm;
 
@@ -681,21 +694,27 @@ else
                 end
                 iterm1 = nearestSPD(iterm1);
 
-                % Calculate beta coefficient and standard error
-                beta_hat(snps, :, ivec_bin) = iterm1 * (XtW * tmpY);
-                beta_se(snps,  :, ivec_bin) = sqrt(diag(iterm1) * sig2tvec(ivec_bin));
+                % Calculate beta coefficient
+                tmpCoeff                    = iterm1 * (XtW * tmpY);
+                beta_hat(snps, :, ivec_bin) = tmpCoeff;
+
+                % Mean squared error - where mean is calculated using df
+                tmp_MSE = sum((tmpY - (tmpX * tmpCoeff)).^2)/df;
+
+                % Calculate standard error
+                beta_se(snps,  :, ivec_bin) = sqrt(diag(iterm1) * tmp_MSE);
 
                 % Do Wald test
                 for ii = 1:length(ivec_bin)
-                    coeffCovar = iterm1 * (sig2tvec(ivec_bin(ii)) * eye(numBasisFunc));
+                    coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
                     [Wald_F(snps, ivec_bin(ii), :), Wald_p(snps, ivec_bin(ii), :)] =  ...
-                     FEMA_WaldTest(L, squeeze(beta_hat(snps, :, ivec_bin(ii)))', ...
-                                   coeffCovar, hypValue, doF, numObs);
+                    FEMA_WaldTest(L, tmpCoeff(:, ii), coeffCovar, hypValue, doF, numObs);
                 end
             end
+
+            % Update bin counter
+            binLoc = binLoc + 1;
         end
-        % Update bin counter
-        binLoc = binLoc + 1;
     end
 end
 
@@ -727,11 +746,14 @@ if writeResults
     % Save name - make sure .mat is not already part of outName
     saveName = fullfile(outDir, [strrep(outName, '.mat', ''), '.mat']);
 
+    % Variables to save
+    toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', 'genStruct'};
+
     % Get an estimate of size of the variables
     tmpInfo = whos;
-    if sum([tmpInfo(ismember({tmpInfo(:).name}', {'beta_hat', 'beta_se', 'tStats', 'pValues', 'df', 'Wald_F', 'Wald_p', 'timingStruct'})).bytes]) > 2^31
-        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', '-v7.3');
+    if sum([tmpInfo(ismember({tmpInfo(:).name}', toSave)).bytes]) > 2^31
+        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', 'genStruct', '-v7.3');
     else
-        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct');
-    end    
+        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', 'genStruct');
+    end
 end

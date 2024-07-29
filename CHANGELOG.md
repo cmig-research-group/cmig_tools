@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2024-07-29]
+### Changed
+* ``FEMA_fit_GWAS``:
+    - fixed standard errors in OLS estimation by calculating SNP-wise mean squared errors - now almost exactly matches a call to standard linear model
+    - fixed standard errors in GLS estimation by calculating SNP-wise mean squared errors - similar to OLS solution
+    - dropped requirement for ``sig2tvec`` as MSE is being calculated for every SNP
+    - fixed incorrect variable name check when calculating size of variables to be saved
+    - re-written parts of OLS estimation - no requirement of bins for OLS
+    - added description of Wald statistics and p values as output
+
 ## [Unreleased - 2024-07-24]
 ### Changed
 * ``FEMA_parse_PLINK``:
