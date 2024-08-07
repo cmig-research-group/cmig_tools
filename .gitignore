@@ -1,5 +1,4 @@
 *.m~
 *.asv
 *.swp
-DEAP/
 .ipynb_checkpoints/
