@@ -1,0 +1,33 @@
+MATLAB = /usr/pubsw/packages/matlab/R2023a
+MCC = $(MATLAB)/bin/mcc
+MATFLAGS = -I ../cmig_tools_internal/cmig_tools_utils/matlab -I ../cmig_tools_internal/FEMA
+
+ALL_PROGS = \
+	test_worker/test_worker \
+	test_client/test_client \
+	FEMA_DEAP_gencache/FEMA_DEAP_gencache \
+	FEMA_DEAP_worker/FEMA_DEAP_worker \
+	FEMA_DEAP_wrapper/FEMA_DEAP_wrapper
+
+all: $(ALL_PROGS)
+
+FEMA_DEAP_worker/FEMA_DEAP_worker: FEMA_DEAP_worker.m GlobalConfig.m FEMA_DEAP_server.m Makefile
+	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
+
+FEMA_DEAP_wrapper/FEMA_DEAP_wrapper: FEMA_DEAP_wrapper.m FEMA_DEAP_wrapper_submit.m GlobalConfig.m FEMA_DEAP_client.m Makefile
+	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
+
+test_worker/test_worker: test_worker.m GlobalConfig.m
+	$(MCC) -m $< -d $(basename $<) 
+
+test_client/test_client: test_client.m GlobalConfig.m FEMA_DEAP_client.m
+	$(MCC) -m $< -d $(basename $<) -a FEMA_DEAP_client.m
+
+FEMA_DEAP_gencache/FEMA_DEAP_gencache: FEMA_DEAP_gencache.m Makefile
+	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
+
+clean:
+	rm -rf test_worker test_client FEMA_DEAP_gencache FEMA_DEAP_worker FEMA_DEAP_wrapper
+	
+run: test_client/test_client
+	./test_client/run_test_client.sh $(MATLAB)
