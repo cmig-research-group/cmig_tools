@@ -136,25 +136,27 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
     MAX_RETRIES = 10;
     fname_results = sprintf('%s/job_%02d_%d.mat',dirname_results,fraci,nfrac);
     retry = 0;
+    tmp = struct;
     while retry < MAX_RETRIES
       try
-        tmp = load(fname_results);
+        tmp = load(fname_results, 'zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec');
         retry = MAX_RETRIES;
+        % logging(fieldnames(tmp));
+        fname_out = sprintf('%s/%s_%s_%02d_%02d.mat',dirname_cache,datatype,fstem_imaging,fraci,nfrac);
+        cache = load(fname_out,'ivec_frac'); % Should perhaps check to touch file insetad, to make sure that worker is done writing?
+        % logging(fieldnames(tmp));
+        zmat(:,cache.ivec_frac) = tmp.zmat;
+        logpmat(:,cache.ivec_frac) = tmp.logpmat;
+        beta_hat(:,cache.ivec_frac) = tmp.beta_hat;
+        beta_se(:,cache.ivec_frac) = tmp.beta_se;
+        sig2mat(:,cache.ivec_frac) = tmp.sig2mat;
+        sig2tvec(:,cache.ivec_frac) = tmp.sig2tvec;
       catch
         retry = retry + 1;
         pause(1);
         logging('Error: Could not load %s, retry %d',fname_results, retry);
       end
     end
-
-    fname_out = sprintf('%s/%s_%s_%02d_%02d.mat',dirname_cache,datatype,fstem_imaging,fraci,nfrac);
-    cache = load(fname_out,'ivec_frac'); % Should perhaps check to touch file insetad, to make sure that worker is done writing?
-    zmat(:,cache.ivec_frac) = tmp.zmat;
-    logpmat(:,cache.ivec_frac) = tmp.logpmat;
-    beta_hat(:,cache.ivec_frac) = tmp.beta_hat;
-    beta_se(:,cache.ivec_frac) = tmp.beta_se;
-    sig2mat(:,cache.ivec_frac) = tmp.sig2mat;
-    sig2tvec(:,cache.ivec_frac) = tmp.sig2tvec;
   end
 
   % Create client to to dispatch work to workers

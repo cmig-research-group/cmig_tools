@@ -13,6 +13,7 @@ function FEMA_DEAP_gencache(nfrac,dirname_cache,dirname_tabulated,dirname_voxelw
     end
   end
 
+  logging('FEMA_DEAP_gencache Begin %d, %s, %s, %s, %s, %s',nfrac,dirname_cache,dirname_tabulated,dirname_voxelwise,dirname_out,fname_design);
   %  Cache voxelwise phenotypes
   measlist = {{'dmri' 'RNI'} {'dmri' 'RND'} {'smri' 'JA'}}; % List of phenotypes to cache
   %measlist = {{'smri' 'JA'}}; 
