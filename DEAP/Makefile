@@ -1,6 +1,6 @@
 MATLAB = /usr/pubsw/packages/matlab/R2023a
 MCC = $(MATLAB)/bin/mcc
-MATFLAGS = -I ../cmig_tools_internal/cmig_tools_utils/matlab -I ../cmig_tools_internal/FEMA
+MATFLAGS = -I ../cmig_tools_utils/matlab -I ../FEMA
 
 ALL_PROGS = \
 	test_worker/test_worker \
