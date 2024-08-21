@@ -1,12 +1,12 @@
-function [basisFunction, bfRank, basisSubset, settings, timing] =          ...
-          createBasisFunctions(age,       knots,  splineType, dfFlag,      ...
-                               intercept, method, toDrop,     ageSubset,   ...
-                               addConst,  outDir, optCommand, optAppend,   ...
+function [basisFunction, bfRank, basisSubset, settings, timing] =            ...
+          createBasisFunctions(age,       knots,     splineType, Xvars,      ...
+                               dfFlag,    intercept, method,     ageSubset,  ...
+                               addConst,  outDir,    optCommand, optAppend,  ...
                                cleanUp,   instance)
 % Function to create basis functions, given a set of age / time and knots
 % and other parameters - currently supports creation of natural cubic
 % splines or B-splines using ns or bs functions from the splines package in
-% R; or creating natural cubic splines with unit heights at knots using the 
+% R, or creating natural cubic splines with unit heights at knots using the 
 % nsk function from the splines2 package in R
 %
 %% Inputs:
@@ -20,6 +20,9 @@ function [basisFunction, bfRank, basisSubset, settings, timing] =          ...
 %                       * 'bs'  (B-splines)
 %                       * 'nsk' (natural cubic splines with unit heights at knots)
 %
+% Xvars:            vector or matrix of X variables that should be
+%                   (linearly) regressed out from the basis functions
+%
 % dfFlag:           logical; can be used to specify degrees of freedom
 %                   instead of knots; enter a single number corresponding 
 %                   to the degrees of freedom for "knots" and specify
@@ -32,19 +35,7 @@ function [basisFunction, bfRank, basisSubset, settings, timing] =          ...
 %
 % method:           character; one of the following (see Notes):
 %                       * 'default'
-%                       * 'demean'
-%                       * 'regress'
 %                       * 'svd'
-%
-% toDrop:           numeric or character; indicates which basis functions
-%                   to drop; can be set to -1 in which case no columns will
-%                   be dropped; or more than one columns to be dropped can
-%                   be specified as numeric vector; as character, the
-%                   following can be specified:
-%                       * 'first'
-%                       * 'middle'
-%                       * 'last'
-%                       * 'none'
 %
 % ageSubset:        a subset of age to be used for creating basis
 %                   functions; the corresponding values for basis functions
@@ -82,12 +73,12 @@ function [basisFunction, bfRank, basisSubset, settings, timing] =          ...
 %
 %% Defaults:
 % splineType:       'ns'
+% Xvars:            []
 % dfFlag:           false
 % intercept:        true
-% method:           'default'
-% toDrop:           'middle' (if method is not default or svd)
+% method:           'svd'
 % ageSubset:        []
-% addConst:         false if method is default, otherwise true
+% addConst:         false
 % outDir:           pwd
 % optCommand:       ''
 % optAppend:        ''
@@ -95,43 +86,17 @@ function [basisFunction, bfRank, basisSubset, settings, timing] =          ...
 % instance:         1
 % 
 %% Notes:
-% There are four types of methods supported:
+% There are two types of methods supported:
 % default:          this returns the output as such from R
 %
-% demean:           first, the basis functions are created; then, they are
-%                   column-wise mean centered; next, one (or more) basis
-%                   functions are dropped; finally a constant term is added
-% 
-% regress:          first, the basis functions are created; then, the
-%                   effect of age is regressed from each of the basis
-%                   functions; the residuals are the new basis function;
-%                   next, one (or more) basis functions are dropped;
-%                   finally, a constant term is added
+% svd:              first, the basis functions are created; then, if X
+%                   variables are specified, they are regressed out of the
+%                   basis functions. Next, the basis functions are
+%                   column-wise mean centered, followed by creating their
+%                   orthonormal basis (using singular value decomposition;
+%                   this might drop one or more basis functions); these are
+%                   then min-max scaled to have values between 0 and 1.
 %
-% svd:              first, the basis functions are created; then, they are
-%                   column-wise mean centered; next, their orthonormal
-%                   basis is created (using singular value decomposition;
-%                   this might drop one or more basis functions); finally,
-%                   a constant term is added
-%
-% If toDrop is unspecified, depending on the method, the following happens:
-% default:          no columns are dropped
-%
-% demean:           last column is dropped
-%
-% regress:          last column is dropped
-%
-% svd:              internally during the call to orth, one or more columns
-%                   may be dropped; no columns are removed explicitly
-% 
-% Alternatively, if toDrop == -1, no columns will be dropped for 'demean'
-% or 'regress' methods ('svd' may still drop column(s) implicitly)
-%
-% Alternatively, if toDrop > 0, one or more columns can be dropped; in this
-% case, all methods will remove the specified columns including 'default'
-% and 'svd' (over and above any implicit drops); same holds if toDrop is
-% character type and is not equal to 'none'
-
 %% Start global timer
 tInit = tic;
 
@@ -174,6 +139,18 @@ else
     end
 end
 
+% Check Xvars
+if ~exist('Xvars', 'var') || isempty(Xvars)
+    toRegress = false;
+else
+    % Ensure same number of observations as age
+    if size(Xvars, 1) ~= length(age)
+        error('Mismatch between number of entries in age and number of rows in Xvars');
+    else
+        toRegress = true;
+    end
+end
+
 % Check dfFlag
 if ~exist('dfFlag', 'var') || isempty(dfFlag)
     dfFlag = false;
@@ -200,11 +177,11 @@ end
 
 % Check method
 if ~exist('method', 'var') || isempty(method)
-    method = 'default';
+    method = 'svd';
 else
     method = lower(method);
-    if ~ismember(method, {'default', 'demean', 'regress', 'svd'})
-        error(['Expected method to be one of: default, demean, regress, or svd but found: ', method]);
+    if ~ismember(method, {'default', 'svd'})
+        error(['Expected method to be one of: default or svd but found: ', method]);
     end
 end
 
@@ -225,11 +202,7 @@ end
 
 % Check addConst
 if ~exist('addConst', 'var') || isempty(addConst)
-    if strcmpi(method, 'default')
-        addConst = false;
-    else
-        addConst = true;
-    end
+    addConst = false;
 else
     if ~islogical(addConst)
         error('addConst should be either true or false');
@@ -291,50 +264,6 @@ else
             nCols = length(knots) + 1 + double(intercept);
         case 'nsk'
             nCols = length(knots) + 1 + double(intercept);
-    end
-end
-
-%% Check toDrop
-if ~exist('toDrop', 'var') || isempty(toDrop)
-    % If method is default or SVD, do not drop
-    if strcmpi(method, 'default') || strcmpi(method, 'svd')
-        toDrop = [];
-    else
-        % Default to middle
-        toDrop = round(median(1:nCols), 0);
-    end
-else
-    if isnumeric(toDrop)
-        toDrop = reshape(toDrop, 1, length(toDrop));
-
-        % Check if nothing should be dropped
-        if toDrop == -1
-            toDrop = [];
-        else
-            % Check if the column number is within range
-            if sum(ismember(toDrop, 1:nCols)) ~= length(toDrop)
-                error(['toDrop values out of range; values specified were: ', ...
-                       num2str(toDrop), ' and number of basis function columns are ', num2str(nCols)]);
-            end
-        end
-    else
-        if strcmpi(toDrop, 'first')
-            toDrop = 1;
-        else
-            if strcmpi(toDrop, 'last')
-                toDrop = nCols;
-            else
-                if strcmpi(toDrop, 'middle')
-                    toDrop = round(median(1:nCols), 0);
-                else
-                    if strcmpi(toDrop, 'none')
-                        toDrop = [];
-                    else
-                        error(['Unable to interpret , ', toDrop, ' as a value for for toDrop']);
-                    end
-                end
-            end
-        end
     end
 end
 
@@ -413,7 +342,6 @@ end
 % Record timing for calling R
 timing.tCallR = toc(tCallR);
 
-
 %% Read data back into MATLAB
 tRead         = tic;
 fid           = fopen(txt_out, 'r');
@@ -450,20 +378,23 @@ timing.tInterpolation = toc(tInterp);
 %% Do we need to modify the basis functions?
 tModBF = tic;
 
-if strcmpi(method, 'demean')
-    basisFunction = basisFunction - mean(basisFunction);
-else
-    if strcmpi(method, 'regress')
-        basisFunction = basisFunction - (age * (age \ basisFunction));
-    else
-        if strcmpi(method, 'svd')
-            basisFunction = orth(basisFunction - mean(basisFunction));
-        end
-    end
+% If Xvars exist, regress them from basis functions
+if toRegress
+    basisFunction = basisFunction - (Xvars * (Xvars \ basisFunction));
 end
 
-%% Do we need to drop one or more columns?
-basisFunction(:, toDrop) = [];
+% Perform SVD on de-meaned basis functions; if regression was performed in 
+% the previous step, the basis functions would already be mean centered 
+% (assuming intercept was included as part of the Xvars); additionally, 
+% scale the orthonormal span to be between 0 and 1
+if strcmpi(method, 'svd')
+
+    % Demean and orthonormal span
+    basisFunction = orth(basisFunction - mean(basisFunction));
+
+    % Re-scale the values using column-wise maximum
+    basisFunction = basisFunction ./ max(abs(basisFunction), [], 1);
+end
 
 %% Do we need to add a constant?
 if addConst
@@ -500,7 +431,6 @@ if nargout > 1
     settings.dfFlag     = dfFlag;
     settings.intercept  = intercept;
     settings.method     = method;
-    settings.toDrop     = toDrop;
     settings.addConst   = addConst;
     settings.instance   = instance;
     settings.toCall     = toCall;
@@ -513,7 +443,3 @@ timing.tRank_saveSettings = toc(tRank);
 
 % Record timing for overall call
 timing.tOverall = toc(tInit);
-
-% Deprecated solution:
-% piecewisePoly  = spline(knots,        eye(length(knots)));
-% basisFunction  = ppval(piecewisePoly, age);
