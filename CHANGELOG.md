@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2024-08-21]
+### Changed
+* ``createBasisFunctions``:
+    - removed ``regress`` and ``demean`` methods
+    - removed functionality of dropping basis functions
+    - can regress out the effect of multiple variables from the basis functions
+    - updated ``svd`` functionality with scaling of the orthonormal basis
+    - ``addConst`` is ``false`` by default
+
 ## [Unreleased - 2024-07-29]
 ### Changed
 * ``FEMA_fit_GWAS``:
