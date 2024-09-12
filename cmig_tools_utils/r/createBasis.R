@@ -1,4 +1,4 @@
-createBasisSVD <- function(xvec, splineType = "ns", knots  = NULL, df = NULL, 
+createBasis <- function(xvec, splineType = "ns", knots  = NULL, df = NULL, 
                               intercept  = TRUE, demean = FALSE, Boundary.knots = range(xvec), 
                               remove_col = NULL, dframe = TRUE, Xvars = NULL, 
 							  method = NULL, xSubset = NULL, addConst = FALSE) 
