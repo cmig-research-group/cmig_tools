@@ -30,7 +30,7 @@ if (df)
 source(file.path(callPath, "createBasis.R"))
 basis <- createBasis(xvec, splineType = splineType, knots = knots, df = df, 
                      intercept  = intercept,  demean = FALSE, Boundary.knots = range(xvec), 
-                     remove_col = "none", dframe = FALSE)
+                     remove_col = "none", dframe = FALSE, method = 'default')
   
 # Write output
 write.table(basis, file = outName, sep = "\t", row.names = F, col.names = F, na = "NaN")
