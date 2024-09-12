@@ -78,7 +78,6 @@ createBasisSVD <- function(xvec, splineType = "ns", knots  = NULL, df = NULL,
   #                   then min-max scaled to have values between 0 and 1.
   
   # Get the required library
-  #browser()
 
   if (splineType == "nsk")
   {
@@ -180,14 +179,13 @@ createBasisSVD <- function(xvec, splineType = "ns", knots  = NULL, df = NULL,
     }
   }
 
-  # Regress out Xvars if provided !! HAVE WE TESTED THIS? !!
+  # Regress out Xvars if provided 
   if (!is.null(Xvars)) {
     lm_res <- lm(basisFunction ~ Xvars)
     basisFunction <- resid(lm_res)
   }
 
   # Perform orthonormalization if method is 'svd'
-  #browser()
   if (method == 'svd') {
     # Demean the matrix (subtract the mean of each column)
 	if (demean) {
