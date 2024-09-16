@@ -1,4 +1,4 @@
-function [roi_sum, roi_vox] = vol_by_roi_dp(vol, varargin)
+function [roi_sum, roi_vox] = vol_by_roi(vol, varargin)
 	% Function to group voxelwise statistics into their ROIs for a given ABCD
 	% atlas.
 	%% Inputs:
