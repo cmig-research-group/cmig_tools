@@ -1,4 +1,4 @@
-function [vols_dbf, varargout] = FEMA_convert_splinevols(tbl_bf, xvec, betamat, mask, coeffCovar, outpath)
+function [vols_dbf, varargout] = FEMA_convert_splinevols(tbl_bf, xvec, beta_hat, colnums_bf, colnum_intercept, mask, coeffCovar, outpath)
 
 % Function to convert the test statistics of a FEMA analysis using spline
 % basis functions to a 4D vols variable.
@@ -8,10 +8,11 @@ function [vols_dbf, varargout] = FEMA_convert_splinevols(tbl_bf, xvec, betamat, 
 % xvec:         1-D array of x-values, length is equal to number of 
 %               observations in model
 %
-% betamat:      array of beta estimates for basis 
-%               function variables, derived from FEMA output; number of 
-%               columns is equal to number of basis functions used in FEMA 
-%               analysis
+% beta_hat:      array of beta estimates from FEMA output; 
+%
+% colnums_bf:   column numbers of beta_hat corresponding to basis functions
+%
+% colnum_intercept: column number of beta_hat corresponding to intercept
 %
 % mask:         mask for use in calculating volume
 %
@@ -53,18 +54,22 @@ function [vols_dbf, varargout] = FEMA_convert_splinevols(tbl_bf, xvec, betamat, 
 %% calculate derivatives of basis functions
 bfmat = table2array(tbl_bf);
 
-colnums_bf = 1:size(bfmat,2); % Identify X columns / beta coeffcients corresponding to BFs -- this needs to be done in more elegant way
+if ~exist('colnums_bf', 'var')
+	colnums_bf = 1:size(bfmat,2); % Identify X columns / beta coeffcients corresponding to BFs -- this needs to be done in more elegant way
+end 
 
-statmat = betamat(colnums_bf,:); % Select betas for columns of interest -- this shouldn't be needed
+statmat_dbf = beta_hat(colnums_bf,:); % Select betas for columns of interest -- this shouldn't be needed
+statmat_bf = beta_hat([colnums_bf colnum_intercept],:);
 
-[dummy dbfmat] = gradient(bfmat); dbfmat = dbfmat/(xvec(2)-xvec(1));
+[dummy dbfmat] = gradient(bfmat); 
+dbfmat = dbfmat/(xvec(2)-xvec(1));
 
 %% compute spline function as weighted sum of betas for basis functions
 % vols_dbf = NaN([size(mask) length(xvec)]);
 % sevols_dbf = NaN([size(mask) length(xvec)]);
 % zvols_dbf = NaN([size(mask) length(xvec)]);
 % beta_hat_spline = NaN([length(xvec) size(statmat,2)]);
-nframes = size(statmat,2)/length(find(mask>=0.5));
+nframes = size(statmat_dbf,2)/length(find(mask>=0.5));
 if floor(nframes)~=nframes
     warning('Size of stat matrix is incompatible with running fullvol.');
 end
@@ -72,7 +77,7 @@ end
 % gradient of basis functions
 for xi = 1:length(xvec)
     wvec = dbfmat(xi,:)';
-    valvec_dbf = sum(statmat.*wvec,1); 
+    valvec_dbf = sum(statmat_dbf.*wvec,1); 
     sevec_dbf = rowvec(sqrt(pagemtimes(pagemtimes(wvec',coeffCovar(colnums_bf,colnums_bf,:)),wvec)));
     zvec_dbf = valvec_dbf ./ sevec_dbf;
     volmat_dbf(xi, :) = valvec_dbf;
@@ -89,8 +94,8 @@ end
 % basis functions
 for xi = 1:length(xvec)
     wvec = bfmat(xi,:)';
-    valvec_bf = sum(statmat.*wvec,1); 
-    sevec_bf = rowvec(sqrt(pagemtimes(pagemtimes(wvec',coeffCovar(colnums_bf,colnums_bf,:)),wvec)));
+    valvec_bf = sum(statmat_bf.*[wvec; 1],1); 
+    sevec_bf = rowvec(sqrt(pagemtimes(pagemtimes([wvec; 1]',coeffCovar([colnums_bf colnum_intercept], [colnums_bf colnum_intercept],:)),[wvec; 1])));
     zvec_bf = valvec_bf ./ sevec_bf;
     volmat_bf(xi, :) = valvec_bf;
     semat_bf(xi,:) = sevec_bf;
@@ -110,7 +115,8 @@ if nargout>1
     varargout{4} = vols_bf;
     varargout{5} = sevols_bf;
     varargout{6} = zvols_bf;
-    varargout{7} = volmat_bf;
+    varargout{7} = volmat_bf; 
+	varargout{8} = semat_bf;
 end
 
 % figure(1); clf;
