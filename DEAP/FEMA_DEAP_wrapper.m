@@ -134,13 +134,13 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
   % function to process results as each worker completes
   function process_results(fraci)
     MAX_RETRIES = 10;
-    fname_results = sprintf('%s/job_%02d_%d.mat',dirname_results,fraci,nfrac);
+    fname_results = sprintf('%s/job_%02d_%02d.mat',dirname_results,fraci,nfrac);
     retry = 0;
     tmp = struct;
     while retry < MAX_RETRIES
       try
         tmp = load(fname_results, 'zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec');
-        retry = MAX_RETRIES;
+        retry = MAX_RETRIES + 1;
         % logging(fieldnames(tmp));
         fname_out = sprintf('%s/%s_%s_%02d_%02d.mat',dirname_cache,datatype,fstem_imaging,fraci,nfrac);
         cache = load(fname_out,'ivec_frac'); % Should perhaps check to touch file insetad, to make sure that worker is done writing?
@@ -153,9 +153,12 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
         sig2tvec(:,cache.ivec_frac) = tmp.sig2tvec;
       catch
         retry = retry + 1;
-        pause(1);
+        pause(5);
         logging('Error: Could not load %s, retry %d',fname_results, retry);
       end
+    end
+    if retry == MAX_RETRIES
+      logging('Error: Could not load %s, giving up',fname_results);
     end
   end
 
