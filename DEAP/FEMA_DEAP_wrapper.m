@@ -163,7 +163,7 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
   end
 
   % Create client to to dispatch work to workers
-  client = FEMA_DEAP_client(designid, fstem_imaging, @process_results);
+  client = FEMA_DEAP_client(designid, fstem_imaging, @process_results, nfrac);
 
   % block until all workers are done, will call the process_results function as each worker completes
   client.wait_for_completion();

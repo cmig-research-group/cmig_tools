@@ -8,9 +8,9 @@ classdef FEMA_DEAP_client < handle
     end
 
     methods
-        function obj = FEMA_DEAP_client(job_name, fstem_imaging, complete_callback)
+        function obj = FEMA_DEAP_client(job_name, fstem_imaging, complete_callback, nfrac)
             config = GlobalConfig();
-            obj.nfrac = config.numberOfWorkers;
+            obj.nfrac = nfrac;
             obj.existvec = false(1,obj.nfrac);
             obj.complete_callback = complete_callback;
 
