@@ -4,7 +4,7 @@ MCRROOT="/usr/pubsw/packages/matlab/R2023a"
 
 designid="des000009"
 #fstem_imaging="JA"
-fstem_imaging="RND"
+fstem_imaging="RNI"
 datatype="voxel"
 
 #abcd_data_path="/space/syn65/1/data/abcd-sync/4.0"
