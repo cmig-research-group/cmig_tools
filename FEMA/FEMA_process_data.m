@@ -73,11 +73,19 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     tic
     measname = fstem_imaging;
     dirname_volmats = dirname_imaging;
-    fname_volinfo = sprintf('%s/volinfo.mat',dirname_volmats);
+	if dataRelease == '6.0'
+    	fname_volinfo = sprintf('%s/vol_info.mat',dirname_volmats);
+	else
+		fname_volinfo = sprintf('%s/volinfo.mat',dirname_volmats);
+	end 
     tmp_volinfo = load(fname_volinfo);
 
     if readvolumesflag
-      fname_volmat = sprintf('%s/volmat_%s.mat',dirname_volmats,measname);
+		if dataRelease == '6.0'
+			fname_volmat = sprintf('%s/%s.mat',dirname_volmats,lower(measname));
+		else
+			fname_volmat = sprintf('%s/volmat_%s.mat',dirname_volmats,measname);
+		end 
       ymat = getfield(load(fname_volmat),'volmat');
       mask = tmp_volinfo.vol_mask_sub;
       ivec_mask = find(mask>0.5);
