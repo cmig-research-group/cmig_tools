@@ -182,7 +182,13 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     end
 
     ymat = measmat;
-    dirlist = tmp.dirlist;
+	if dataRelease == '6.0'
+		fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
+		tmp_volinfo = load(fname_volinfo); 
+		dirlist = tmp_volinfo.dirlist;
+	else 
+		dirlist = tmp.dirlist;
+	end 
     subjidvec = cell(size(dirlist)); sitevec = cell(size(dirlist)); datevec = cell(size(dirlist)); eventvec = cell(size(dirlist)); timevec = cell(size(dirlist)); visitidvec = cell(size(dirlist));
 
     for diri = 1:length(dirlist)
