@@ -132,7 +132,12 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     measmat = [];
     for hemii = 1:2
       hemi = hemistrings{hemii};
-      fname = sprintf('%s/%s-%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to specified icnum
+	  if dataRelease
+	  	fname = sprintf('%s/%s_%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to 
+      else 
+		fname = sprintf('%s/%s-%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to 
+	  end
+		% specified icnum
       logging('Reading vertexwise imaging data from %s',fname);
       tmp = load(fname);
 
