@@ -26,6 +26,9 @@ test_client/test_client: test_client.m GlobalConfig.m FEMA_DEAP_client.m
 FEMA_DEAP_gencache/FEMA_DEAP_gencache: FEMA_DEAP_gencache.m Makefile
 	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
 
+FEMA_wrapper/FEMA_wrapper: ../FEMA/FEMA_wrapper.m Makefile
+	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
+
 clean:
 	rm -rf test_worker test_client FEMA_DEAP_gencache FEMA_DEAP_worker FEMA_DEAP_wrapper
 	
