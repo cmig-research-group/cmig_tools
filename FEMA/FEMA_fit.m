@@ -83,7 +83,7 @@ end
 p = inputParser;
 
 if ~exist('niter', 'var') || isempty(niter)
-    niter = 0;
+    niter = 1;
 end
 
 if ~exist('contrasts', 'var')
