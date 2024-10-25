@@ -1,6 +1,3 @@
-# DEPRECATED
-**This version of the repository is deprecated. Ongoing FEMA development and new releases of FEMA are available [here](https://github.com/cmig-research-group/cmig_tools)**
-
 # Fast Efficient Mixed effects Analysis (FEMA)
 
 This package includes code to run mass univariate linear mixed effects analysis in a fast and efficient manner.  This can be done at the whole brain level using vertexwise and voxelwise data, and connectivity matrices.  FEMA includes an external data option (.txt format) which can include columms of imaging or behavioral data.  The code includes an ABCD Study specific wrapper ([`FEMA_wrapper.m`](FEMA/FEMA_wrapper.m)), which uses the concatenated imaging files saved on abcd-sync.  The internal functions within the wrapper can be used to analyse any data as long as its inputs are in the correct format within MATLAB.  The code was developed and tested using MATLAB 2020a.
