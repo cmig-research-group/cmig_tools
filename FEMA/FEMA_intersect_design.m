@@ -72,6 +72,19 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, pihatmat, P
     toc
 
     % Merge design matrix with imaging data
+	eid_concat_bak = eid_concat; 
+	iid_concat_bak = iid_concat;
+	if any(contains(iid_concat, 'NDAR_INV')) & any(~contains(cids, 'NDAR_INV'))
+		iid_concat = strrep(iid_concat, 'NDAR_INV', 'sub-');
+		idx_00A = find(contains(eid_concat, 'baseline_year_1_arm_1'));
+		idx_02A = find(contains(eid_concat, '2_year_follow_up_y_arm_1'));
+		idx_04A = find(contains(eid_concat, '4_year_follow_up_y_arm_1'));
+		idx_06A = find(contains(eid_concat, '6_year_follow_up_y_arm_1'));
+		[eid_concat{idx_00A}] = deal('ses-00A');
+		[eid_concat{idx_02A}] = deal('ses-02A');
+		[eid_concat{idx_04A}] = deal('ses-04A');
+		[eid_concat{idx_06A}] = deal('ses-06A');		
+	end
     [~, idi, idc] = intersect(strcat(iid_concat(:), '_', eid_concat(:)), cids, 'stable'); % IDS_match is loaded from the concatenated .mat
     ymat = ymat(idi, :);
     Cmat = Cmat_design(idc, :);

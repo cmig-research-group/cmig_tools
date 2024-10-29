@@ -46,22 +46,36 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,  delta=NUL
     nda <- nda[inc_idevent,]
   }
   
-  
   allvars<-c(contvar,catvar,delta)
-    nda = nda[,c("src_subject_id","eventname","rel_family_id","interview_age",allvars)]
-    nda = nda[complete.cases(nda),]
-    
-    nda[,'age']<-nda$interview_age
-  
+	if ("src_subject_id" %in% names(nda)) {
+		nda = nda[,c("src_subject_id","eventname","rel_family_id","interview_age",allvars)]
+		nda[,'age']<-nda$interview_age
+		nda = nda[complete.cases(nda),]
+
+		idx_time <-grep(paste0(time, collapse='|'), nda$eventname)
+		# get subject ids at that time point
+		subjid<-as.character(nda$src_subject_id[idx_time])
+		#src_subject_id <-gsub('NDAR_','',subjid)
+		src_subject_id <- subjid
+		eventname <- nda$eventname[idx_time]
+		rel_family_id<-nda$rel_family_id[idx_time]
+		nda <- nda[idx_time,]
+	} else {
+		nda = nda[,c("participant_id","session_id","ab_g_stc__design_id_fam","ab_g_dyn__design_age__event",allvars)]
+		nda[,'age']<-nda$ab_g_dyn__design_age__event
+		nda = nda[complete.cases(nda),]
+		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
+		# get subject ids at that time point
+		subjid<-as.character(nda$participant_id[idx_time])
+		#src_subject_id <-gsub('NDAR_','',subjid)
+		participant_id <- subjid
+		session_id <- nda$session_id[idx_time]
+		ab_g_stc__design_id_fam<-nda$ab_g_stc__design_id_fam[idx_time]
+		nda <- nda[idx_time,]
+	}
 	
-	idx_time <-grep(paste0(time, collapse='|'), nda$eventname)
-	# get subject ids at that time point
-	subjid<-as.character(nda$src_subject_id[idx_time])
-	#src_subject_id <-gsub('NDAR_','',subjid)
-	src_subject_id <- subjid
-	eventname <- nda$eventname[idx_time]
-	rel_family_id<-nda$rel_family_id[idx_time]
-	nda <- nda[idx_time,]
+	
+	
 
 	# calculate deltas
 	if ( !is.null(delta)) {
@@ -168,12 +182,9 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,  delta=NUL
 		nda[,name_delta]<-data.frame(dD)    
 	}
 	
-	
-	
 	if (demean==TRUE){
 	  nda[,contvar]<-apply(data.frame(nda[,contvar]), 2, function(y) y - mean(y, na.rm=T))
 	}
-	
 	
 	for (i in 1:length(catvar)){
 	  if (!is.factor(nda[,catvar[i]])){
@@ -247,7 +258,11 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,  delta=NUL
 	
 	####################################
 
-	outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
+	if ("src_subject_id" %in% names(nda)) {
+		outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
+	} else {
+		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id_fam','ab_g_dyn__design_age__event','age')]
+	}
 	
 	#if (fam==TRUE && incage==TRUE){
 	#  outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]

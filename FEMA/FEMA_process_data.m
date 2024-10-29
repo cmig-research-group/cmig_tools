@@ -233,9 +233,15 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     if isfield(tmp,'nsumvec')  %  Release 4.0
       ivec_tmp = find(tmp.nsumvec>=nframes_min); 
       measmat = tmp.measmat(ivec_tmp,:);
-    else %  Release 5.1
+    elseif isfield(tmp,'dirlist') %  Release 5.1
       ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
       measmat = tmp.corrmat(ivec_tmp,:);
+    else %  Release 6.0
+      ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
+      measmat = tmp.corrmat(ivec_tmp,:);
+      fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
+      tmp2 = load(fname_volinfo);
+      tmp.dirlist = tmp2.dirlist;
     end
     dirlist = tmp.dirlist(ivec_tmp);
     dims = size(measmat); measmat = reshape(measmat,[dims(1) prod(dims(2:end))]);
