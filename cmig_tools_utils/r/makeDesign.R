@@ -261,7 +261,7 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,  delta=NUL
 	if ("src_subject_id" %in% names(nda)) {
 		outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
 	} else {
-		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id_fam','ab_g_dyn__design_age__event','age')]
+		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id_fam','age')]
 	}
 	
 	#if (fam==TRUE && incage==TRUE){
