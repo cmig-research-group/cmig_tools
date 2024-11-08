@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2024-11-08]
+### Changed
+* `createBasisFunctions`:
+    - documentation update
+	- added support for creating `nsk` splines in MATLAB
+	- renamed `nsk` functionalty to `nsk-R`
+	- updated methodology where linearly spaced vector of values are used for creating bases
+	- replaced `Xvars` with `Xpowers` which are powers of the linearly spaced vector of values
+	- user can control min, max, and number of linearly spaced values by providing `minMax`
+	- renamed `default` `method` to `raw` to avoid confusion
+	- removed `ageSubset` and `addConst` features
+	- removed the option of providing degrees of freedom: removed `dfFlag`
+	- default spline is nsk created in MATLAB
+	- renamed `age` to `valvec`
+	- using `svd` instead of `orth`
+* `createBasis.R`:
+	- documentation update, now consistent with MATLAB version
+	- default `splineType` is `nsk`
+	- removed support for `df` specification
+	- dropping of columns functionality removed
+	- deprecated `get_basis_values` and `extract_basis` functions
+	- overall consistent with `createBasisFunctions` - same set of changes incorporated
+* `caller_createBasis.R`:
+	- updated to be consistent with changes to `createBasis.R` and `createBasisFunctions`
+	- reordered inputs
+	- removed `df` flag
+	
+## [Unreleased - 2024-10-31]
+### Changed
+* `README.MD`: fixed broken links
+
+## [Unreleased - 2024-10-30]
+### Added
+* Guide for non-ABCD data
+
+### Changed
+* `makeDesign.R`: removed duplicate age column
+
+## [Unreleased - 2024-10-29]
+### Changed
+* `FEMA_intersect_design`, `FEMA_process_data`, and `makeDesign.R`: support for ABCD 6.0
+
+## [Unreleased - 2024-09-30]
+### Changed
+* ``FEMA_fit``: `niter` defaults to 1
+
 ## [Unreleased - 2024-08-21]
 ### Changed
 * ``createBasisFunctions``:
