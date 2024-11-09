@@ -1,31 +1,31 @@
 function atlasVersionFull = validateAtlasVersion(atlasVersion)
-% validateAtlasVersion create valid atlas version string (x.y_ATLASz_cor10) from various abbreviations of inputs
+% validateAtlasVersion Create valid atlas version string (x.y_ATLASz_cor10) from various abbreviations of inputs
 %
 %   atlasVersion = validateAtlasVersion(atlasVersionPartial)
 %
-% From Feb 2024 we are adding release to atlas version identifier as there are now multiple release-specific atlases. 
-% This function will take in various abbreviations and return a full atlas Version in the form xy_ATLASz_cor10
-% we'll have to one-time rename a bunch of files in showVolData. Note no decimal in version 5.0 -> 50 for file naming purposes.
+% This function will take in various abbreviations and return a full atlas Version in the form x.y_ATLASz_cor10
+% where x.y is the ABCD release and ATLASz is the atlas version
 %
-% NOTE: This file, but only this, will need updating when new releases/atlases appear
-%         Everything else using atlases will call this function
+% * NOTE *: when a new release/atlas appears you will have to do a few things
+%       1) Create a new prepareAtlases_... function (e.g. basing from prepareAtlases_50_ABCD3_cor10.m) to generate showVol atlas files
+%       2) If the atlas as a different center point, update Mvxl2lph.m and showVol (this was the case for 5.0_ABCD3)
 %
 %
 % examples of partial inputs and full atlasVersions:
-% 'ABCD1'               -> '30_ABCD1_cor10'
-% 'ABCD2'               -> '40_ABCD2_cor10'
-% '5.0' or '5.0_ABCD3'  -> '50_ABCD3_cor10'
-% '5.1' or '5.1_ABCD3'  -> '50_ABCD3_cor10' % NOTE--sub-releases do not change atlas. If that ever becomes untrue, this will need to change
-% '6.0' or '6.0_ABCD3'  -> '60_ABCD3_cor10'
+% NOTE: ABCD1 and ABCD2 atlases are one-to-one with releases 3.0 and 4.0 and thus did not use the release version to identify
+% from release 5.0 and onwards (Feb 2024), the release version is included to disambiguate atlas versions
+
+% 'ABCD1'               -> 'ABCD1_cor10'
+% 'ABCD2'               -> 'ABCD2_cor10'
+% '5.0' or '5.0_ABCD3'  -> '5.0_ABCD3_cor10'
+% '5.1' or '5.1_ABCD3'  -> '5.0_ABCD3_cor10' % NOTE--sub-releases do not change atlas. If that ever becomes untrue, this will need to change
+% '6.0' or '6.0_ABCD3'  -> '6.0_ABCD3_cor10'
 % note unlike before, 'ABCD3' alone will give an error, since there are now release-dependent versions
 %
 % JRI (jiversen@mcmaster.ca) Feb 2024
 
 %see what parts of the version string we have
-parts = regexp(atlasVersion,'(?<ver>\d\.?\d)?_?(?<atlas>ABCD\d)?_?(?<suffix>.+)?','tokens');
-abcdRelease = parts{1}{1};
-atlasVersion = parts{1}{2};
-atlasSuffix = parts{1}{3};
+[abcdRelease, atlasVersion, atlasSuffix] = parseAtlasVersion(atlasVersion);
 
 if isempty(abcdRelease) && isempty(atlasVersion)
   error('The  input must contain at least an atlas name (ABCD#) or an ABCD release version (x.y)')
@@ -44,9 +44,15 @@ if isempty(atlasSuffix)
   atlasSuffix = 'cor10'; %this is default and seems never to change
 end
 
-%reconstitute the full version string. Since used in filenames (including mfiles), we render 5.0 as 50 as matlab gets funny with additional '.' in filenames
-atlasVersionFull = [abcdRelease(1) '.0_' atlasVersion '_' atlasSuffix];
-
+%reconstitute the full version string. Since used in filenames (including mfiles)
+% NOTE: ABCD1 and ABCD2 atlases are one-to-one with releases 3.0 and 4.0 and thus did not use the release version to identify
+% from release 5.0 and onwards, the release version is included to disambiguate atlas versions
+switch atlasVersion
+  case {'ABCD1','ABCD2'}
+    atlasVersionFull = [atlasVersion '_' atlasSuffix];
+  otherwise
+    atlasVersionFull = [abcdRelease(1) '.0_' atlasVersion '_' atlasSuffix];
+end
 
 % Helper Funcs
 % --------------------------------------------------------------
@@ -83,7 +89,7 @@ end
 
 % --------------------------------------------------------------
 function abcdRelease = atlas2rel(atlasVersion)
-% rel2atlas  map ABCD release to atlas version
+% rel2atlas  map ABCD atlas version to release (when possible)
 %
 %   abcdRelease = atlas2rel(atlasVersion)
 %

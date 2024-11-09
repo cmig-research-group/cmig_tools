@@ -1,24 +1,12 @@
-function atlasFile = showVolAtlasFile(atlasVersion)
+function atlasFile = showVolAtlasFile(atlasStr)
 % showVolAtlasFile  return default showVol atlas file for an atlasVersion
 %
-% used internally by showVol. Needs to be updated when new atlas versions are created
+% used internally by showVol
 
-atlasVersion = validateAtlasVersion(atlasVersion); %canonicalize
+atlasStr = validateAtlasVersion(atlasStr); %canonicalize
 
 cfg = abcdConfig('showVol');
 
-switch atlasVersion
-  
-  case '3.0_ABCD1_cor10'
-    atlasFile = fullfile(cfg.data.showVolData,'Atlas','showVolAtlases_ABCD1_cor10.mat');
-    
-  case '4.0_ABCD2_cor10'
-    atlasFile = fullfile(cfg.data.showVolData,'Atlas','showVolAtlases_ABCD2_cor10.mat');
-    
-  case '5.0_ABCD3_cor10'
-    atlasFile = fullfile(cfg.data.showVolData,'Atlas','5.0_ABCD3_cor10', 'showVolAtlases_5.0_ABCD3_cor10.mat');
-    
-  otherwise
-    error('Unrecognized atlas version (%s)',atlasVersion)
+atlasFile = fullfile(cfg.data.showVolData,'Atlas',atlasStr, ['showVolAtlases_' atlasStr '.mat']);
         
 end
