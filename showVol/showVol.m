@@ -273,6 +273,7 @@ for iii = 1:nargin-3
   else
     if ndims(varargin{iii}) >= 3 % AMD: handle volumes specified as matrices -- convert to struct
       v = varargin{iii};
+      assumeAtlas = '6.0_ABCD3'; %FIXME: need to know atlas version, assume 6.0 (Nov 24)
       
       %check if these might be brain volumes in ABCD atlas space; if so, must add correct transform for ROIs to display properly
       canonicalSize = [200 200 260];
@@ -281,9 +282,9 @@ for iii = 1:nargin-3
       if size(v,4)==3 %assume should be an RGB volume FIXME: better solution: ask folks to create a struct
         handles.numVols = handles.numVols + 1;
         if isABCDBrain
-          fprintf('%s: Volume %d [%d x %d x %d x 3] initialized as RGB ABCD brain volume.\n',...
-            mfilename, iii, sz(1), sz(2), sz(3))
-          Mvxl2lph = Mvxl2lph_atlas; %FIXME: right now all atlas versions have same Mvxl2lph. If that changes in future, must check atlas version here
+          fprintf('%s: Volume %d [%d x %d x %d x 3] initialized as RGB ABCD brain volume. Assuming %s atlas.\n',...
+            mfilename, iii, sz(1), sz(2), sz(3), assumeAtlas)
+          Mvxl2lph = Mvxl2lph_atlas(assumeAtlas);
           handles.vols{handles.numVols} = ctx_mgh2ctx(v, M_LPH_TO_RAS*Mvxl2lph);
           handles.vols{handles.numVols}.isABCDBrain = true;
           handles.hasABCDBrain = true;
@@ -297,10 +298,10 @@ for iii = 1:nargin-3
           if isABCDBrain
             if vi == 1
               if length(sz)==3, sz(4)=1; end
-              fprintf('%s: Volume %d [%d x %d x %d x %d] initialized as %d scalar ABCD brain volumes.\n',...
-                mfilename, iii, sz(1), sz(2), sz(3), sz(4), sz(4))
+              fprintf('%s: Volume %d [%d x %d x %d x %d] initialized as %d scalar ABCD brain volumes. Assuming %s atlas.\n',...
+                mfilename, iii, sz(1), sz(2), sz(3), sz(4), sz(4), assumeAtlas)
             end
-            Mvxl2lph = Mvxl2lph_atlas; %FIXME: right now all atlas versions have same Mvxl2lph. If that changes in future, must check atlas version here
+            Mvxl2lph = Mvxl2lph_atlas(assumeAtlas);
             handles.vols{handles.numVols} = ctx_mgh2ctx(v(:,:,:,vi), M_LPH_TO_RAS*Mvxl2lph);
             handles.vols{handles.numVols}.isABCDBrain = true;
             handles.hasABCDBrain = true;
