@@ -73,11 +73,19 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     tic
     measname = fstem_imaging;
     dirname_volmats = dirname_imaging;
-    fname_volinfo = sprintf('%s/volinfo.mat',dirname_volmats);
+	if dataRelease == '6.0'
+    	fname_volinfo = sprintf('%s/vol_info.mat',dirname_volmats);
+	else
+		fname_volinfo = sprintf('%s/volinfo.mat',dirname_volmats);
+	end 
     tmp_volinfo = load(fname_volinfo);
 
     if readvolumesflag
-      fname_volmat = sprintf('%s/volmat_%s.mat',dirname_volmats,measname);
+		if dataRelease == '6.0'
+			fname_volmat = sprintf('%s/%s.mat',dirname_volmats,lower(measname));
+		else
+			fname_volmat = sprintf('%s/volmat_%s.mat',dirname_volmats,measname);
+		end 
       ymat = getfield(load(fname_volmat),'volmat');
       mask = tmp_volinfo.vol_mask_sub;
       ivec_mask = find(mask>0.5);
@@ -124,7 +132,12 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     measmat = [];
     for hemii = 1:2
       hemi = hemistrings{hemii};
-      fname = sprintf('%s/%s-%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to specified icnum
+	  if dataRelease
+	  	fname = sprintf('%s/%s_%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to 
+      else 
+		fname = sprintf('%s/%s-%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to 
+	  end
+		% specified icnum
       logging('Reading vertexwise imaging data from %s',fname);
       tmp = load(fname);
 
@@ -169,7 +182,13 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     end
 
     ymat = measmat;
-    dirlist = tmp.dirlist;
+	if dataRelease == '6.0'
+		fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
+		tmp_volinfo = load(fname_volinfo); 
+		dirlist = tmp_volinfo.dirlist;
+	else 
+		dirlist = tmp.dirlist;
+	end 
     subjidvec = cell(size(dirlist)); sitevec = cell(size(dirlist)); datevec = cell(size(dirlist)); eventvec = cell(size(dirlist)); timevec = cell(size(dirlist)); visitidvec = cell(size(dirlist));
 
     for diri = 1:length(dirlist)
@@ -214,9 +233,15 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
     if isfield(tmp,'nsumvec')  %  Release 4.0
       ivec_tmp = find(tmp.nsumvec>=nframes_min); 
       measmat = tmp.measmat(ivec_tmp,:);
-    else %  Release 5.1
+    elseif isfield(tmp,'dirlist') %  Release 5.1
       ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
       measmat = tmp.corrmat(ivec_tmp,:);
+    else %  Release 6.0
+      ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
+      measmat = tmp.corrmat(ivec_tmp,:);
+      fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
+      tmp2 = load(fname_volinfo);
+      tmp.dirlist = tmp2.dirlist;
     end
     dirlist = tmp.dirlist(ivec_tmp);
     dims = size(measmat); measmat = reshape(measmat,[dims(1) prod(dims(2:end))]);

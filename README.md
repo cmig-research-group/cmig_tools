@@ -1,6 +1,6 @@
 # Fast Efficient Mixed effects Analysis (FEMA)
 
-This package includes code to run mass univariate linear mixed effects analysis in a fast and efficient manner.  This can be done at the whole brain level using vertexwise and voxelwise data, and connectivity matrices.  FEMA includes an external data option (.txt format) which can include columms of imaging or behavioral data.  The code includes an ABCD Study specific wrapper ([`FEMA_wrapper.m`](FEMA/FEMA_wrapper.m)), which uses the concatenated imaging files saved on abcd-sync.  The internal functions within the wrapper can be used to analyse any data as long as its inputs are in the correct format within MATLAB.  The code was developed and tested using MATLAB 2020a.
+This package includes code to run mass univariate linear mixed effects analysis in a fast and efficient manner.  This can be done at the whole brain level using vertexwise and voxelwise data, and connectivity matrices.  FEMA includes an external data option (.txt format) which can include columms of imaging or behavioral data.  The code includes an ABCD Study specific wrapper ([`FEMA_wrapper.m`](FEMA/FEMA_wrapper.m)), which uses the concatenated imaging files saved on abcd-sync.  The internal function(s) within the wrapper can be used to analyse any data as long as its inputs are in the correct format within MATLAB.  Specifically, ([`FEMA_fit.m`](FEMA/FEMA_fit.m)) is the core function that performs model fitting (see [`FEMA_Guide.md`](Guide_FEMA.md) for more details on how to format the data and use FEMA_fit outside of the wrapper). The code was developed and tested using MATLAB 2020a / 2023a.
 
 Technical details on how FEMA works can be found [here](https://doi.org/10.1002/hbm.26579)
 
@@ -31,14 +31,14 @@ For ABCD Investigators - To run FEMA using the ABCD specific `FEMA_wrapper` we a
 Necessary directories to add to MATLAB path, all part of this repository:
 - [`FEMA`](FEMA)
 - [`cmig_tools_utils/matlab`](cmig_tools_utils/matlab)
-- [`PALM`](PALM), included here for convenience ([source](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/PALM))
+- [`PALM`](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/PALM) (only required if you plan to use PALM for permutations)
 
 To visualize results:
 - for voxel data, use [`showVol`](showVol)
 - for vertex data, use [`showSurf`](showSurf)
 
 ### Local setup
-If you want to run the [`FEMA_wrapper_demo.m`](ABCD_DEMOS/FEMA_wrapper_demo.m), run [`abcdConfig.m`](utils/matlab/abcdConfig.m) to setup your local computer to find the path to the code and data directories (after they have been downloaded).
+If you want to run the [`FEMA_wrapper_demo.m`](ABCD_DEMOS/FEMA_wrapper_demo.m), run [`abcdConfig.m`](cmig_tools_utils/matlab/abcdConfig.m) to setup your local computer to find the path to the code and data directories (after they have been downloaded).
 
 
 ## Usage
@@ -48,7 +48,7 @@ This section details the whole workflow. For FEMA specific instructions, jump [h
 FEMA expects the design matrix to be organized as follows:  
 ![design matrix structure](docs/pictures/design_matrix_structure.png)
 
-The subject ID, eventname, family ID and age columns must be included as the first 4 columns and in that order for use by FEMA to intersect with imaging data and calculate random effects. The columns indicated by 'all predictors' (from column 5 onwards) will be the exact design matrix used by FEMA. This means that if you wish to include age as a predictor in your model you need to make sure it is included in 'all predictors' as well as column4. FEMA will not check whether your design matrix is full rank and **will not add an intercept** to your design matrix if you wish to include one. The design matrix needs to be a **tab separated file** readable by Matlab's "readtable". We have created a function called [`makeDesign.R`](utils/r/makeDesign.R) which creates a tab seperated file with the exact structure expected by FEMA, checks for rank deficiency and automatically adds an intercept. If you wish to use this function (recommended) please see the example script [`makeDesign_demo.R`](ABCD_DEMOS/makeDesign_demo.R). 
+The subject ID, eventname, family ID and age columns must be included as the first 4 columns and in that order for use by FEMA to intersect with imaging data and calculate random effects. The columns indicated by 'all predictors' (from column 5 onwards) will be the exact design matrix used by FEMA. This means that if you wish to include age as a predictor in your model you need to make sure it is included in 'all predictors' as well as column4. FEMA will not check whether your design matrix is full rank and **will not add an intercept** to your design matrix if you wish to include one. The design matrix needs to be a **tab separated file** readable by Matlab's "readtable". We have created a function called [`makeDesign.R`](cmig_tools_utils/r/makeDesign.R) which creates a tab seperated file with the exact structure expected by FEMA, checks for rank deficiency and automatically adds an intercept. If you wish to use this function (recommended) please see the example script [`makeDesign_demo.R`](ABCD_DEMOS/makeDesign_demo.R). 
 
 ### FEMA
 
