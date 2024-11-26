@@ -1,4 +1,4 @@
-function [W, p, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
+function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
 % Function to compute multivariate Wald test given a set of parameters
 %% Inputs:
 % L:            numeric (vector or matrix) or cell type containing weights 
