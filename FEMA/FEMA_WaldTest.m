@@ -46,11 +46,14 @@ function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, 
 %               null hypothesis that the linear combination of coefficients
 %               are equal to the hypothesised value (or zero)
 %
-% logp:         [k x v] vector of log10 p values, where k is the number of cells
-%               in the input L; if L was numeric, logp is scalar; this is the
-%               logp value under F or chi-squared distribution testing the
-%               null hypothesis that the linear combination of coefficients
-%               are equal to the hypothesised value (or zero)
+% logp:         [k x v] vector of log10 p values, where k is the number of
+%               cells in the input L; if L was numeric, logp is scalar;
+%               this is the log10 p value under F or chi-squared
+%               distribution testing the null hypothesis that the linear
+%               combination of coefficients are equal to the hypothesised
+%               value (or zero); note that p values smaller than realmin
+%               (2.2251e-308) are truncated to realmin and a warning
+%               messsage is shown
 %
 % df:           [k x 1] vector of numerator degrees of freedom, where k is
 %               the number of cells in the input L; if L was numeric, df1 
@@ -65,7 +68,7 @@ function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, 
 % calculated in this function; however, MATLAB additionally penalizes the F
 % by dividing it with the numerator degrees of freedom. Then, they perform
 % a lookup using a F distribution.
-
+% 
 %% Reference:
 % Fitzmaurice, G. M., Laird, N. M., & Ware, J. H. (2011). Applied 
 % longitudinal analysis (2nd ed.). Wiley Series in Probability and 
@@ -202,7 +205,11 @@ for cc = 1:numCells
 end
 
 % Calculate -log10 p-values
-logp = -log10(max(1e-300,p));
+if any(p < realmin)
+    warning(['One or more p values are smaller than ', num2str(realmin), ...
+             '; truncating them to ', num2str(realmin)]);
+end
+logp = -log10(max(realmin, p));
 
 function L = validateContrast(L, numX)
 % Function that validates and pads a contrast

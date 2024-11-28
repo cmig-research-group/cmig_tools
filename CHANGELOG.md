@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2024-11-28]
+### Changed
+* `FEMA_WaldTest` displays a warning if p values are smaller than 2.2251e-308 and truncates the log10 values to 2.2251e-308 (instead of returning Inf)
+
+## [Unreleased - 2024-11-26]
+### Changed
+* `FEMA_WaldTest` additionally returns log 10 p values
+
 ## [Unreleased - 2024-11-08]
 ### Changed
 * `createBasisFunctions`:
