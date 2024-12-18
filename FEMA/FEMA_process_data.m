@@ -12,6 +12,7 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat
 % Optional input arguments:
 %   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
 %   ranknorm <boolean>         :  rank normalise imaging data (default 0)
+%   varnorm <boolean>          :  variance normalise imaging data (default 0)
 %   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
 %   preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
 %   address_file <char>        :  path to address data - default [] - only required if H random effect specified
@@ -33,6 +34,7 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat
 
 p = inputParser;
 addParamValue(p,'ranknorm',0);
+addParamValue(p,'varnorm',0);
 addParamValue(p,'ico',5);
 addParamValue(p,'pihat_file',[]);
 addParamValue(p,'preg_file',[]);
@@ -42,6 +44,7 @@ parse(p,varargin{:})
 ico = str2num_amd(p.Results.ico);
 icnum = ico + 1;
 ranknorm = str2num_amd(p.Results.ranknorm);
+varnorm = str2num_amd(p.Results.varnorm);
 fname_pihat = p.Results.pihat_file;
 fname_preg = p.Results.preg_file;
 fname_address = p.Results.address_file;
@@ -89,6 +92,7 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
       ymat = getfield(load(fname_volmat),'volmat');
       mask = tmp_volinfo.vol_mask_sub;
       ivec_mask = find(mask>0.5);
+
     else
       ymat = NaN([length(tmp_volinfo.dirlist) 0]);
       mask = [];
@@ -498,5 +502,7 @@ if ranknorm==1
   ymat=rank_based_INT(ymat);
 end
 
-
-
+if varnorm==1
+  logging('Variance-norming Y');
+  ymat=normalize(ymat);
+end

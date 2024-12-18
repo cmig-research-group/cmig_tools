@@ -21,6 +21,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
 %   ranknorm <boolean>         :  rank normalise imaging data (default 0)
+%   varnorm <boolean>          :  variance normalise imaging data (default 0)
 %   output <string>            :  'mat' (default) or 'nifti' or 'deap' or concatenations to write multiple formats.
 %   ivnames <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
 %   RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
@@ -75,6 +76,7 @@ end
 
 inputs = inputParser;
 addParamValue(inputs,'ranknorm',0);
+addParamValue(inputs,'varnorm',0);
 addParamValue(inputs,'ico',5);
 addParamValue(inputs,'contrasts',[]);
 addParamValue(inputs,'output',[]);
@@ -115,6 +117,7 @@ if ~isfinite(contrasts)
   contrasts = readtable(fname_contrasts);
 end
 ranknorm = str2num_amd(inputs.Results.ranknorm);
+varnorm = str2num_amd(inputs.Results.varnorm);
 outputFormat = inputs.Results.output;
 if isempty(outputFormat)
   if strcmp(datatype,'external') outputFormat = 'csv'; else outputFormat = 'mat'; end % external data defaults to csv output
@@ -176,7 +179,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
