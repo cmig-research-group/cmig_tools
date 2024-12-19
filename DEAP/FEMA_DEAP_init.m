@@ -271,11 +271,14 @@ for des=1:length(fname_design) % Should get rid of the multiple design matrix op
 
 % Get bin info
 
+% PP: disabling pre-residualization option
+X_resid = X;
+ymat_resid = ymat;
 % Pre-residualize both LHS and RHS
-  M = X(:,2:end); % Should specify "columns of interest", residualize LHS & RHS for others, only save stats for those
-  X_tmp = X(:,[1 end]);
-  X_resid = X_tmp - M*(M\X_tmp); X_resid(:,end) = 1;
-  ymat_resid = ymat - M*(M\ymat);
+%  M = X(:,2:end); % Should specify "columns of interest", residualize LHS & RHS for others, only save stats for those
+%  X_tmp = X(:,[1 end]);
+%  X_resid = X_tmp - M*(M\X_tmp); X_resid(:,end) = 1;
+%  ymat_resid = ymat - M*(M\ymat);
 
 % Should update FEMA_fit to allow passing of pre-computed clusterinfo 
   [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec nvec_bins tvec_bins FamilyStruct] = ...

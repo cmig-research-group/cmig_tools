@@ -40,9 +40,9 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
   % addParamValue(inputs,'permtype','wildbootstrap');
 
   % used variables
-  addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
+  addParamValue(inputs,'RandomEffects',"{'F' 'S' 'E'}"); % Default to Family, Subject, and eps
   addParamValue(inputs,'synth',0); % AMD - put back synth option
-  addParamValue(inputs,'colsinterest',1);
+  addParamValue(inputs,'colsinterest',"[]");  % if empyt we'll get all columns.
   addParamValue(inputs,'contrasts',[]);
   addParamValue(inputs,'output','nifti'); % but we only support this format...
   addParamValue(inputs,'ivnames','');
@@ -89,9 +89,11 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
   %mediation = str2num_amd(inputs.Results.mediation);
   %tfce = str2num_amd(inputs.Results.tfce);
 
-  RandomEffects = rowvec(split(strrep(strrep(inputs.Results.RandomEffects,'{',''),'}','')))
+  RandomEffects = rowvec(split(strrep(strrep(inputs.Results.RandomEffects,'{',''),'}','')));
   synth = str2num_amd(inputs.Results.synth);
-  colsinterest = str2num_amd(inputs.Results.colsinterest);
+  colsinterest = str2num(inputs.Results.colsinterest);
+
+  logging('FEMA_DEAP_wrapper RandomEffects: %s, synth %d, colsinterest %s', strjoin(string(RandomEffects), ', '), synth, strjoin(string(colsinterest), ', '));
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -211,7 +213,12 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
 
     if contains(lower(outputFormat), 'nifti')
       results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
-      writeNIFTI(results, dirname_out, fstem_imaging, ivnames, colnames_model(colsinterest)); % Should have option to write only subset of colnames_model annd / or stats volumes
+      cols = colnames_model;
+      logging("length of colsinterest %d", length(colsinterest))
+      if length(colsinterest) > 0
+        cols = colnames_model(colsinterest);
+      end
+      writeNIFTI(results, dirname_out, fstem_imaging, ivnames, cols);
     end
   else
     fprintf(1,'Error: datatype=%s not implemented\n',datatype);
