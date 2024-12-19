@@ -32,8 +32,6 @@ function FEMA_DEAP_worker(fstem_imaging,datatype,fraci,nfrac,dirname_cache,dirna
   ivec_frac = frac_cache.ivec_frac;
   toc
 
-  colsinterest = [1]; % Should allow this to be passed in
-
   % Check for pending analyses
 
   ymat_bak = ymat_frac;
@@ -67,13 +65,17 @@ function FEMA_DEAP_worker(fstem_imaging,datatype,fraci,nfrac,dirname_cache,dirna
       IA = [1:length(idvec)];
       IB = [1:length(idvec)];
     end
-    
-    jvec_covars = setdiff([1:size(X,2)],colsinterest);
-    X_tmp = X - X(:,jvec_covars)*pinv(X(:,jvec_covars))*X;
-    X_reasid = cat(2,X_tmp(:,jvec_covars),X(:,end));
-    ymat = ymat - X(:,jvec_covars)*pinv(X(:,jvec_covars))*ymat;
+
+    % Setting niter to 1
+    niter = 1;
+
+% PP: Disabling pre-residualization related aspects    
+%    jvec_covars = setdiff([1:size(X,2)],colsinterest);
+%    X_tmp = X - X(:,jvec_covars)*pinv(X(:,jvec_covars))*X;
+%    X_reasid = cat(2,X_tmp(:,jvec_covars),X(:,end));
+%    ymat = ymat - X(:,jvec_covars)*pinv(X(:,jvec_covars))*ymat;
     % BP-MOD: [beta_hat beta_se zmat logpmat sig2tvec sig2mat] = FEMA_DEAP_fit(X,iid,eid(IA),fid(IA),agevec(IA),ymat,[],[],[],[],'FamilyStruct',FamilyStruct); % Work with Pravesh to update to use integreated FEMA_DEAP_fit -- need to re-compute FamilyStruct if iid and eid change
-    [beta_hat beta_se zmat logpmat sig2tvec sig2mat] = FEMA_fit(X,iid,eid(IA),fid(IA),agevec(IA),ymat,[],[],[],[],'FamilyStruct',FamilyStruct); % Work with Pravesh to update to use integreated FEMA_DEAP_fit -- need to re-compute FamilyStruct if iid and eid change
+    [beta_hat beta_se zmat logpmat sig2tvec sig2mat] = FEMA_fit(X,iid,eid(IA),fid(IA),agevec(IA),ymat,niter,[],[],[],'FamilyStruct',FamilyStruct); % Work with Pravesh to update to use integreated FEMA_DEAP_fit -- need to re-compute FamilyStruct if iid and eid change
 
     if ~exist(dirname_results,'dir')
       cmd = sprintf('mkdir -p %s',dirname_results);
