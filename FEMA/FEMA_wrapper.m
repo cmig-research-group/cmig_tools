@@ -78,19 +78,19 @@ addParamValue(inputs,'ranknorm',0);
 addParamValue(inputs,'varnorm',0);
 addParamValue(inputs,'ico',5);
 addParamValue(inputs,'contrasts',[]);
-addParamValue(inputs,'output',[]);
+addParamValue(inputs,'output','nifti');
 addParamValue(inputs,'synth',0); % AMD - put back synth option
 addParamValue(inputs,'ivnames','');
-addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
+addParamValue(inputs,'RandomEffects',"{'F' 'S' 'E'}"); % Default to Family, Subject, and eps
 addParamValue(inputs,'pihat_file',[]);
 addParamValue(inputs,'preg_file',[]);
 addParamValue(inputs,'address_file',[]);
 addParamValue(inputs,'nperms',0);
 addParamValue(inputs,'mediation',0);
 addParamValue(inputs,'tfce',0);
-addParamValue(inputs,'colsinterest',1);
 addParamValue(inputs,'demean',0);
 addParamValue(inputs,'corrvec_thresh',0.8); 
+addParamValue(inputs,'colsinterest',"[]");  % if empyt we'll get all columns.
 
 %FEMA_fit variable inputs
 addParamValue(inputs,'niter',1);
@@ -159,9 +159,11 @@ permtype = inputs.Results.permtype;
 mediation = str2num_amd(inputs.Results.mediation);
 synth = str2num_amd(inputs.Results.synth);
 tfce = str2num_amd(inputs.Results.tfce);
-colsinterest = str2num_amd(inputs.Results.colsinterest);
 demean = str2num_amd(inputs.Results.demean);
 corrvec_thresh = str2num_amd(inputs.Results.corrvec_thresh);
+colsinterest = str2num(inputs.Results.colsinterest);
+
+logging('FEMA_wrapper RandomEffects: %s, synth %d, colsinterest %s', strjoin(string(RandomEffects), ', '), synth, strjoin(string(colsinterest), ', '));
 
 if ~iscell(fname_design)
   fname_design = {fname_design};
@@ -418,7 +420,12 @@ for des=1:length(fname_design)
     % == NIFTI Output == FIXME: no longer used for DEAP
     if contains(outputFormat, 'nifti')
       results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
-      writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model);
+      cols = colnames_model;
+      logging("length of colsinterest %d", length(colsinterest))
+      if length(colsinterest) > 0
+        cols = colnames_model(colsinterest);
+      end
+      writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, cols);
     end
 
     % =========================================================================
