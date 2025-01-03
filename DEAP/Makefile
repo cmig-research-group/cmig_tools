@@ -7,7 +7,8 @@ ALL_PROGS = \
 	test_client/test_client \
 	FEMA_DEAP_gencache/FEMA_DEAP_gencache \
 	FEMA_DEAP_worker/FEMA_DEAP_worker \
-	FEMA_DEAP_wrapper/FEMA_DEAP_wrapper
+	FEMA_DEAP_wrapper/FEMA_DEAP_wrapper \
+	FEMA_wrapper/FEMA_wrapper
 
 all: $(ALL_PROGS)
 
