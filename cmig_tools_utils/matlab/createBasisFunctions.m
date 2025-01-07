@@ -1,4 +1,4 @@
-function [basisFunction, basisSubset, bfRank, settings, timing] =             ...
+function [basisFunction, basisSubset, Xvars, bfRank, settings, timing] =             ...
           createBasisFunctions(valvec,     knots,      splineType, Xpowers,   ...
                                method,     outDir,     minMax,     intercept, ...
                                optCommand, optAppend,  cleanUp,    instance)
@@ -81,6 +81,8 @@ function [basisFunction, basisSubset, bfRank, settings, timing] =             ..
 % basisFunction:    a matrix containing the spline basis functions
 %
 % basisSubset:      the basis functions prior to interpolation to full data
+%
+% Xvars:            the linearly spaced vector used to create basisSubset
 % 
 % bfRank:           rank of the basis functions (useful sanity check)
 %
@@ -292,6 +294,9 @@ else
 end
 Xvars = linspace(minX, maxX, howMany);
 
+% Ensure Xvars is a column vector
+Xvars = reshape(Xvars, [], 1);
+
 %% Determine knots
 if createKnots
     if doR
@@ -325,7 +330,7 @@ if ~doR
     tCreate = tic;
 
     % Create basis function
-    pp            = csape(knots, eye(length(knots)), 'variational'); 
+    pp          = csape(knots, eye(length(knots)), 'variational'); 
     basisSubset = ppval(pp, Xvars)';
 
     % End timer for creating basis functions
@@ -421,8 +426,6 @@ tModBF = tic;
 
 % If Xpowers exist, regress them from basis functions
 if toRegress
-    % Ensure Xvars is a column vector
-    Xvars = reshape(Xvars, [], 1);
     Xexpanded = Xvars .^ Xpowers;
     if rank(Xexpanded) == size(Xexpanded,2)
         basisSubset = basisSubset - (Xexpanded * (Xexpanded \ basisSubset));
@@ -451,7 +454,7 @@ if strcmpi(method, 'svd')
     if toRegress
         basisSubset = U(:, 1:size(basisSubset, 2) - size(Xexpanded,2));
     else
-        basisSubset = U(:, 1:size(basisSubset, 2) - size(Xvars,1));
+        basisSubset = U(:, 1:size(basisSubset, 2) - size(Xvars,2));
     end
     % basisFunction = orth(basisFunction - mean(basisFunction));
 
@@ -488,36 +491,35 @@ timing.tCleanUp = toc(tCleanUp);
 
 %% Finally compute the rank of the basis functions and save settings
 tRank = tic;
-if nargout > 2
-    bfRank = rank(basisFunction);
-    
-    % Additionally, give a warning if rank deficient
-    if bfRank < size(basisFunction, 2)
-        warning('Rank deficient basis function');
-    end
+bfRank = rank(basisFunction);
 
-    % Save settings
-    settings.useR       = doR;
-    settings.splineType = splineType;
-    settings.knots      = knots;
-    settings.dfFlag     = dfFlag;
-    settings.intercept  = intercept;
-    settings.method     = method;
-    settings.instance   = instance;
-    settings.toCall     = toCall;
-    settings.optCommand = optCommand;
-    settings.optAppend  = optAppend;
-    settings.Xvars      = Xvars;
-    settings.minX       = minX;
-    settings.maxX       = maxX;
-
-    if toRegress
-        settings.Xexpanded  = Xexpanded;
-    end
+% Additionally, give a warning if rank deficient
+if bfRank < size(basisFunction, 2)
+    warning('Rank deficient basis function');
 end
 
 % Record timing for calculating rank and saving settings
 timing.tRank_saveSettings = toc(tRank);
+
+% Save settings
+settings.useR       = doR;
+settings.splineType = splineType;
+settings.knots      = knots;
+settings.intercept  = intercept;
+settings.method     = method;
+settings.instance   = instance;
+settings.minX       = minX;
+settings.maxX       = maxX;
+
+if doR
+    settings.toCall     = toCall;
+    settings.optCommand = optCommand;
+    settings.optAppend  = optAppend;
+end
+
+if toRegress
+    settings.Xexpanded  = Xexpanded;
+end
 
 % Record timing for overall call
 timing.tOverall = toc(tInit);

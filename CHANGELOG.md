@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-01-07]
+### Changed
+* `createBasisFunctions`:
+    - Removed redundant `dfFlag` output in settings
+    - Some settings are only output when `doR` is `true`
+    - Removed checking the number of outputs
+    - Fixed recording time taken for calculating rank
+    - Explicitly output `Xvars` and removed from `settings`
+    - Ensuring `Xvars` is a column vector; appropriate fix when calculating number of columns to drop
+
+## [Unreleased - 2024-12-18]
+### Changed
+* Introduced `varnorm` flag which can be used to perform variance normalization (zero mean and unit standard deviation); appropriate changes in `FEMA_process_data` and `FEMA_wrapper`
+
 ## [Unreleased - 2024-11-28]
 ### Changed
 * `FEMA_WaldTest` displays a warning if p values are smaller than 2.2251e-308 and truncates the log10 values to 2.2251e-308 (instead of returning Inf)
