@@ -80,9 +80,9 @@ for xi = 1:length(Xvars)
     semat_dbf(xi,:) = sevec_dbf;
     zmat_dbf(xi, :) = zvec_dbf;
 end
-vols_dbf(:,:,:,xi) = fullvol(valvec_dbf,mask); 
-sevols_dbf(:,:,:,xi) = fullvol(sevec_dbf,mask); 
-zvols_dbf(:,:,:,xi) = fullvol(zvec_dbf, mask);
+vols_dbf = fullvol(valvec_dbf,mask); 
+sevols_dbf = fullvol(sevec_dbf,mask); 
+zvols_dbf = fullvol(zvec_dbf, mask);
 
 % basis functions
 volmat_bf = NaN(length(Xvars), size(statmat_bf,2));
@@ -97,9 +97,9 @@ for xi = 1:length(Xvars)
     semat_bf(xi,:) = sevec_bf;
     zmat_bf(xi, :) = zvec_bf;
 end
-vols_bf(:,:,:,xi) = fullvol(valvec_bf,mask); 
-sevols_bf(:,:,:,xi) = fullvol(sevec_bf,mask); 
-zvols_bf(:,:,:,xi) = fullvol(zvec_bf, mask);
+vols_bf = fullvol(valvec_bf,mask); 
+sevols_bf = fullvol(sevec_bf,mask); 
+zvols_bf = fullvol(zvec_bf, mask);
 
 if nargout>1
     varargout{1} = sevols_dbf;
