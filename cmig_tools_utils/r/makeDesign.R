@@ -59,8 +59,8 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		rel_family_id<-nda$rel_family_id[idx_time]
 		nda <- nda[idx_time,]
 	} else {
-		nda[,'age']<-nda$ab_g_dyn__design_age__event
-		nda <- nda[,c("participant_id","session_id","ab_g_stc__design_id_fam","age",allvars)]
+		nda[,'age']<-nda$ab_g_dyn__visit_age
+		nda <- nda[,c("participant_id","session_id","ab_g_stc__design_id__fam","age",allvars)]
 		nda <- nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
 		# get subject ids at that time point
@@ -179,7 +179,7 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	
 	if (!is.null(quadratic)){
 		quadvars=NULL
-	for (i in 1:length(quadratic)){
+	  for (i in 1:length(quadratic)){
 		if (demean==FALSE){ #Must demean variables before adding the quadratic
 			warning ('Warning: quadratic in model, but demean=FALSE. Could lead to colinearity problems')
 		}
@@ -245,7 +245,7 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	if ("src_subject_id" %in% names(nda)) {
 		outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
 	} else {
-		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id_fam','age')]
+		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id__fam','age')]
 	}
 	
 	#if (fam==TRUE && incage==TRUE){
