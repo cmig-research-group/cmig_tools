@@ -409,6 +409,13 @@ for permi = 0:nperms
     beta_se      = sqrt(diag(iXtX) * sig2tvec);
     Cov_beta     = iXtX;
 
+    % Coefficient covariance
+    tic
+    coeffCovar = zeros(size(X,2), size(X,2), size(ymat,2));
+    for ii = 1:size(ymat,2)
+        coeffCovar(:,:,ii) = Cov_beta .* sig2tvec(ii);
+    end
+    
     for ci = 1:size(contrasts,1)
         betacon_hat(ci,:) = contrasts(ci,:)      * beta_hat;
         betacon_se(ci, :) = sqrt(contrasts(ci,:) * Cov_beta * contrasts(ci,:)' * sig2tvec);
@@ -709,8 +716,6 @@ for permi = 0:nperms
             end
         end
 
-        if iter>niter, break; end
-
         % Ugly hack to save resampled random effects estimates
         sig2mat_save  = sig2mat;
         sig2tvec_save = sig2tvec;
@@ -728,6 +733,8 @@ for permi = 0:nperms
             sig2mat  = sig2mat_bak;
             binvec   = binvec_bak;
         end
+
+        if iter>niter, break; end
 
         %% Implement GLS solution 
         % Code imported from FEMA_sig2binseg_parfeval.m
