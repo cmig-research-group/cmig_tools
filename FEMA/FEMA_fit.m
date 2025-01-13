@@ -410,7 +410,6 @@ for permi = 0:nperms
     Cov_beta     = iXtX;
 
     % Coefficient covariance
-    tic
     coeffCovar = zeros(size(X,2), size(X,2), size(ymat,2));
     for ii = 1:size(ymat,2)
         coeffCovar(:,:,ii) = Cov_beta .* sig2tvec(ii);
