@@ -271,6 +271,7 @@ for des=1:length(fname_design)
     betase_tmp=zeros(size(beta_se,1),size(mask,2));
     sig2mat_tmp=zeros(size(sig2mat,1),size(mask,2));
     sig2tvec_tmp=zeros(size(sig2tvec,1),size(mask,2));
+    coeffCovar_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2));
 
     z_tmp(:,ivec_mask)=zmat;
     p_tmp(:,ivec_mask)=logpmat;
@@ -278,6 +279,7 @@ for des=1:length(fname_design)
     betase_tmp(:,ivec_mask)=beta_se;
     sig2mat_tmp(:,ivec_mask)=sig2mat;
     sig2tvec_tmp(:,ivec_mask)=sig2tvec;
+    coeffCovar_tmp(:, :, ivec_mask)=coeffCovar;
 
     zmat=z_tmp;
     logpmat=p_tmp;
@@ -285,6 +287,7 @@ for des=1:length(fname_design)
     beta_se=betase_tmp;
     sig2mat=sig2mat_tmp;
     sig2tvec=sig2tvec_tmp;
+    coeffCovar=coeffCovar_tmp;
 
     if nperms>0
 
@@ -293,18 +296,21 @@ for des=1:length(fname_design)
       betaseperm_tmp=zeros(size(beta_se_perm,1),size(mask,2),size(beta_se_perm,3));
       sig2matperm_tmp=zeros(size(sig2mat_perm,1),size(mask,2),size(sig2mat_perm,3));
       sig2tvecperm_tmp=zeros(size(sig2tvec_perm,1),size(mask,2),size(sig2tvec_perm,3));
+      coeffCovar_perm_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2), size(coeffCovar, 4));
 
       zperm_tmp(:,ivec_mask,:)=zmat_perm;
       betaperm_tmp(:,ivec_mask,:)=beta_hat_perm;
       betaseperm_tmp(:,ivec_mask,:)=beta_se_perm;
       sig2matperm_tmp(:,ivec_mask,:)=sig2mat_perm;
       sig2tvecperm_tmp(:,ivec_mask,:)=sig2tvec_perm;
+      coeffCovar_perm_tmp(:, :, ivec_mask, :)=coeffCovar_perm;
 
       zmat_perm=zperm_tmp;
       beta_hat_perm=betaperm_tmp;
       beta_se_perm=betaseperm_tmp;
       sig2mat_perm=sig2matperm_tmp;
       sig2tvec_perm=sig2tvecperm_tmp;
+      coeffCovar_perm=coeffCovar_perm_tmp;
 
     end
 
