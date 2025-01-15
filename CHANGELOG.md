@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Minor bug fixes to ensure all variables are defined when `niter` is `0`
     - Additionally computing `coeffCovar` for OLS solution
 * `FEMA_run_on_synthetic_data`: additionally have `coeffCovar` as an output variable
+* `FEMA_wrapper`: ensuring `coeffCovar` is converted to full dimensions of mask 
 
 ## [Unreleased - 2025-01-09]
 ### Changed
