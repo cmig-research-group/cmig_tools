@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-01-23]
+### Added
+* `showSurfPlot`
+### Changed
+* `FEMA_convert_splinesurf`: Bug fixing incorrect varargout
+
+## [Unreleased - 2025-01-15]
+### Changed
+* `FEMA_convert_splinesurf`: Bug fix and ensuring common variable naming as createBasisFunctions
+
+## [Unreleased - 2025-01-14]
+### Added
+* `FEMA_convert_splinesurf`
+
 ## [Unreleased - 2025-01-13]
 ### Changed
 * `FEMA_fit`: 
