@@ -1,5 +1,5 @@
 function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico, varargin)
-%	 Function to plot vertezwize results of a FEMA analysis.
+%	 Function to plot vertexwise results of a FEMA analysis.
 %	 Inputs:
 %	 vertvals: vertexwise statistics for plotting
 %	
