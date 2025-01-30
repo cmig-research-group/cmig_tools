@@ -92,7 +92,8 @@ function prepareAtlases__5060_ABCD3_cor10
 	% in showVol are drawn at a fixed probability threshold. Some ROIs (typically smlaller or more variable ones)
 	% may have peak probabilities substantially les than one so they may not be drawn. 
 	% In general, most ROIs have peaks >0.85, with many close to 1, so not an issue
-	doNormalize = [0 0 0 1 1]; %Prior to Nov 2024 we normalized thalamus & pauli
+	
+	%doNormalize = [0 0 0 1 1]; %Prior to Nov 2024 we normalized thalamus & pauli
 	doNormalize = [0 0 0 0 0]; %Nov 24 on, no normalization--add as switch in showVol if needed
 
 
@@ -264,75 +265,75 @@ function prepareAtlases__5060_ABCD3_cor10
 
 	if useAtlasDspace
 	
-  	disp(' save T1 (atlas_dspace)')
-  	clear vol
-  	vol.imgs = AD.muvols_T1;
-  	vol.Mvxl2lph = Mvxl2lph;
-  	vol.dimc = 200; vol.dimr=200; vol.dimd=260;
-  	vol.vx=1;vol.vy=1;vol.vz=1;
-  	vol.lphcent=[0 0 0]';
-  	vol.atlasVersion = atlasVersion;
-  	vol.name = ['T1 [' atlasID ']'];
-  	varName = ['T1_' atlasVersionVar];
-  	eval([varName '= vol;'])
-  	save(fullfile(outdir,['T1_' atlasVersion '.mat']), varName)
-	
-  	disp(' save T2 (atlas_dspace)')
-  	clear vol
-  	vol.imgs = AD.muvols_T2;
-  	vol.Mvxl2lph = Mvxl2lph;
-  	vol.dimc = 200; vol.dimr=200; vol.dimd=260;
-  	vol.vx=1;vol.vy=1;vol.vz=1;
-  	vol.lphcent=[0 0 0]';
-  	vol.atlasVersion = atlasVersion;
-  	vol.name = ['T2 [' atlasID ']'];
-  	varName = ['T2_' atlasVersionVar];
-  	eval([varName '= vol;'])
-  	save(fullfile(outdir,['T2_' atlasVersion '.mat']), varName)
-	
-  	disp(' save CO (atlas_dspace)')
-  	vol = AD.vol_CO_rgb;
-  	vol.Mvxl2lph = Mvxl2lph;
-  	vol.atlasVersion = atlasVersion;
-  	vol.name = ['diffusion direction [' atlasID ']'];
-  	varName = ['CO_' atlasVersionVar];
-  	eval([varName '= vol;'])
-  	save(fullfile(outdir,['CO_' atlasVersion '.mat']), varName)
+		disp(' save T1 (atlas_dspace)')
+		clear vol
+		vol.imgs = AD.muvols_T1;
+		vol.Mvxl2lph = Mvxl2lph;
+		vol.dimc = 200; vol.dimr=200; vol.dimd=260;
+		vol.vx=1;vol.vy=1;vol.vz=1;
+		vol.lphcent=[0 0 0]';
+		vol.atlasVersion = atlasVersion;
+		vol.name = ['T1 [' atlasID ']'];
+		varName = ['T1_' atlasVersionVar];
+		eval([varName '= vol;'])
+		save(fullfile(outdir,['T1_' atlasVersion '.mat']), varName)
+		
+		disp(' save T2 (atlas_dspace)')
+		clear vol
+		vol.imgs = AD.muvols_T2;
+		vol.Mvxl2lph = Mvxl2lph;
+		vol.dimc = 200; vol.dimr=200; vol.dimd=260;
+		vol.vx=1;vol.vy=1;vol.vz=1;
+		vol.lphcent=[0 0 0]';
+		vol.atlasVersion = atlasVersion;
+		vol.name = ['T2 [' atlasID ']'];
+		varName = ['T2_' atlasVersionVar];
+		eval([varName '= vol;'])
+		save(fullfile(outdir,['T2_' atlasVersion '.mat']), varName)
+		
+		disp(' save CO (atlas_dspace)')
+		vol = AD.vol_CO_rgb;
+		vol.Mvxl2lph = Mvxl2lph;
+		vol.atlasVersion = atlasVersion;
+		vol.name = ['diffusion direction [' atlasID ']'];
+		varName = ['CO_' atlasVersionVar];
+		eval([varName '= vol;'])
+		save(fullfile(outdir,['CO_' atlasVersion '.mat']), varName)
 	
 	else
-  	error('This non atlas_dspace code hasn''t been updated')
-  	%T1
-  	disp(' save T1')
-  	fname = fullfile(sourceAnat,'volmat_nu.mat');
-  	tmp = load(fname);
-  	vol = ctx_mgh2ctx(single(tmp.vol_mean), M_LPH_TO_RAS*Mvxl2lph);
-  	vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
-  	vol.atlasVersion = atlasVersion;
-  	vol.name = 'T1 [ABCD3, volmat]';
-  	T1_50_ABCD3_cor10 = vol;
-  	save(fullfile(outdir,['T1_' atlasVersion '.mat']), 'T1_50_ABCD3_cor10')
-	
-  	%T2
-  	disp(' save T2')
-  	fname = fullfile(sourceAnat,'volmat_T2.mat');
-  	tmp = load(fname);
-  	vol = ctx_mgh2ctx(single(tmp.vol_mean), M_LPH_TO_RAS*Mvxl2lph);
-  	vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
-  	vol.atlasVersion = atlasVersion;
-  	vol.name = 'T2 [ABCD3, volmat]';
-  	T2_50_ABCD3_cor10  = vol;
-  	save(fullfile(outdir,['T2_' atlasVersion '.mat']), 'T2_50_ABCD3_cor10')
-	
-  	%FA
-  	disp(' save FA')
-  	fname = fullfile(sourceAnat,'volmat_FA.mat');
-  	tmp = load(fname);
-  	vol = ctx_mgh2ctx(single(tmp.vol_mean), M_LPH_TO_RAS*Mvxl2lph);
-  	vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
-  	vol.atlasVersion = atlasVersion;
-  	vol.name = 'FA [ABCD3, volmat]';
-  	FA_50_ABCD3_cor10  = vol;
-  	save(fullfile(outdir,['FA_' atlasVersion '.mat']), 'FA_50_ABCD3_cor10')
+  		error('This non atlas_dspace code hasn''t been updated')
+  		%T1
+  		disp(' save T1')
+  		fname = fullfile(sourceAnat,'volmat_nu.mat');
+  		tmp = load(fname);
+  		vol = ctx_mgh2ctx(single(tmp.vol_mean), M_LPH_TO_RAS*Mvxl2lph);
+  		vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
+  		vol.atlasVersion = atlasVersion;
+  		vol.name = 'T1 [ABCD3, volmat]';
+  		T1_50_ABCD3_cor10 = vol;
+  		save(fullfile(outdir,['T1_' atlasVersion '.mat']), 'T1_50_ABCD3_cor10')
+		
+  		%T2
+  		disp(' save T2')
+  		fname = fullfile(sourceAnat,'volmat_T2.mat');
+  		tmp = load(fname);
+  		vol = ctx_mgh2ctx(single(tmp.vol_mean), M_LPH_TO_RAS*Mvxl2lph);
+  		vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
+  		vol.atlasVersion = atlasVersion;
+  		vol.name = 'T2 [ABCD3, volmat]';
+  		T2_50_ABCD3_cor10  = vol;
+  		save(fullfile(outdir,['T2_' atlasVersion '.mat']), 'T2_50_ABCD3_cor10')
+		
+  		%FA
+  		disp(' save FA')
+  		fname = fullfile(sourceAnat,'volmat_FA.mat');
+  		tmp = load(fname);
+  		vol = ctx_mgh2ctx(single(tmp.vol_mean), M_LPH_TO_RAS*Mvxl2lph);
+  		vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
+  		vol.atlasVersion = atlasVersion;
+  		vol.name = 'FA [ABCD3, volmat]';
+  		FA_50_ABCD3_cor10  = vol;
+  		save(fullfile(outdir,['FA_' atlasVersion '.mat']), 'FA_50_ABCD3_cor10')
 	
 	end
 
@@ -344,7 +345,9 @@ function prepareAtlases__5060_ABCD3_cor10
 	thalamusAbbrev = {'PUL','A','MD','VLD','CllpmPUL','VA','VLV','PUL','A','MD','VLD','CllpmPUL','VA','VLV'}';
 
 	for iA = 4:5
-  	if ~exist(files{iA},'file'), continue, end
+  		if ~exist(files{iA},'file')
+			continue
+		end
 
     	atlas = atlases{iA};
     	disp(atlas)
@@ -354,29 +357,29 @@ function prepareAtlases__5060_ABCD3_cor10
 	
     	prob = single(A.vol_labels_reg);
     	if doNormalize(iA)
-      	disp('Normalizing Probabilities')
-      	prob = prob ./ max(prob,[],1:3);
+    		disp('Normalizing Probabilities')
+    		prob = prob ./ max(prob,[],1:3);
     	end
 	
     	atl=[];
     	atl.prob = prob;
 	
     	LUT = A.([atlas '_lut']);
-	
-    	%there are some differences between pauli and thalamus naming 
+		
+    		%there are some differences between pauli and thalamus naming 
     	if strcmp(atlas,'thalamus')
-      	name = LUT.LabelName;
-      	atl.roiabbreviations = thalamusAbbrev;
+    	  	name = LUT.LabelName;
+    	  	atl.roiabbreviations = thalamusAbbrev;
     	else
-      	name = LUT.Name;
-      	atl.roiabbreviations = LUT.Abbreviation;
+    	  	name = LUT.Name;
+    	  	atl.roiabbreviations = LUT.Abbreviation;
     	end
     	atl.roinames = name;
 	
     	atl.roicolors = [LUT.R LUT.G LUT.B];
     	m = max(atl.roicolors(:));
     	if m > 1
-        	atl.roicolors = atl.roicolors / 255; %rescale to matlab [0 1]
+    		atl.roicolors = atl.roicolors / 255; %rescale to matlab [0 1]
     	end
     	atl.size = size(atl.prob(:,:,:,1));
     	atl.roi_text = []; %for text display of current ROI names in figure
@@ -387,8 +390,8 @@ function prepareAtlases__5060_ABCD3_cor10
 
     	atl.uiNames = {'None'}; atl.uiRoiIdx = 0;
     	for iV = 1:nroi
-        	atl.uiNames{end+1} = sprintf('%s (%s)',atl.roinames{iV}, atl.roiabbreviations{iV}) ;
-        	atl.uiRoiIdx(end+1) = iV;
+    		atl.uiNames{end+1} = sprintf('%s (%s)',atl.roinames{iV}, atl.roiabbreviations{iV}) ;
+    		atl.uiRoiIdx(end+1) = iV;
     	end
     	atl.uiRoiOverlayIdx = []; %indices into roi volume of selected ROIs to overlay
     	atl.uiRoiOverlayImg = [];
@@ -402,70 +405,73 @@ function prepareAtlases__5060_ABCD3_cor10
     	atl.rcscent = rcscenter_1mm(:);
     	lphcent = atl.Mvxl2lph * [atl.rcscent(:); 1];
     	atl.lphcent = lphcent(1:3);
-	
+		
     	atl.notes = notes{iA};
     	atl.dataPrepared = datestr(now);
     	atl.atlasVersion = atlasVersion;
 	
     	anat.(atlas) = atl;
-
 	
     	%% also save some high-res T1 and T2 images and rgb atlas if present
     	if isfield(A,'vol_T1_reg')
-        	disp(' save T1')
-        	vol = ctx_mgh2ctx(single(A.vol_T1_reg), M_LPH_TO_RAS*Mvxl2lph);
-        	vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
-        	vol.atlasVersion = atlasVersion;
-        	vol.name = [atlas ' atlas T1 [' atlasID ']'];
-        	varName = [atlas '_T1'];
-        	eval([varName ' = vol;']); %assign to atlas-specific name
-        	save(fullfile(outdir,[atlas '_T1_' atlasVersion '.mat']), varName);
+    	    disp(' save T1')
+    	    vol = ctx_mgh2ctx(single(A.vol_T1_reg), M_LPH_TO_RAS*Mvxl2lph);
+    	    vol.lphcent = [0 0 0]'; %have to do this, because we are using 0-based M, while the function assumes 1-based
+    	    vol.atlasVersion = atlasVersion;
+    	    vol.name = [atlas ' atlas T1 [' atlasID ']'];
+			vol.imgs(isnan(vol.imgs)) = 0; %remove NaNs
+    	    varName = [atlas '_T1'];
+    	    eval([varName ' = vol;']); %assign to atlas-specific name
+    	    save(fullfile(outdir,[atlas '_T1_' atlasVersion '.mat']), varName);
     	end
     	if isfield(A,'vol_T2_reg')
-        	disp(' save T2')
-        	vol = ctx_mgh2ctx(single(A.vol_T2_reg), M_LPH_TO_RAS*Mvxl2lph);
-        	vol.lphcent = [0 0 0]';
-        	vol.atlasVersion = atlasVersion;
-        	vol.name = [atlas ' atlas T2 [' atlasID ']'];
-        	varName = [atlas '_T2_' atlasVersionVar];
-        	eval([varName ' = vol;']); %assign to atlas-specific name
-        	save(fullfile(outdir,[atlas '_T2_' atlasVersion '.mat']), varName);
-		
+    		disp(' save T2')
+    		vol = ctx_mgh2ctx(single(A.vol_T2_reg), M_LPH_TO_RAS*Mvxl2lph);
+    		vol.lphcent = [0 0 0]';
+    		vol.atlasVersion = atlasVersion;
+    		vol.name = [atlas ' atlas T2 [' atlasID ']'];
+			vol.imgs(isnan(vol.imgs)) = 0; %remove NaNs
+    		varName = [atlas '_T2_' atlasVersionVar];
+    		eval([varName ' = vol;']); %assign to atlas-specific name
+    		save(fullfile(outdir,[atlas '_T2_' atlasVersion '.mat']), varName);
     	end
     	if isfield(A,'vol_labels_reg_rgb')
-        	disp(' save rgb')
-        	vol = A.vol_labels_reg_rgb;
-        	vol.Mvxl2lph = Mvxl2lph;
-        	vol.lphcent = [0 0 0]';
-        	vol.atlasVersion = atlasVersion;
-        	vol.name = [atlas ' atlas rgb [' atlasID ']'];
-        	varName = [atlas '_rgb_' atlasVersionVar];
-        	eval([varName ' = vol;']); %assign to atlas-specific name
-        	save(fullfile(outdir,[atlas '_rgb_' atlasVersion '.mat']),varName);
+    		disp(' save rgb')
+    		vol = A.vol_labels_reg_rgb;
+    		vol.Mvxl2lph = Mvxl2lph;
+    		vol.lphcent = [0 0 0]';
+    		vol.atlasVersion = atlasVersion;
+    		vol.name = [atlas ' atlas rgb [' atlasID ']'];
+			vol.imgs(isnan(vol.imgs)) = 0; %remove NaNs
+    		varName = [atlas '_rgb_' atlasVersionVar];
+    		eval([varName ' = vol;']); %assign to atlas-specific name
+    		save(fullfile(outdir,[atlas '_rgb_' atlasVersion '.mat']),varName);
     	end
-     	if isfield(A,'vol_labels_T1_reg_rgb')
-        	disp(' save T1 + rgb')
-        	vol = A.vol_labels_T1_reg_rgb;
-        	vol.Mvxl2lph = Mvxl2lph;
-        	vol.lphcent = [0 0 0]';
-        	vol_labels_rgb.atlasVersion = atlasVersion;
-        	vol_labels_rgb.name = [atlas ' atlas rgb+T1 [' atlasID ']'];
-        	varName = [atlas '_rgb_T1_' atlasVersionVar];
-        	eval([varName ' = vol;']); %assign to atlas-specific name
-        	save(fullfile(outdir,[atlas '_rgb_T1_' atlasVersion '.mat']),varName);
-     	end
-     	if isfield(A,'vol_labels_T2_reg_rgb')
-        	disp(' save T2 + rgb')
-        	vol = A.vol_labels_T2_reg_rgb;
-        	vol.Mvxl2lph = Mvxl2lph;
-        	vol.lphcent = [0 0 0]';
-        	vol_labels_rgb.atlasVersion = atlasVersion;
-        	vol_labels_rgb.name = [atlas ' atlas rgb+T2 [' atlasID ']'];
-        	varName = [atlas '_rgb_T2_' atlasVersionVar];
-        	eval([varName ' = vol;']); %assign to atlas-specific name
-        	save(fullfile(outdir,[atlas '_rgb_T2_' atlasVersion '.mat']),varName);
+    	if isfield(A,'vol_labels_T1_reg_rgb')
+    		disp(' save T1 + rgb')
+    		vol = A.vol_labels_T1_reg_rgb;
+    		vol.Mvxl2lph = Mvxl2lph;
+    		vol.lphcent = [0 0 0]';
+			vol.imgs(isnan(vol.imgs)) = 0; %remove NaNs
+    		vol_labels_rgb.atlasVersion = atlasVersion;
+    		vol_labels_rgb.name = [atlas ' atlas rgb+T1 [' atlasID ']'];
+    		varName = [atlas '_rgb_T1_' atlasVersionVar];
+    		eval([varName ' = vol;']); %assign to atlas-specific name
+    		save(fullfile(outdir,[atlas '_rgb_T1_' atlasVersion '.mat']),varName);
     	end
-	
+    	if isfield(A,'vol_labels_T2_reg_rgb')
+    		disp(' save T2 + rgb')
+    		vol = A.vol_labels_T2_reg_rgb;
+    		vol.Mvxl2lph = Mvxl2lph;
+    		vol.lphcent = [0 0 0]';
+			vol.imgs(isnan(vol.imgs)) = 0; %remove NaNs
+    		vol_labels_rgb.atlasVersion = atlasVersion;
+    		vol_labels_rgb.name = [atlas ' atlas rgb+T2 [' atlasID ']'];
+    		varName = [atlas '_rgb_T2_' atlasVersionVar];
+    		eval([varName ' = vol;']); %assign to atlas-specific name
+    		save(fullfile(outdir,[atlas '_rgb_T2_' atlasVersion '.mat']),varName);
+    	end
+		
 	end %pauli and thalamus
 
 	%% compress probabilities and unpack atlases into individual variables (so we can load as needed)

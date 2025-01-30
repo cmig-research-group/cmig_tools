@@ -102,8 +102,9 @@ function abcdRelease = atlas2rel(atlasVersion)
 switch(atlasVersion(1:5))
   
   case {'ABCD3'}
-    error('ABCD3 atlas has different release-specific versions. Update your code to specify the release in the atlas name, e.g. ''50_ABCD3''')
-    
+    %error('ABCD3 atlas has different release-specific versions. Update your code to specify the release in the atlas name, e.g. ''50_ABCD3''')
+    abcdRelease = '6.0';
+
   case {'ABCD2'}
     abcdRelease = '4.0';
     
