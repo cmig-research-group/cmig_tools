@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-01-23]
+### Added
+* `showSurfPlot`
+### Changed
+* `FEMA_convert_splinesurf`: Bug fixing incorrect varargout
+
+## [Unreleased - 2025-01-15]
+### Changed
+* `FEMA_convert_splinesurf`: Bug fix and ensuring common variable naming as createBasisFunctions
+
+## [Unreleased - 2025-01-14]
+### Added
+* `FEMA_convert_splinesurf`
+
+## [Unreleased - 2025-01-13]
+### Changed
+* `FEMA_fit`: 
+    - Minor bug fixes to ensure all variables are defined when `niter` is `0`
+    - Additionally computing `coeffCovar` for OLS solution
+* `FEMA_run_on_synthetic_data`: additionally have `coeffCovar` as an output variable
+* `FEMA_wrapper`: ensuring `coeffCovar` is converted to full dimensions of mask 
+
+## [Unreleased - 2025-01-09]
+### Changed
+* `FEMA_convert_splinevols`: minor bug fix in indexing
+* Major updates to `extract_roi_val` with improved documentation
+
+## [Unreleased - 2025-01-08]
+### Changed
+* `makeDesign.R`: updates to support ABCD 6.0 variable names
+
+## [Unreleased - 2025-01-07]
+### Changed
+* `createBasisFunctions`:
+    - Removed redundant `dfFlag` output in settings
+    - Some settings are only output when `doR` is `true`
+    - Removed checking the number of outputs
+    - Fixed recording time taken for calculating rank
+    - Explicitly output `Xvars` and removed from `settings`
+    - Ensuring `Xvars` is a column vector; appropriate fix when calculating number of columns to drop
+* `FEMA_convert_splinevols`:
+    - Consistent variable names with `createBasisFunctions`
+    - Avoiding growing arrays within loop
+
+## [Unreleased - 2024-12-18]
+### Changed
+* Introduced `varnorm` flag which can be used to perform variance normalization (zero mean and unit standard deviation); appropriate changes in `FEMA_process_data` and `FEMA_wrapper`
+
+## [Unreleased - 2024-11-28]
+### Changed
+* `FEMA_WaldTest` displays a warning if p values are smaller than 2.2251e-308 and truncates the log10 values to 2.2251e-308 (instead of returning Inf)
+
+## [Unreleased - 2024-11-26]
+### Changed
+* `FEMA_WaldTest` additionally returns log 10 p values
+
 ## [Unreleased - 2024-11-08]
 ### Changed
 * `createBasisFunctions`:

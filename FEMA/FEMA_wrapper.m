@@ -21,6 +21,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
 %   ranknorm <boolean>         :  rank normalise imaging data (default 0)
+%   varnorm <boolean>          :  variance normalise imaging data (default 0)
 %   output <string>            :  'mat' (default) or 'nifti' or 'deap' or concatenations to write multiple formats.
 %   ivnames <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
 %   RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
@@ -75,6 +76,7 @@ end
 
 inputs = inputParser;
 addParamValue(inputs,'ranknorm',0);
+addParamValue(inputs,'varnorm',0);
 addParamValue(inputs,'ico',5);
 addParamValue(inputs,'contrasts',[]);
 addParamValue(inputs,'output',[]);
@@ -115,6 +117,7 @@ if ~isfinite(contrasts)
   contrasts = readtable(fname_contrasts);
 end
 ranknorm = str2num_amd(inputs.Results.ranknorm);
+varnorm = str2num_amd(inputs.Results.varnorm);
 outputFormat = inputs.Results.output;
 if isempty(outputFormat)
   if strcmp(datatype,'external') outputFormat = 'csv'; else outputFormat = 'mat'; end % external data defaults to csv output
@@ -176,7 +179,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -268,6 +271,7 @@ for des=1:length(fname_design)
     betase_tmp=zeros(size(beta_se,1),size(mask,2));
     sig2mat_tmp=zeros(size(sig2mat,1),size(mask,2));
     sig2tvec_tmp=zeros(size(sig2tvec,1),size(mask,2));
+    coeffCovar_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2));
 
     z_tmp(:,ivec_mask)=zmat;
     p_tmp(:,ivec_mask)=logpmat;
@@ -275,6 +279,7 @@ for des=1:length(fname_design)
     betase_tmp(:,ivec_mask)=beta_se;
     sig2mat_tmp(:,ivec_mask)=sig2mat;
     sig2tvec_tmp(:,ivec_mask)=sig2tvec;
+    coeffCovar_tmp(:, :, ivec_mask)=coeffCovar;
 
     zmat=z_tmp;
     logpmat=p_tmp;
@@ -282,6 +287,7 @@ for des=1:length(fname_design)
     beta_se=betase_tmp;
     sig2mat=sig2mat_tmp;
     sig2tvec=sig2tvec_tmp;
+    coeffCovar=coeffCovar_tmp;
 
     if nperms>0
 
@@ -290,18 +296,21 @@ for des=1:length(fname_design)
       betaseperm_tmp=zeros(size(beta_se_perm,1),size(mask,2),size(beta_se_perm,3));
       sig2matperm_tmp=zeros(size(sig2mat_perm,1),size(mask,2),size(sig2mat_perm,3));
       sig2tvecperm_tmp=zeros(size(sig2tvec_perm,1),size(mask,2),size(sig2tvec_perm,3));
+      coeffCovar_perm_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2), size(coeffCovar, 4));
 
       zperm_tmp(:,ivec_mask,:)=zmat_perm;
       betaperm_tmp(:,ivec_mask,:)=beta_hat_perm;
       betaseperm_tmp(:,ivec_mask,:)=beta_se_perm;
       sig2matperm_tmp(:,ivec_mask,:)=sig2mat_perm;
       sig2tvecperm_tmp(:,ivec_mask,:)=sig2tvec_perm;
+      coeffCovar_perm_tmp(:, :, ivec_mask, :)=coeffCovar_perm;
 
       zmat_perm=zperm_tmp;
       beta_hat_perm=betaperm_tmp;
       beta_se_perm=betaseperm_tmp;
       sig2mat_perm=sig2matperm_tmp;
       sig2tvec_perm=sig2tvecperm_tmp;
+      coeffCovar_perm=coeffCovar_perm_tmp;
 
     end
 
