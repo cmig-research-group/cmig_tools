@@ -165,7 +165,7 @@ winposArg = [];
 handles.doLinkCoordinates = true;
 handles.hasABCDBrain = false; %keep track if any volumes are ABCD Brain
 handles.doAnnotations = false; %only enable if explicitly selected
-handles.anat.roiatlas = [];
+handles.anat.roiatlas = '6.0_ABCD3'; % default to latest release 
 handles.anat.roifile = [];
 handles.anat.roiset = [];
 
@@ -356,7 +356,7 @@ if handles.hasABCDBrain
   end
   
   if isempty(handles.anat.roiatlas)
-    error('%s: You must explicitly specify an ABCD atlas version to use ROIs: ''ABCD1'', ''ABCD2'', ''5.0_ABCD3'' are valid as of Feb 2024.\n\n To do so, the final argument to showVol must be: struct(''roiatlas'',<atlasVersion>)',mfilename)
+    error('%s: You must explicitly specify an ABCD atlas version to use ROIs: ''ABCD1'', ''ABCD2'', ''5.0_ABCD3'', ''6.0_ABCD3'',are valid as of Feb 2024.\n\n To do so, the final argument to showVol must be: struct(''roiatlas'',<atlasVersion>)',mfilename)
   end
   
   if isempty(handles.anat.roifile)
