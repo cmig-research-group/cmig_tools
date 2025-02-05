@@ -84,7 +84,7 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 					idx_tmp <- which(nda$interview_age[idx_subj]==min(nda$interview_age[idx_subj]))	
 				} else {
 					idx_subj <- which(nda$participant_id==uniq_subj[i])
-					idx_tmp <- which(nda$ab_g_dyn__design_age__event[idx_subj]==min(nda$ab_g_dyn__design_age__event[idx_subj]))
+					idx_tmp <- which(nda$ab_g_dyn__visit_age[idx_subj]==min(nda$ab_g_dyn__visit_age[idx_subj]))
 				}
 				idx_subj0 <- idx_subj[idx_tmp]	
 				vec0[idx_subj] <- nda[idx_subj0,d]
