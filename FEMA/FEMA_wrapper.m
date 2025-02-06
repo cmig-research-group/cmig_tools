@@ -1,4 +1,4 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
 %
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
@@ -6,13 +6,12 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %     3) To run linear mixed effects models (FEMA_fit)
 %     4) To save outputs in specified format
 %
-% USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+% USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
 %
 % INPUTS
 %   fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
 %   fname_design <cell>        :  cell array with path to file with design matrix saved (readable by readtable) --> if want to batch can add multiple filepaths as separate rows within fname_design as a cell array
 %   dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include separate output directory as rows within dirname_out as a cell array
-%   dirname_tabulated <char>   :  path to tabulated data directory with NDA downloaded txt files
 %   dirname_imaging <char>     :  path to imaging data directory
 %   datatype <char>            :  'voxel','vertex','external', 'corrmat'
 %                                   NB: Other than 'external' all code is written to expect ABCD data
@@ -65,8 +64,8 @@ rng shuffle %Set random number generator so different every time
 
 %PARSING INPUTS
 
-if nargin < 6
-  logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,varargin)');
+if nargin < 5
+  logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,varargin)');
   error('Incorrect number of input arguments')
 end
 
@@ -90,6 +89,7 @@ addParamValue(inputs,'nperms',0);
 addParamValue(inputs,'mediation',0);
 addParamValue(inputs,'tfce',0);
 addParamValue(inputs,'colsinterest',1);
+addParamValue(inputs,'demean',0);
 
 %FEMA_fit variable inputs
 addParamValue(inputs,'niter',1);
@@ -159,6 +159,7 @@ mediation = str2num_amd(inputs.Results.mediation);
 synth = str2num_amd(inputs.Results.synth);
 tfce = str2num_amd(inputs.Results.tfce);
 colsinterest = str2num_amd(inputs.Results.colsinterest);
+demean = str2num_amd(inputs.Results.demean);
 
 if ~iscell(fname_design)
   fname_design = {fname_design};
@@ -179,7 +180,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -222,7 +223,7 @@ end
 fpaths_out = {};
 for des=1:length(fname_design)
 
-  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address);
+  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address,'demean', demean);
   if synth==1 % Make synthesized data
     [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'nbins',nbins,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
