@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Pre-3.0 release - 2025-02-15]
+* Tagging branch and preparing for FEMA release 3.0
+
+## [Unreleased - 2025-02-07]
+### Changed
+* `FEMA_intersect_design`:
+    - Added `demean` option for design matrix
+    - Handling of different event ID options
+* `FEMA_process_data`:
+    - deprecated `dirname_tabulated` option
+    - Streamlined workflow for ABCD releases
+* `FEMA_wrapper`:
+    - deprecated `dirname_tabulated` option
+    - Added `demean` option for design matrix
+
+## [Unreleased - 2025-02-05]
+### Changed
+* `makeDesign.R`: updated visit age variable name for delta to match 6.0 naming
+
+## [Unreleased - 2025-01-29]
+* Fixed typo in documentation of `showSurfPlot.m`
+
 ## [Unreleased - 2025-01-23]
 ### Added
 * `showSurfPlot`
