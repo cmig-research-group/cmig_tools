@@ -9,30 +9,39 @@ function M = Mvxl2lph_atlas(atlas)
 %
 %   to convert this back to that format: M_LPH_TO_RAS*Mvxl2lph (e.g. to use if calling ctx_mgh2ctx)
 %
-% As of Dec 2023, default atlas is now ABCD3_cor10, but ABCD2 and ABCD1 are options
 
 if nargin < 1 || isempty(atlas)
-  atlas = 'ABCD3_cor10';
-  fprintf(2, '%s using default %s atlas\n',mfilename,atlas)
+  error('You must specify an atlas version. See validateAtlasVersion.m for valid choices')
 end
 
+atlas = validateAtlasVersion(atlas);
+
 switch atlas
-  case {'ABCD1_cor10' 'ABCD1' 'ABCD2_cor10' 'ABCD2'}
+  case {'3.0_ABCD1_cor10', '4.0_ABCD2_cor10'}
     
-    center1mm = [100 100 130];
+    rcs_center1mm = [100 100 130];
     M =  ... %new 1mm voxel space
-      [0  1  0 -center1mm(2); ...
-       0  0 -1  center1mm(3);...
-      -1  0  0  center1mm(1); ...
+      [0  1  0 -rcs_center1mm(2); ...
+       0  0 -1  rcs_center1mm(3);...
+      -1  0  0  rcs_center1mm(1); ...
        0  0  0  1];
      
-  case {'ABCD3_cor10' 'ABCD3'  } %FIXME: Dec 23, this is tentative, but empirically the center has changed by 1mm
+%   case {'5.0_ABCD3_cor10'} %Before Nov 2024, I adjusted the center. 
+%     
+%     rcs_center1mm = [99 99 129];
+%     M =  ... %new 1mm voxel space
+%       [0  1  0 -rcs_center1mm(2); ...
+%        0  0 -1  rcs_center1mm(3);...
+%       -1  0  0  rcs_center1mm(1); ...
+%        0  0  0  1];
+     
+  case {'5.0_ABCD3_cor10', '6.0_ABCD3_cor10'} %FIXME: empirically the center is 100 99 130! 
     
-    center1mm = [99 99 129];
+    rcs_center1mm = [101 101 131];
     M =  ... %new 1mm voxel space
-      [0  1  0 -center1mm(2); ...
-       0  0 -1  center1mm(3);...
-      -1  0  0  center1mm(1); ...
+      [0  1  0 -rcs_center1mm(2); ...
+       0  0 -1  rcs_center1mm(3);...
+      -1  0  0  rcs_center1mm(1); ...
        0  0  0  1];
     
   otherwise
