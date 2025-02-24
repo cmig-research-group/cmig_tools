@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-02-19]
+### Changed
+* `cmig_tools_utils/matlab/Mvxl2lph_atlas.m`:
+    - Atlas is a required input
+    - Support for 6.0 atlas
+    - Consistent atlas names with release prefix
+* `cmig_tools_utils/matlab/atlas_T1.m`:
+    - Atlas is a required input
+    - `mask` defaults to `true`
+    - Consistent atlas names with release prefix
+* `cmig_tools_utils/matlab/maskBrain.m`:
+    - Consistent atlas names with release prefix
+* `showVol/ABCD_anatomy_visualization_example.m`:
+    - Defaults to 6.0 atlas
+    - Examples for 5.0 and 6.0 atlases
+* `showVol/showVol.m`:
+    - Defaults to 6.0 atlas
+    - Tweaks for consistency across atlas names
+* `showVol/utils/loadPrerenderedIfNeeded.m`:
+    - Atlas is a required input
+    - Consistent atlas names with release prefix
+
+### Added
+* `showVol/utils/compressVol.m`: compression utility for only storing non-zero values
+* `showVol/utils/expandVol.m`: expansion counterpart of `compressVol`
+* `showVol/utils/parseAtlasVersion.m`: utility function for parsing atlas names
+* `showVol/utils/prepareAtlases__5060_ABCD3_cor10_orig.m`: utility for preparing atlas file(s) and 6.0 support
+* `showVol/utils/showVolAtlasFile.m`: returns default atlas
+* `showVol/utils/validateAtlasVersion.m`: utility function for validating atlas names
+
+### Merged
+* `prepareAtlases_ABCD3_cor10` with `showVol/utils/prepareAtlases__5060_ABCD3_cor10.m`
+
+### Deleted
+* `showVol/utils/showVol.fig_orig`
+* `showVol/utils/showVol_prerend.fig`
+
 ## [Pre-3.0 release - 2025-02-15]
 * Tagging branch and preparing for FEMA release 3.0
 
