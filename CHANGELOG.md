@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Displaying correct time taken at the end of `FEMA_fit`
     - Some documentation update; fixed typo
 * `FEMA_run_on_synthetic_data.m`: formatting and documentation update
+* `FEMA_compileTerms.m`:
+    - Updated to handle unstructured covariance
+    - No longer requires `nfamtypes` as an input
+    - Performance tweaks
+    - Consistent handling of calculating the inverse of `V` (similar to `FEMA_fit`)
 
 ### Added
 * `cmig_tools_utils/matlab/nearestSPD_timeout.m`: 
