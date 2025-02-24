@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `cmig_tools_utils/matlab/nearestSPD_timeout.m`: 
     - Modified version of `nearestSPD` which exits after a specified number of iteration
     - Additionally outputs convergance status
+* `FEMA_gatherGWAS.m`: function that aggregates GWAS summary statistics across chunks
+* `cmig_tools_utils/matlab/plotQQ.m`: utility function to create Q-Q plots
+* `cmig_tools_utils/matlab/plotManhattan.m`: utility function to create Manhattan plots
 
 ## [Unreleased - 2025-02-19]
 ### Changed
