@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-02-24]
+### Changed
+* `FEMA_fit.m`: introducing unstructured covariance
+    - Added support for `unstructured` `CovType`
+    - Always including `E` as `RandomEffects`
+    - Always ensuring `E` is the last entry in `RandomEffects`
+    - Using the full matrix for `S_sum` instead of lower triangle (revert change from 2023-11-11)
+    - No longer saving OLS residuals as part of `reusableVars`
+    - For method of moments, using the unbiased estimator `sig2tvec` for normalizing `LHS` instead of `mean(ymat_res.^2,1)`
+    - Unstructured covariances are estimated as visit * visit * RFX * y covariance matrices
+    - Additional outputs in `reusableVars`
+    - Binning is disabled for `unstructed` `CovType`
+    - Added option for disabling binning by setting `nbins==0`
+    - No longer saving binning info as part of `reusableVars` (already output as `binvec_save`)
+    - Saving the time taken for entire `FEMA_fit` as `time` variable in `reusableVars`
+    - Displaying correct time taken at the end of `FEMA_fit`
+    - Some documentation update; fixed typo
+* `FEMA_run_on_synthetic_data.m`: formatting and documentation update
+
+### Added
+* `cmig_tools_utils/matlab/nearestSPD_timeout.m`: 
+    - Modified version of `nearestSPD` which exits after a specified number of iteration
+    - Additionally outputs convergance status
+
 ## [Unreleased - 2025-02-19]
 ### Changed
 * `cmig_tools_utils/matlab/Mvxl2lph_atlas.m`:

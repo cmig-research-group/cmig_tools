@@ -7,13 +7,15 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
                    pihatmat, varargin)
 % Function to fit fast and efficient linear mixed effects model
 %
-% For notation below:
+%% Notation:
 % n = observations,
 % p = predictors (fixed effects),
 % v = imaging units (e.g. voxels/vertices)
 % c = number of contrasts to evaluate
 % r = number of random effects
+% k = number of visits (unique values in eid)
 %
+%% Citation:
 % Parekh et al., (2024) - Fast and efficient mixed-effects algorithm for 
 %                         large sample whole-brain imaging data, 
 %                         Human Brain Mapping,  
@@ -29,8 +31,8 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 % niter           <num>            [1 x 1]    number of iterations (default 1)
 % contrasts       <num> OR <path>  [c x p]    contrast matrix, where c is number of contrasts to compute,
 %                                             OR path to file containing contrast matrix (readable by readtable)
-% nbins           <num>            [1 x 1]    number of bins across Y for estimating random effects (default 20)
-% pihatmat        <num>            [n x n]    matrix of genetic relatedness --> already intersected to match X and Y sample
+% nbins           <num>            [1 x 1]    number of bins across Y for estimating random effects (default 20); set to 0 to disable binning
+% pihatmat        <num>            [n x n]    matrix of genetic relatedness --> already intersected to match X and Y sample (i.e., entries should be in the order of unique(iid, 'stable');
 %
 %% Optional input arguments:
 % RandomEffects   <cell>           list of random effects to estimate (default {'F','S','E'}):
@@ -44,11 +46,11 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 %                                       * H:  home effect - effect of living at the same address
 %                                       * T:  twin effect - effect of having the same pregnancy ID
 % nperms          <num>            deault 0 --> if >0 will run and output permuted effects
-% CovType         <char>           default 'analytic' --> no other options currently available
+% CovType         <char>           default 'analytic' --> other option: 'unstructured'
 % FixedEstType    <char>           default 'GLS' --> other option: 'OLS'
 % RandomEstType   <char>           default 'MoM' --> other option: 'ML' (much slower)
 % GroupByFamType  <boolean>        default true
-% NonnegFlag      <blooean>        default true - non-negativity constraint on random effects estimation
+% NonnegFlag      <boolean>        default true - non-negativity constraint on random effects estimation
 % SingleOrDouble  <char>           default 'double' --> other option: 'single' - for precision
 % logLikflag      <boolean>        default true - compute log-likelihood
 % PermType        <char>           permutation type:
@@ -57,17 +59,37 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 % returnReusable  <boolean>        default false - if true, additionally returns reusableVars as a structure with some variables that can be reused (primarily by FEMA-GWAS)
 %
 %% Outputs:
-% beta_hat        <num>            [c+p x v]   estimated beta coefficients
-% beta_se         <num>            [c+p x v]   estimated beta standard errors
-% zmat            <num>            [c+p x v]   z statistics
-% logpmat         <num>            [c+p x v]   log10 p-values
-% sig2tvec        <num>            [1   x v]   total residual error of model at each vertex/voxel
-% sig2mat         <num>            [r   x v]   normalized random effect variances
-% binvec_save     <num>            [1   x v]   bin number(s) for non-permuted ymat
-% FamilyStruct    <struct>                     can be passed as input to avoid re-parsing family structure etc.)
-% coeffCovar      <num>            [p x p x v] estimated coefficient covariance matrix for every v
-%
-% This software is Copyright (c) 2021 
+% beta_hat        <num>      [c+p x v]          estimated beta coefficients
+% beta_se         <num>      [c+p x v]          estimated beta standard errors
+% zmat            <num>      [c+p x v]          z statistics
+% logpmat         <num>      [c+p x v]          log10 p-values
+% sig2tvec        <num>      [1   x v]          total residual error of model at each vertex/voxel
+% sig2mat         <num>      [r   x v]          normalized random effect variances (if CovType is 'analytic')
+% sig2mat         <num>      [k x k x r-1 x v]  normalized random effect variances and covariances (if CovType is 'unstructured'); k is the number of unique visits in eid
+% binvec_save     <num>      [1 x v]            bin number(s) for non-permuted ymat
+% FamilyStruct    <struct>                      can be passed as input to avoid re-parsing family structure etc.)
+% coeffCovar      <num>      [p x p x v]        estimated coefficient covariance matrix for every v
+% reusableVars    <struct>                      contains the following:
+%                                                   * 'GroupByFamType'
+%                                                   * 'RandomEffects'
+%                                                   * 'SingleOrDouble'
+%                                                   * 'OLSflag'
+%                                                   * 'useLSQ'
+%                                                   * 'lowRank'
+%                                                   * 'CovType'
+%                                                   * 'sig2mat':            version of sig2mat prior to unstructured covariance
+%                                                   * 'eidOrd':             order of events in eid; for unstructured covariance, this is the  order of entries in sig2mat
+%                                                   * 'visitnum':           order of visits
+%                                                   * 'totalVar':           visit-wise total variance
+%                                                   * 'sig2mat_normalized': normalized version of sig2mat such that diagonals are variance and off-diagonals are correlations
+%                                                   * 'RFX_ord':            ordering of random effecs in clusterinfo
+%                                                   * 'locJVec':            where is jvec_fam field located in clusterinfo
+%                                                   * 'converge':           nearestSPD convergence tracking
+%                                                   * 'ymat_res_gls':       GLS residuals
+%                                                   * 'MSE_GLS':            GLS mean squared error
+%                                                   * 'time':               time taken by FEMA_fit
+% 
+% This software is Copyright (c) 2021
 % The Regents of the University of California. 
 % All Rights Reserved. See LICENSE.
 
@@ -153,8 +175,36 @@ FamilyStruct         = p.Results.FamilyStruct;
 returnReusable       = p.Results.returnReusable;
 synthstruct          = p.Results.synthstruct;
 
+% Check if CovType is unstructured
+if strcmpi(CovType, 'unstructured')
+    unstructuredCov = true;
+else
+    unstructuredCov = false;
+end
+
+% If permutation and unstructured covariance, warn the user
+if unstructuredCov && nperms > 0
+    warning('Permutations not yet implemented for unstructured covariance');
+    nperms = 0;
+end
+
+% Examine RandomEffects and ensure E is always the last term - relevant for
+% unstructured covariance
+RandomEffects = rowvec(RandomEffects);
+tmp           = strcmpi(RandomEffects, 'E');
+if ~any(tmp)
+    warning('RandomEffects did not include E term; appending E as the last random effect');
+    RandomEffects = [RandomEffects, 'E'];
+else
+    if find(tmp) ~= length(RandomEffects)
+        RandomEffects = [RandomEffects(~tmp), RandomEffects(tmp)];
+        logging(['Re-arranging RandomEffects as: ', sprintf('%s ', RandomEffects{:})]);
+    end
+end
+
 % Grouping by family type is only supported for RandomEffects 'F' 'S' 'E'
-if ~isempty(setdiff(RandomEffects,{'F' 'S' 'E'}))
+% but not supported for unstructured covariance
+if ~isempty(setdiff(RandomEffects,{'F' 'S' 'E'})) || unstructuredCov
     GroupByFamType = false;
 end
 
@@ -176,8 +226,13 @@ else
     useLSQ = false;
 end
 
+% Get some basic info
+[num_obs, num_y] = size(ymat);
+num_X            = size(X, 2);
+num_RFX          = length(RandomEffects);
+
 % Check if X is rank deficient
-if rank(X) < size(X, 2)
+if rank(X) < num_X
     lowRank = true;
 else
     lowRank = false;
@@ -191,6 +246,7 @@ if returnReusable
     reusableVars.OLSflag        = OLSflag;
     reusableVars.useLSQ         = useLSQ;
     reusableVars.lowRank        = lowRank;
+    reusableVars.CovType        = CovType;
 end
 
 t0 = now;
@@ -234,9 +290,10 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
         clusterinfo{fi}.ivec_fam = ivec_fam;
     end
 
-    % Scale back to using tril on S_sum
-    [subvec1, subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
-    indvec             = sub2ind([nobs nobs],subvec1,subvec2);
+    % This works for compound symmetry but not for unstructured covariance
+    % % Scale back to using tril on S_sum
+    % [subvec1, subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
+    % indvec             = sub2ind([nobs nobs],subvec1,subvec2);
 
     M = zeros(length(indvec),length(Ss));
     for i = 1:length(Ss)
@@ -248,21 +305,21 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
     binvals_edges(end)  = binvals_edges(end)+0.0001;
 
     % New ND version
-    if length(RandomEffects) == 2
+    if num_RFX == 2
         sig2gridi = colvec(1:length(binvals_edges)-1);
         sig2gridl = colvec(binvals_edges(1:end-1));
         sig2gridu = colvec(binvals_edges(2:end));
     else
-        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1}, [1 length(RandomEffects)-1]));
-        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 length(RandomEffects)-1]));
-        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 length(RandomEffects)-1]));
+        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1}, [1 num_RFX-1]));
+        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 num_RFX-1]));
+        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 num_RFX-1]));
     end
     sig2grid_ivec = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
     sig2gridl     = sig2gridl(sig2grid_ivec,:);
     sig2gridu     = sig2gridu(sig2grid_ivec,:);
     sig2gridi     = sig2gridi(sig2grid_ivec,:);
     sig2grid      = (sig2gridl+sig2gridu)/2;
-    sig2gridind   = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
+    sig2gridind   = sub2ind_amd(nbins*ones(1,num_RFX-1),sig2gridi);
     nsig2bins     = size(sig2gridl,1); % Should handle case of no binning
 
     % % Create grid of normalized random effects -- currently supports only FSE models -- should generalize to arbitrary set of random effects
@@ -340,13 +397,13 @@ if ~isempty(synthstruct)
 end
 
 % Various initialization
-beta_hat                                = zeros(size(X,2), size(ymat,2), class(ymat));
+beta_hat                                = zeros(num_X, num_y, class(ymat));
 [beta_se, zmat, ymat_hat, ymat_res]     = deal(zeros(size(beta_hat), class(ymat)));
-[betacon_hat, betacon_se]               = deal(zeros(size(contrasts,1), size(ymat,2), class(ymat)));
-binvec                                  = NaN(1, size(ymat,2));
+[betacon_hat, betacon_se]               = deal(zeros(size(contrasts,1), num_y, class(ymat)));
+binvec                                  = NaN(1, num_y);
 
 if Hessflag
-    Hessmat = NaN([length(RandomEffects) length(RandomEffects) size(ymat,2)]);
+    Hessmat = NaN([num_RFX num_RFX num_y]);
 else
     Hessmat = [];
 end
@@ -359,13 +416,13 @@ for permi = 0:nperms
     permstart = now();
 
     if permi == 1 % Initialize perm, based on initial fit
-        sig2mat_bak   = sig2mat;
-        sig2tvec_bak  = sig2tvec;
-        binvec_bak    = binvec;
-        zmat_bak      = zmat;
-        ymat_bak      = ymat;
-        ymat_res_bak  = ymat_res;
-        coeffCovarPerm = zeros(size(X,2), size(X,2), length(binvec), nperms);
+        sig2mat_bak    = sig2mat;
+        sig2tvec_bak   = sig2tvec;
+        binvec_bak     = binvec;
+        zmat_bak       = zmat;
+        ymat_bak       = ymat;
+        ymat_res_bak   = ymat_res;
+        % coeffCovarPerm = zeros(num_X, num_X, length(binvec), nperms);
 
         if ismember(lower(PermType), {'wildbootstrap'}) % Residual bootstrap - DEFAULT
             ymat_hat_bak = zeros(size(ymat));
@@ -405,13 +462,13 @@ for permi = 0:nperms
     beta_hat     = iXtX * (X' * ymat);
     ymat_hat     = X * beta_hat;
     ymat_res     = ymat - ymat_hat;
-    sig2tvec     = sum(ymat_res.^2,1)/(size(ymat_res, 1) - size(X, 2)); % Adjust for the number of estimated parameters -- should use effective DOF instead?
+    sig2tvec     = sum(ymat_res.^2,1)/(num_obs - num_X); % Adjust for the number of estimated parameters -- should use effective DOF instead?
     beta_se      = sqrt(diag(iXtX) * sig2tvec);
     Cov_beta     = iXtX;
 
     % Coefficient covariance
-    coeffCovar = zeros(size(X,2), size(X,2), size(ymat,2));
-    for ii = 1:size(ymat,2)
+    coeffCovar = zeros(num_X, num_X, num_y);
+    for ii = 1:num_y
         coeffCovar(:,:,ii) = Cov_beta .* sig2tvec(ii);
     end
     
@@ -420,18 +477,18 @@ for permi = 0:nperms
         betacon_se(ci, :) = sqrt(contrasts(ci,:) * Cov_beta * contrasts(ci,:)' * sig2tvec);
     end
 
-    % Save OLS residuals for future use
-    % If ymat is huge, this will lead to a large use of RAM
-    if returnReusable && permi == 0
-        reusableVars.ymat_res_ols = ymat_res;
-        reusableVars.MSE_OLS      = sum(ymat_res.^2,1);
-    end
+    % % Save OLS residuals for future use
+    % % If ymat is huge, this will lead to a large use of RAM
+    % if returnReusable && permi == 0
+    %     reusableVars.ymat_res_ols = ymat_res;
+    %     reusableVars.MSE_OLS      = sum(ymat_res.^2,1);
+    % end
 
     for iter = 1:max(1,niter)
         %% Method of moments solution
-        sig2tvec = sum(ymat_res.^2,1)/(size(ymat_res,1)-size(X,2));
-        LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ mean(ymat_res.^2,1); % use normalized residuals
-
+        sig2tvec = sum(ymat_res.^2,1)/(num_obs - num_X);
+        LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ sig2tvec; % using unbiased estimator (24-Feb-2025)
+        % LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ mean(ymat_res.^2,1); % use normalized residuals - look into normalizing by sig2tvec
         if ~NonnegFlag % Standard least squares and max(0,x)
             tmp     = Mi*LHS;
             sig2mat = max(0,tmp); % Variances must be non-negative
@@ -445,6 +502,149 @@ for permi = 0:nperms
         sig2mat_mom = sig2mat;
         logLikvec   = [];
 
+        %% Compute unstructured variances / correlations
+        if unstructuredCov
+            [dummy, IA, visitnum] = unique(eid);
+            nvisits               = length(dummy);
+            visvec1               = visitnum(subvec1);
+            visvec2               = visitnum(subvec2);
+    
+            % Backup sig2mat
+            if returnReusable
+                reusableVars.sig2mat  = sig2mat;
+                reusableVars.eidOrd   = dummy;
+                reusableVars.visitnum = visitnum;
+            end
+
+            % Unstructured covariance matrix - overwriting sig2mat
+            sig2mat  = zeros(nvisits, nvisits, num_RFX-1, num_y);
+            totalVar = zeros(nvisits, nvisits, num_y);
+    
+            % Also put together median ages for each eid
+            % Will be necessary for the interpolation of unstructured
+            % covariance matrices
+            % medianAge = zeros(nvisits, 1);
+            % for ii = 1:nvisits
+            %     medianAge(ii,1) = median(agevec(eid == ii));
+            %     % medianAge(ii,1) = median(agevec(strcmpi(eid, dummy{ii})));
+            % end
+            
+            % Estimate visit-wise variance components for the random effects
+            for vis1      = 1:nvisits
+                for vis2  = 1:vis1
+                    ivec  = visvec1 == vis1 & visvec2 == vis2;
+    
+                    if vis1 == vis2
+                        RFX_hat = lsqnonneg_amd3(M(ivec, 1:end-1), LHS(ivec,:));
+                    else
+                        RFX_hat = pinv(M(ivec, 1:end-1)) * LHS(ivec,:);
+                    end
+    
+                    sig2mat(vis1, vis2, :, :) = RFX_hat;
+                    sig2mat(vis2, vis1, :, :) = RFX_hat;
+        
+                    ivec = M(:,strcmpi('S',RandomEffects)) == 1 & visvec1 == vis1 & visvec2 == vis2;
+                    totalVar(vis1, vis2, :) = mean(LHS(ivec, :));
+                    totalVar(vis2, vis1, :) = mean(LHS(ivec, :));
+                    % ivec = find(M(:,find(strcmp('S',RandomEffects))) == 1 & visvec1 == vis1 & visvec2 == vis2);
+                    % rhat = mean(LHS(ivec, 1));
+                    % C1(vis1,vis2) = rhat;
+                    % C1(vis2,vis1) = rhat;
+                    
+                    % ivec = find(M(:,find(strcmp('S',RandomEffects))) == 0 & visvec1 == vis1 & visvec2 == vis2);
+                    % rhat = mean(LHS(ivec, 1));
+                    % C0(vis1,vis2) = rhat;
+                    % C0(vis2,vis1) = rhat;
+                end
+            end
+
+            % Additionally, save visit-wise total variance as well as
+            % normalized variance-correlation matrix
+            if returnReusable
+                % Create normalized version of sig2mat
+                sig2mat_normalized = zeros(size(sig2mat));
+                for v = 1:num_y
+                    sigvec                      = sqrt(diag(totalVar(:,:,v)));
+                    sig2mat_normalized(:,:,:,v) = sig2mat(:,:,:,v) ./ (sigvec * sigvec');
+                end
+
+                % Save totalVar and sig2mat_normalized as additional
+                % variables
+                reusableVars.totalVar           = totalVar;
+                reusableVars.sig2mat_normalized = sig2mat_normalized;
+            end
+
+            % % Backup sig2mat prior to nearestSPD
+            % if returnReusable
+            %     reusableVars.sig2mat_preSPD = sig2mat;
+            % end
+            % 
+            % % Ensure each random effect variance-covariance matrix is SPD
+            % for v = 1:size(ymat,2)
+            %     for rfx = 1:length(RandomEffects)-1
+            %         sig2mat(:,:,rfx,v) = nearestSPD(sig2mat(:,:,rfx,v));
+            %     end
+            % end
+
+            % % Unstructured covariance for every y
+            % for v = 1:size(ymat_res,2)
+            %     sigvec = sqrt(diag(totalVar(:,:,v)));
+            %     scFac  = (sigvec * sigvec');
+            %     % scFac(find(eye(size(scFac)))) = 1;
+            %     sig2mat(:,:,:,v) = sig2mat(:,:,:,v) ./ scFac;
+            %     % sig2mat(:,:,:,v) = sig2mat(:,:,:,v) ./ (sigvec * sigvec');
+            % end
+    
+            % Interpolation of the unstructured covariance matrix as smooth
+            % function of age: requires fixing the extrapolation arm
+            % sigvec = cell2mat(arrayfun(@(x) sqrt(diag(totalVar(:,:,x))), 1:size(ymat_res,2), 'UniformOutput', false));
+            % sigvec  = sqrt(diag(C1));
+            % newvec  = C1 ./ (sigvec * sigvec');
+            % F       = F  ./ (sigvec * sigvec');
+            % A       = A  ./ (sigvec * sigvec');
+            % S       = S  ./ (sigvec * sigvec');
+        
+            % % Scattered interpolant for F, A, and S
+            % [x_grid, y_grid] = ndgrid(medianAge);
+            % I1    = sqrt(x_grid + y_grid);
+            % I2    = x_grid - y_grid;
+            % F_fun = scatteredInterpolant(I1(:), I2(:), double(F(:)), 'linear', 'nearest');
+            % A_fun = scatteredInterpolant(I1(:), I2(:), double(A(:)), 'linear', 'nearest');
+            % S_fun = scatteredInterpolant(I1(:), I2(:), double(S(:)), 'linear', 'nearest');
+            % 
+            % % Project these onto a finer grid
+            % qvec     = linspace(min(agevec), max(agevec), 101);
+            % [xq, yq] = ndgrid(qvec);
+            % I1q      = sqrt(xq + yq); 
+            % I2q      = xq - yq;
+            % interpF  = F_fun(I1q, I2q);
+            % interpA  = A_fun(I1q, I2q);
+            % interpS  = S_fun(I1q, I2q);
+            % 
+            % % Use these for 2D lookup
+            % g_F = scatteredInterpolant(I1q(:), I2q(:), interpF(:), 'linear', 'nearest');
+            % g_A = scatteredInterpolant(I1q(:), I2q(:), interpA(:), 'linear', 'nearest');
+            % g_S = scatteredInterpolant(I1q(:), I2q(:), interpS(:), 'linear', 'nearest');
+    
+            % % Gridded interpolant for F, A, and S - no extrapolation
+            % g_F = griddedInterpolant(x_grid, y_grid, F, 'linear', 'nearest');
+            % g_A = griddedInterpolant(x_grid, y_grid, A, 'linear', 'nearest');
+            % g_S = griddedInterpolant(x_grid, y_grid, S, 'linear', 'nearest');
+            % 
+            % % Project these into a finer resolution bin
+            % [a1, a2] = ndgrid(min(agevec):10:max(agevec));
+            % interpF  = reshape(g_F(a1(:), a2(:)), length(a1), length(a1));
+            % interpA  = reshape(g_A(a1(:), a2(:)), length(a1), length(a1));
+            % interpS  = reshape(g_S(a1(:), a2(:)), length(a1), length(a1));
+            % 
+            % % Use these for 2D lookup
+            % g_F = griddedInterpolant(a1, a2, interpF, 'nearest', 'nearest');
+            % g_A = griddedInterpolant(a1, a2, interpA, 'nearest', 'nearest');
+            % g_S = griddedInterpolant(a1, a2, interpS, 'nearest', 'nearest');
+        else
+            reusableVars.visitnum = [];
+        end
+
         %% Using maximum likelihood solution
         if MLflag % Phenotypes should be pre-normalized! -- now, scale is all over the place
             options_fmincon = optimoptions('fmincon','Display','off');
@@ -452,7 +652,7 @@ for permi = 0:nperms
             [sig2mat_ml, sig2mat_ll, sig2mat_ul] = deal(nan(size(sig2mat)));
             disp(var(ymat_res));
 
-            for coli=1:size(ymat_res, 2)
+            for coli=1:num_y
                 f = @(x) (-1 * FEMA_logLik(exp(x), X, ymat_res(:, coli), clusterinfo, Ss));
                 g = @(x) (-1 * FEMA_logLik(x,      X, ymat_res(:, coli), clusterinfo, Ss));
                 sig2vec0 = double(sig2mat(:, coli) * sig2tvec(coli));
@@ -545,37 +745,44 @@ for permi = 0:nperms
         end
 
         %% Snap to random effects grid -- should make this a script
-        nvec_bins = NaN(nsig2bins, 1);
-        tvec_bins = zeros(nsig2bins, 1);
-        for sig2bini = 1:nsig2bins
-            tmpvec = true;
-            for ri = 1:size(sig2mat,1)-1
-                tmpvec = tmpvec & sig2mat(ri,:) >= sig2gridl(sig2bini, ri) ...
-                                & sig2mat(ri,:) <  sig2gridu(sig2bini, ri);
+        % If unstructured covariance, disable binning
+        if unstructuredCov || nbins == 0
+            binvec = 1:size(ymat,2);
+            nvec_bins = zeros(length(binvec),1);
+            tvec_bins = zeros(length(binvec),1);
+        else
+            nvec_bins = NaN(nsig2bins, 1);
+            tvec_bins = zeros(nsig2bins, 1);    
+            for sig2bini = 1:nsig2bins
+                tmpvec = true;
+                for ri = 1:size(sig2mat,1)-1
+                    tmpvec = tmpvec & sig2mat(ri,:) >= sig2gridl(sig2bini, ri) ...
+                                    & sig2mat(ri,:) <  sig2gridu(sig2bini, ri);
+                end
+                ivec_bin            = find(tmpvec);
+                nvec_bins(sig2bini) = length(ivec_bin);
+                binvec(ivec_bin)    = sig2bini;
             end
-            ivec_bin            = find(tmpvec);
-            nvec_bins(sig2bini) = length(ivec_bin);
-            binvec(ivec_bin)    = sig2bini;
-        end
 
-        % If by any chance the bin was not assigned, coerce to the next
-        % nearest bin
-        locNaN = find(isnan(binvec));
-        if ~isempty(locNaN)
-            % Set this flag to 1, to enable debugging
-            if 0
-                keyboard; %#ok<KEYBOARDFUN,UNRCH>
+            % If by any chance the bin was not assigned, coerce to the next
+            % nearest bin
+            locNaN = find(isnan(binvec));
+            if ~isempty(locNaN)
+                % Set this flag to 1, to enable debugging
+                if 0
+                    keyboard; %#ok<KEYBOARDFUN,UNRCH>
+                end
+                for tmpBin = 1:length(locNaN)
+                    % For this bin, find the closest neighboring bin on the
+                    % grid; this is the bin where the absolute difference
+                    % between the estimated effects and grid values are the 
+                    % smallest
+                    tmpVals = sig2mat(1:size(sig2mat,1)-1, locNaN(tmpBin))';
+                    absDiff = sum(abs(tmpVals - sig2grid), 2);
+                    binvec(locNaN(tmpBin)) = find(absDiff == min(absDiff), 1);
+                end
+                warning(['Bins for the following y variables were coerced to the next nearest: ', num2str(locNaN)]);
             end
-            for tmpBin = 1:length(locNaN)
-                % For this bin, find the closest neighboring bin on the
-                % grid; this is the bin where the absolute difference
-                % between the estimated effects and grid values are the 
-                % smallest
-                tmpVals = sig2mat(1:size(sig2mat,1)-1, locNaN(tmpBin))';
-                absDiff = sum(abs(tmpVals - sig2grid), 2);
-                binvec(locNaN(tmpBin)) = find(absDiff == min(absDiff), 1);
-            end
-            warning(['Bins for the following y variables were coerced to the next nearest: ', num2str(locNaN)]);
         end
 
         %% Using approach described by Goldstein and Lindquist
@@ -605,7 +812,7 @@ for permi = 0:nperms
                     for fi = 1:nfamtypes
                         ivec = find(famtypevec==fi);
                         Vs_famtype{fi} = 0;
-                        for ri = 1:length(RandomEffects)
+                        for ri = 1:num_RFX
                             Vs_famtype{fi} = Vs_famtype{fi} + sig2vec(ri) * clusterinfo{ivec(1)}.(['V_', RandomEffects{ri}]);
                         end
                         Ws_famtype{fi} = pinv(FEMA_reg(FEMA_kron(Vs_famtype{fi}), lam));
@@ -615,7 +822,7 @@ for permi = 0:nperms
                     Ws_fam  = cell(1,nfam);
                     for fi = 1:nfam
                         Vs_fam{fi} = 0;
-                        for ri = 1:length(RandomEffects)
+                        for ri = 1:num_RFX
                             Vs_fam{fi} = Vs_fam{fi} + sig2vec(ri) * clusterinfo{fi}.(['V_', RandomEffects{ri}]);
                         end
                         Ws_fam{fi} = pinv(FEMA_reg(FEMA_kron(Vs_fam{fi}),lam));
@@ -722,9 +929,9 @@ for permi = 0:nperms
         % Save bin info
         if permi == 0
             binvec_save = binvec;
-            if returnReusable
-                reusableVars.binvec = binvec_save;
-            end
+            % if returnReusable
+            %     reusableVars.binvec = binvec_save;
+            % end
         end
 
         if permi>0
@@ -740,19 +947,19 @@ for permi = 0:nperms
         % Some initialization
         Ws_famtype  = cell(1, nfamtypes);
         Ws_fam      = cell(1, nfam);
-        [betacon_hat, betacon_se] = deal(zeros(size(contrasts,1), size(ymat,2), class(ymat)));
-        [beta_hat,    beta_se]    = deal(zeros(size(X,2), size(ymat,2), class(ymat)));
+        [betacon_hat, betacon_se] = deal(zeros(size(contrasts,1), num_y, class(ymat)));
+        [beta_hat,    beta_se]    = deal(zeros(num_X, num_y, class(ymat)));
         if permi == 0
-            coeffCovar = zeros(size(X,2), size(X,2), size(ymat,2));
+            coeffCovar = zeros(num_X, num_X, num_y);
         end
 
         % Get ordering of fields in clusterinfo - reasonable to assume that
         % fields are always ordered in the same way since clusterinfo is
         % created in the same way across all clusters
         ff           = fieldnames(clusterinfo{1});
-        RFX_ord      = zeros(length(RandomEffects),1);
+        RFX_ord      = zeros(num_RFX,1);
         locJVec      = strcmpi(ff, 'jvec_fam');
-        for rfx = 1:length(RandomEffects)
+        for rfx = 1:num_RFX
             RFX_ord(rfx,1) = find(strcmpi(ff, ['V_', RandomEffects{rfx}]));
         end
 
@@ -770,129 +977,272 @@ for permi = 0:nperms
         % Clear last warning
         lastwarn('');
 
-        for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
-            t0         = now; %#ok<*TNOW1>
-            ivec_bin   = find(binvec==sig2bini);
-            nvec_bins(sig2bini) = length(ivec_bin);
-            sig2vec    = mean(sig2mat(:, ivec_bin), 2);
+        % Handling the case of unstructured covariance
+        if unstructuredCov
 
-            if ~isempty(ivec_bin)
-                % Handle the case of OLS
-                if OLSflag
-                    XtX  = X' * X;
-                    if lowRank
-                        if useLSQ
-                            iXtX = lsqminnorm(XtX, eye(size(XtX)));
-                        else
-                            iXtX = pinv(XtX);
-                        end
-                    else
-                        iXtX = XtX \ eye(size(XtX));
+            % Some useful variables for future use
+            tmp     = [clusterinfo{:}];
+            nnz_max = length(vertcat(tmp.ivec_fam));
+
+            % Some initialization - only necessary once
+            allR  = zeros(nnz_max, 1);
+            allC  = zeros(nnz_max, 1);
+            allSz = zeros(nfam, 1); % cellfun(@(x) length(x.jvec_fam), clusterinfo);
+
+            % Keep track of convergence of nearestSPD
+            converge = false(num_y, 1);
+            
+            % Go over bins / phenotypes
+            for ivec_bin = 1:num_y
+
+                % Initialize: required for every y
+                allV  = zeros(nnz_max, 1);
+                count = 1;
+
+                % Go over families and compute W
+                for fi = 1:nfam
+
+                    % Extract current cluster
+                    currClus   = struct2cell(clusterinfo{fi});
+
+                    % Save size for later
+                    if ivec_bin == 1
+                        allSz(fi) = length(currClus{locJVec});
                     end
-                    beta_hat(:, ivec_bin) = iXtX * (X' * ymat(:, ivec_bin));
-                    beta_se(:,  ivec_bin) = sqrt(diag(iXtX) * sig2tvec(ivec_bin));
-                    Cov_beta              = iXtX;
-                else
-                    if GroupByFamType
-                        % Compute Vs and Vis by family type
-                        for fi = 1:nfamtypes
-                            ivec       = find(famtypevec == fi);
-                            currClus   = struct2cell(clusterinfo{ivec(1)});
-                            tmpSize    = length(currClus{locJVec});
-                            Vs_famtype = zeros(tmpSize);
+                    tmpSize = allSz(fi);
+                    wchLocs = currClus{locJVec};
 
-                            % Compute V
-                            for ri = 1:length(RandomEffects)
-                                Vs_famtype = Vs_famtype + sig2vec(ri) * currClus{RFX_ord(ri)};
-                            end
+                    % Compute V
+                    Vs_fam = zeros(tmpSize);
+                    b = visitnum(wchLocs);
+                    for ri = 1:num_RFX-1
+                        Vs_fam = Vs_fam + sig2mat(b, b, ri, ivec_bin) .* currClus{RFX_ord(ri)};
+                    end
+                    % [a,b]  = ismember(eid(clusterinfo{fi}.jvec_fam), dummy);
+                    % b = eid(clusterinfo{fi}.jvec_fam);
+                    % b = visitnum(currClus{locJVec});
 
-                            % Compute inverse of V
-                            Vis_famtype = double(Vs_famtype) \ eye(tmpSize, SingleOrDouble);
-                            msg         = lastwarn;
-                            if ~isempty(msg)
-                                Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
-                                msg = '';
-                                lastwarn('');
-                            end
-                                Ws_famtype{fi} = Vis_famtype;
-                        end
-                    else
-                        % Compute Vs and Vis for each family
-                        for fi = 1:nfam
-                            currClus   = struct2cell(clusterinfo{fi});
-                            tmpSize    = length(currClus{locJVec});
-                            Vs_fam     = zeros(tmpSize);
+                    % Compute inverse of V
+                    Vis_fam = cast(double(Vs_fam) \ eye(tmpSize), SingleOrDouble);
+                    msg     = lastwarn;
+                    if ~isempty(msg)
+                        Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                        msg = '';
+                        lastwarn('');
+                    end
+                    % Ws_fam{fi} = Vis_fam;
 
-                            % Compute V
-                            for ri = 1:length(RandomEffects)
-                                Vs_fam = Vs_fam + sig2vec(ri) * currClus{RFX_ord(ri)};
-                            end
+                    % XtW(:, currClus{locJVec}) = X(currClus{locJVec},:)' * Vis_fam;
 
-                            % Compute inverse of V
-                            Vis_fam = double(Vs_fam) \ eye(tmpSize, SingleOrDouble);
-                            msg     = lastwarn;
-                            if ~isempty(msg)
-                                Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
-                                msg = '';
-                                lastwarn('');
-                            end
-                            Ws_fam{fi} = Vis_fam;
-                        end
+                    % Compile allWsFam
+                    % Only populate rows and columns when ivec_bin == 1
+                    if ivec_bin == 1
+                        currIDX                 = wchLocs; % currClus{locJVec};
+                        tmpR                    = repmat(currIDX', tmpSize, 1);
+                        tmpC                    = repmat(currIDX,  tmpSize, 1);
+                        tmp                     = numel(tmpR);
+                        allR(count:count+tmp-1) = tmpR(:);
+                        allC(count:count+tmp-1) = tmpC(:);
                     end
 
-                    % Compute XtW
-                    XtW   = zeros(fliplr(size(X)), class(X));
-                    nClus = length(clusterinfo);
+                    % Values are updated for every ivec_bin / y
+                    tmp                     = numel(Vis_fam);
+                    allV(count:count+tmp-1) = Vis_fam(:);
+                    count                   = count + tmp;
 
-                    if GroupByFamType
-                        for fi = 1:nClus
-                            currClus = clusterinfo{fi};
-                            XtW(:, currClus.jvec_fam) = X(currClus.jvec_fam,:)' * Ws_famtype{famtypevec(fi)};
-                        end
-                    else
-                        for fi = 1:nClus
-                            currClus = clusterinfo{fi};
-                            XtW(:, currClus.jvec_fam) = X(currClus.jvec_fam,:)' * Ws_fam{fi};
-                        end
-                    end
-
-                    % Compute XtWX
-                    B  = XtW * X;
-
-                    % Calculate inverse of XtWX
-                    if rank(B) < size(B,2)
-                        if useLSQ
-                            Bi = lsqminnorm(B, eye(size(B)));
-                        else
-                            Bi = pinv(B);
-                        end
-                    else
-                        Bi = B \ eye(size(B));
-                    end
-
-                    % Calculate beta coefficient
-                    beta_hat_tmp          = Bi * (XtW * ymat(:, ivec_bin));
-                    Cov_beta              = nearestSPD(Bi);
-                    beta_hat(:, ivec_bin) = beta_hat_tmp; 
-                    beta_se(:,  ivec_bin) = sqrt(diag(Cov_beta) * sig2tvec(ivec_bin));
+                    % [a1, a2]   = ndgrid(agevec(clusterinfo{fi}.jvec_fam));
+                    % a1q        = sqrt(a1 + a2);
+                    % a2q        = a1 - a2;
+                    % tmp_F      = reshape(g_F(a1q(:), a2q(:)), tmpSize, tmpSize);
+                    % tmp_A      = reshape(g_A(a1q(:), a2q(:)), tmpSize, tmpSize);
+                    % tmp_S      = reshape(g_S(a1q(:), a2q(:)), tmpSize, tmpSize);
+    
+                    % Vs_fam = tmp_F.* clusterinfo{fi}.V_F + tmp_A.* clusterinfo{fi}.V_A + tmp_S .* clusterinfo{fi}.V_S;
+    
+                    % % Interpolated F, A, and S terms
+                    % interpF = reshape(g_F(a1(:), a2(:)), tmpSize, tmpSize);
+                    % interpA = reshape(g_A(a1(:), a2(:)), tmpSize, tmpSize);
+                    % interpS = reshape(g_S(a1(:), a2(:)), tmpSize, tmpSize);
+                    %
+                    % interpF = reshape(interp2(x_grid, y_grid, F, a1(:), a2(:), 'linear', true), tmpSize, tmpSize);
+                    % interpA = reshape(interp2(x_grid, y_grid, A, a1(:), a2(:)), tmpSize, tmpSize);
+                    % interpS = reshape(interp2(x_grid, y_grid, S, a1(:), a2(:)), tmpSize, tmpSize);
+    
+                    % Compute V
+                    % Vs_fam     = zeros(tmpSize);
+                    % for ri = 1:length(RandomEffects)
+                    %     Vs_fam = Vs_fam + sig2vec(ri) * currClus{RFX_ord(ri)};
+                    % end
+                    % Vs_fam = interpF .* clusterinfo{fi}.V_F + interpA .* clusterinfo{fi}.V_A + interpS .* clusterinfo{fi}.V_S;
                 end
+                allWsFam = sparse(allR, allC, allV, num_obs, num_obs, nnz_max);
 
+                % Compute XtW
+                XtW = X' * allWsFam;
+                % XtW(:, currClus{locJVec}) = X(currClus{locJVec},:)' * Vis_fam;
+
+                % Compute XtWX
+                B  = XtW * X;
+    
+                % Calculate inverse of XtWX
+                if rank(B) < size(B,2)
+                    if useLSQ
+                        Bi = lsqminnorm(B, eye(size(B)));
+                    else
+                        Bi = pinv(B);
+                    end
+                else
+                    Bi = B \ eye(size(B));
+                end
+    
+                % Calculate beta coefficient
+                [Cov_beta, converge(ivec_bin)]  = nearestSPD_timeout(Bi);
+                beta_hat_tmp                    = Cov_beta * (XtW * ymat(:, ivec_bin));
+                beta_hat(:, ivec_bin)           = beta_hat_tmp;
+                beta_se(:,  ivec_bin)           = sqrt(diag(Cov_beta) * sig2tvec(ivec_bin));
+    
                 % Save coefficient covariance matrix
                 if permi == 0
-                    for ii = 1:length(ivec_bin)
-                        coeffCovar(:,:,ivec_bin(ii)) = Cov_beta .* sig2tvec(ivec_bin(ii));
-                    end
-                    % Using cellfun is typically slower than loop
-                    % tmpCov                   = cellfun(@(x) Cov_beta .* x, num2cell(sig2tvec(ivec_bin)), 'UniformOutput', false);
-                    % coeffCovar(:,:,ivec_bin) = cat(3, tmpCov{:});
+                    coeffCovar(:,:,ivec_bin) = Cov_beta .* sig2tvec(ivec_bin);
                 end
-
+    
                 % Evaluate contrasts
                 for ci = 1:size(contrasts,1)
                     betacon_hat(ci, ivec_bin) = contrasts(ci,:) * beta_hat(:,ivec_bin);
                     betacon_se(ci,  ivec_bin) = sqrt(contrasts(ci,:) * Cov_beta * contrasts(ci,:)' * sig2tvec(ivec_bin));
                 end
-                tvec_bins(sig2bini) = (now-t0) * 3600 * 24; % Time in seconds
+            end
+
+            % Save convergence information
+            if returnReusable
+                reusableVars.converge = converge;
+            end
+        else
+            % Regular compound symmetry
+            for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
+                t0         = now; %#ok<*TNOW1>
+                ivec_bin   = find(binvec==sig2bini);
+                nvec_bins(sig2bini) = length(ivec_bin);
+                sig2vec    = mean(sig2mat(:, ivec_bin), 2);
+    
+                if ~isempty(ivec_bin)
+                    % Handle the case of OLS
+                    if OLSflag
+                        XtX  = X' * X;
+                        if lowRank
+                            if useLSQ
+                                iXtX = lsqminnorm(XtX, eye(size(XtX)));
+                            else
+                                iXtX = pinv(XtX);
+                            end
+                        else
+                            iXtX = XtX \ eye(size(XtX));
+                        end
+                        beta_hat(:, ivec_bin) = iXtX * (X' * ymat(:, ivec_bin));
+                        beta_se(:,  ivec_bin) = sqrt(diag(iXtX) * sig2tvec(ivec_bin));
+                        Cov_beta              = iXtX;
+                    else
+                        if GroupByFamType
+                            % Compute Vs and Vis by family type
+                            for fi = 1:nfamtypes
+                                ivec       = find(famtypevec == fi);
+                                currClus   = struct2cell(clusterinfo{ivec(1)});
+                                tmpSize    = length(currClus{locJVec});
+                                Vs_famtype = zeros(tmpSize);
+    
+                                % Compute V
+                                for ri = 1:num_RFX
+                                    Vs_famtype = Vs_famtype + sig2vec(ri) * currClus{RFX_ord(ri)};
+                                end
+    
+                                % Compute inverse of V
+                                Vis_famtype = double(Vs_famtype) \ eye(tmpSize, SingleOrDouble);
+                                msg         = lastwarn;
+                                if ~isempty(msg)
+                                    Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
+                                    msg = '';
+                                    lastwarn('');
+                                end
+                                    Ws_famtype{fi} = Vis_famtype;
+                            end
+                        else
+                            % Compute Vs and Vis for each family
+                            for fi = 1:nfam
+                                currClus   = struct2cell(clusterinfo{fi});
+                                tmpSize    = length(currClus{locJVec});
+                                Vs_fam     = zeros(tmpSize);
+
+                                % Compute V
+                                for ri = 1:num_RFX
+                                    Vs_fam = Vs_fam + sig2vec(ri) * currClus{RFX_ord(ri)};
+                                end
+
+                                % Compute inverse of V
+                                Vis_fam = cast(double(Vs_fam) \ eye(tmpSize), SingleOrDouble);
+                                msg     = lastwarn;
+                                if ~isempty(msg)
+                                    Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                                    msg = '';
+                                    lastwarn('');
+                                end
+                                Ws_fam{fi} = Vis_fam;
+                            end
+                        end
+    
+                        % Compute XtW
+                        XtW   = zeros(fliplr(size(X)), class(X));
+                        nClus = length(clusterinfo);
+    
+                        if GroupByFamType
+                            for fi = 1:nClus
+                                currClus = clusterinfo{fi};
+                                XtW(:, currClus.jvec_fam) = X(currClus.jvec_fam,:)' * Ws_famtype{famtypevec(fi)};
+                            end
+                        else
+                            for fi = 1:nClus
+                                currClus = clusterinfo{fi};
+                                XtW(:, currClus.jvec_fam) = X(currClus.jvec_fam,:)' * Ws_fam{fi};
+                            end
+                        end
+    
+                        % Compute XtWX
+                        B  = XtW * X;
+    
+                        % Calculate inverse of XtWX
+                        if rank(B) < size(B,2)
+                            if useLSQ
+                                Bi = lsqminnorm(B, eye(size(B)));
+                            else
+                                Bi = pinv(B);
+                            end
+                        else
+                            Bi = B \ eye(size(B));
+                        end
+    
+                        % Calculate beta coefficient
+                        beta_hat_tmp          = Bi * (XtW * ymat(:, ivec_bin));
+                        Cov_beta              = nearestSPD(Bi);
+                        beta_hat(:, ivec_bin) = beta_hat_tmp; 
+                        beta_se(:,  ivec_bin) = sqrt(diag(Cov_beta) * sig2tvec(ivec_bin));
+                    end
+    
+                    % Save coefficient covariance matrix
+                    if permi == 0
+                        for ii = 1:length(ivec_bin)
+                            coeffCovar(:,:,ivec_bin(ii)) = Cov_beta .* sig2tvec(ivec_bin(ii));
+                        end
+                        % Using cellfun is typically slower than loop
+                        % tmpCov                   = cellfun(@(x) Cov_beta .* x, num2cell(sig2tvec(ivec_bin)), 'UniformOutput', false);
+                        % coeffCovar(:,:,ivec_bin) = cat(3, tmpCov{:});
+                    end
+    
+                    % Evaluate contrasts
+                    for ci = 1:size(contrasts,1)
+                        betacon_hat(ci, ivec_bin) = contrasts(ci,:) * beta_hat(:,ivec_bin);
+                        betacon_se(ci,  ivec_bin) = sqrt(contrasts(ci,:) * Cov_beta * contrasts(ci,:)' * sig2tvec(ivec_bin));
+                    end
+                    tvec_bins(sig2bini) = (now-t0) * 3600 * 24; % Time in seconds
+                end
             end
         end
 
@@ -965,7 +1315,13 @@ if ciflag
     sig2mat = cat(3, sig2mat, sig2mat_ci);
 end
 
-logging('***Done*** (%0.2f seconds)\n', (now-starttime-tshim) * 3600 * 24);
+endTime = (now-starttime) * 3600 * 24;
+if returnReusable
+    reusableVars.time = endTime;
+end
+
+logging('***Done*** (%0.2f seconds)\n', endTime);
+% logging('***Done*** (%0.2f seconds)\n', (now-starttime-tshim) * 3600 * 24);
 
 %PrintMemoryUsage
 

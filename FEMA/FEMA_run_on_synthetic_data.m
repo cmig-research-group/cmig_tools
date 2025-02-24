@@ -1,7 +1,10 @@
-% This 'hello world' demo example generates an artificial data with
-% n=30000 observations, up to 5 measures per subject, up to 5 subjects
-% per family. 
+% This 'hello world' demo shows how to use FEMA_fit
 %
+% The script generates synthetic data with n = 30000 observations, up to 5
+% observations per subject, and up to 5 individuals per family; then, it
+% calls FEMA_fit; finally it visualize the estimates
+%
+%% Requirements
 % To run this example, clone the following repos and add them to
 % MATLAB path with 'addpath' command.
 %
@@ -9,28 +12,39 @@
 % - https://github.com/andersonwinkler/PALM   
 %   (PALM is optional - you only needed it if you play with restricted exchangeability blocks)
 
-% setup parameters for FEMA_synthesize
+%% Set seed here (if required)
+% seed = 100;
+% rng(seed, 'twister');
+
+%% Simulate data
+% Setup parameters for FEMA_synthesize
 n = 30000;
 p = 5;
 v = 10;
 
-X = randn(n, p);
+% Create FID and IID
+X       = randn(n, p);
 iid_int = sort(randsample([1:n, 1:n, 1:n, 1:n, 1:n], n));  % up to 5 observations per individual
-fid_int = ceil(iid_int / 5);                     % up to 5 individuals per family
-iid = cell(size(iid_int)); for i=1:length(iid_int), iid{i}=sprintf('I%i', iid_int(i)); end
-fid = cell(size(fid_int)); for i=1:length(fid_int), fid{i}=sprintf('F%i', fid_int(i)); end
+fid_int = ceil(iid_int / 5);                               % up to 5 individuals per family
+iid     = cell(size(iid_int)); for i=1:length(iid_int), iid{i}=sprintf('I%i', iid_int(i)); end
+fid     = cell(size(fid_int)); for i=1:length(fid_int), fid{i}=sprintf('F%i', fid_int(i)); end
 clear('iid_int'); clear('fid_int');
 
-% shuffle observations to validate FEMA_reorder_by_families
-jvec = randperm(n); X = X(jvec, :); iid = iid(:, jvec); fid = fid(:, jvec);
+% Shuffle observations to validate FEMA_reorder_by_families
+jvec = randperm(n); 
+X    = X(jvec, :); 
+iid  = iid(:, jvec); 
+fid  = fid(:, jvec);
 
-eid = ones(n, 1);                            % non needed
-agevec = zeros(n, 1);                        % not needed
-ymat = nan(n, v);   % only size of ymat is used by FEMA_synthesize
+% Additional variables
+eid    = ones(n, 1);  % not needed
+agevec = zeros(n, 1); % not needed
+ymat   = nan(n, v);   % only size of ymat is used by FEMA_synthesize
 
-% pihatmat is a square matrix with size matching the number of individuals (not the number of observations)
-[~, IA] = unique(iid, 'stable');
-pihatmat  = eye(length(IA));
+% pihatmat is a square matrix with size matching the number of individuals
+% (not the number of observations) - should be in the order unique(iid, 'stable')
+[~, IA]  = unique(iid, 'stable');
+pihatmat = eye(length(IA));
 [~, ~, IC_fam] = unique(fid(IA), 'stable'); nfam=max(IC_fam);
 for fi = 1:nfam
   idxvec = rowvec(find(IC_fam==fi)); % Identify all subjects for a given family
@@ -41,14 +55,13 @@ end
 
 % It's hard to distinguish 'F' vs 'A' effect, so with FASE model error bars can be fairly large
 % (though 'F'+'A' effect is well determined). Alternatively, use {'F','S','E'} model.
-RandomEffects = {'F', 'A', 'S', 'E'};
-%RandomEffects = {'F', 'S', 'E'}; 
+RandomEffects     = {'F', 'A', 'S', 'E'};
 [~, f_effect_idx] = ismember('F', RandomEffects);
 [~, a_effect_idx] = ismember('A', RandomEffects);
 [~, s_effect_idx] = ismember('S', RandomEffects);
 [~, e_effect_idx] = ismember('E', RandomEffects);
 
-[X,iid,eid,fid,agevec,~,pihatmat]=FEMA_reorder_by_families(X,iid,eid,fid,agevec,[],pihatmat);
+[X,iid,eid,fid,agevec,~,pihatmat]   = FEMA_reorder_by_families(X,iid,eid,fid,agevec,[],pihatmat);
 [ymat, sig2tvec_true, sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects);
 
 % output of FEMA_FEMA_synthesize :
@@ -59,18 +72,20 @@ RandomEffects = {'F', 'A', 'S', 'E'};
 
 % setup parameters for FEMA_fit
 contrasts = ones(1, p);
+niter     = 1;
+nbins     = 20;
+nperms    = 20;
 
-niter=1;
-nbins=20;
-
+%% Fit the model
 [beta_hat,      beta_se,        zmat,        logpmat,              ...
  sig2tvec,      sig2mat,        Hessmat,     logLikvec,            ...
  beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,        ...
  sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,            ...
  tvec_bins,     FamilyStruct,   coeffCovar,  reusableVars] =       ...
  FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, ...
-          pihatmat, 'RandomEffects', RandomEffects, 'nperms', 20);
+          pihatmat, 'RandomEffects', RandomEffects, 'nperms', nperms);
 
+%% Visualize estimates
 figure(1); clf; hold on;
 plot([sig2tvec_true; sig2tvec_true], [min(sig2tvec_perm, [], 3); max(sig2tvec_perm, [], 3)], 'k.-');
 plot(sig2tvec_true, sig2tvec, '*');
