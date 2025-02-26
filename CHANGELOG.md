@@ -4,6 +4,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-02-24]
+### Changed
+* `FEMA_fit.m`: introducing unstructured covariance
+    - Added support for `unstructured` `CovType`
+    - Always including `E` as `RandomEffects`
+    - Always ensuring `E` is the last entry in `RandomEffects`
+    - Using the full matrix for `S_sum` instead of lower triangle (revert change from 2023-11-11)
+    - No longer saving OLS residuals as part of `reusableVars`
+    - For method of moments, using the unbiased estimator `sig2tvec` for normalizing `LHS` instead of `mean(ymat_res.^2,1)`
+    - Unstructured covariances are estimated as visit * visit * RFX * y covariance matrices
+    - Additional outputs in `reusableVars`
+    - Binning is disabled for `unstructed` `CovType`
+    - Added option for disabling binning by setting `nbins==0`
+    - No longer saving binning info as part of `reusableVars` (already output as `binvec_save`)
+    - Saving the time taken for entire `FEMA_fit` as `time` variable in `reusableVars`
+    - Displaying correct time taken at the end of `FEMA_fit`
+    - Some documentation update; fixed typo
+* `FEMA_run_on_synthetic_data.m`: formatting and documentation update
+* `FEMA_compileTerms.m`:
+    - Updated to handle unstructured covariance
+    - No longer requires `nfamtypes` as an input
+    - Performance tweaks
+    - Consistent handling of calculating the inverse of `V` (similar to `FEMA_fit`)
+
+### Added
+* `cmig_tools_utils/matlab/nearestSPD_timeout.m`: 
+    - Modified version of `nearestSPD` which exits after a specified number of iteration
+    - Additionally outputs convergance status
+* `FEMA_gatherGWAS.m`: function that aggregates GWAS summary statistics across chunks
+* `cmig_tools_utils/matlab/plotQQ.m`: utility function to create Q-Q plots
+* `cmig_tools_utils/matlab/plotManhattan.m`: utility function to create Manhattan plots
+
+## [Unreleased - 2025-02-19]
+### Changed
+* `cmig_tools_utils/matlab/Mvxl2lph_atlas.m`:
+    - Atlas is a required input
+    - Support for 6.0 atlas
+    - Consistent atlas names with release prefix
+* `cmig_tools_utils/matlab/atlas_T1.m`:
+    - Atlas is a required input
+    - `mask` defaults to `true`
+    - Consistent atlas names with release prefix
+* `cmig_tools_utils/matlab/maskBrain.m`:
+    - Consistent atlas names with release prefix
+* `showVol/ABCD_anatomy_visualization_example.m`:
+    - Defaults to 6.0 atlas
+    - Examples for 5.0 and 6.0 atlases
+* `showVol/showVol.m`:
+    - Defaults to 6.0 atlas
+    - Tweaks for consistency across atlas names
+* `showVol/utils/loadPrerenderedIfNeeded.m`:
+    - Atlas is a required input
+    - Consistent atlas names with release prefix
+
+### Added
+* `showVol/utils/compressVol.m`: compression utility for only storing non-zero values
+* `showVol/utils/expandVol.m`: expansion counterpart of `compressVol`
+* `showVol/utils/parseAtlasVersion.m`: utility function for parsing atlas names
+* `showVol/utils/prepareAtlases__5060_ABCD3_cor10_orig.m`: utility for preparing atlas file(s) and 6.0 support
+* `showVol/utils/showVolAtlasFile.m`: returns default atlas
+* `showVol/utils/validateAtlasVersion.m`: utility function for validating atlas names
+
+### Merged
+* `prepareAtlases_ABCD3_cor10` with `showVol/utils/prepareAtlases__5060_ABCD3_cor10.m`
+
+### Deleted
+* `showVol/utils/showVol.fig_orig`
+* `showVol/utils/showVol_prerend.fig`
+
 ## [Pre-3.0 release - 2025-02-15]
 * Tagging branch and preparing for FEMA release 3.0
 
