@@ -170,13 +170,15 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		nda[,contvar]<-apply(data.frame(nda[,contvar]), 2, function(y) y - mean(y, na.rm=T))
 	}
 	
-	for (i in 1:length(catvar)){
-		if (!is.factor(nda[,catvar[i]])){
-			warning (paste0(catvar[i],' is not a factor. Being transformed into a factor.'))
-			nda[,catvar[i]]<-factor(nda[,catvar[i]])
+	if (!is.null(catvar)){
+		for (i in 1:length(catvar)){
+			if (!is.factor(nda[,catvar[i]])){
+				warning (paste0(catvar[i],' is not a factor. Being transformed into a factor.'))
+				nda[,catvar[i]]<-factor(nda[,catvar[i]])
+			}
 		}
-	}
-	
+	} 
+
 	if (!is.null(quadratic)){
 		quadvars=NULL
 	  for (i in 1:length(quadratic)){
