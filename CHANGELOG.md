@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-02-27]
+### Added
+* `CONTRIBUTING.md`
+* Issue templates
+* The Wiki is live!
+* Discussion board is live!
+
+### Changed
+* `FEMA_fit_GWAS.m`:
+    - `genoMat` and `genStruct` are merged into `genoMat`
+    - additionally calculates `coeffCovar` if user wants (default: false)
+    - `coeffCovar` is only computed if basis functions are specified
+    - default omnibus test is `eye`
+    - default `roundOff` is `false`
+    - Updated code to GLS solution for standard GWAS
+    - Keeping track of any complex valued standard errors being produced
+
+## [Unreleased - 2025-02-26]
+### Changed
+* `cmig_tools_utils/r/makeDesign.R`: update to handle case of no categorical variable
+
 ## [Unreleased - 2025-02-24]
 ### Changed
 * `FEMA_fit.m`: introducing unstructured covariance
