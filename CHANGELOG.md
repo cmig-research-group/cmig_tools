@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-02-27]
+### Added
+* `CONTRIBUTING.md`
+* Issue templates
+* The Wiki is live!
+* Discussion board is live!
+
+## [Unreleased - 2025-02-26]
+### Changed
+* `cmig_tools_utils/r/makeDesign.R`: update to handle case of no categorical variable
+
 ## [Unreleased - 2025-02-24]
 ### Changed
 * `FEMA_fit.m`: introducing unstructured covariance
