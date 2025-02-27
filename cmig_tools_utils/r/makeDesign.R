@@ -6,7 +6,7 @@ library(Matrix)
 library(ordinal)
 library(pracma)
 
-makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL) {
+makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, familyID='ab_g_stc__design_id__fam') {
 
 	#nda = data frame with variables of interest
 	#outfile = filepath and name to save design matrix to
@@ -45,6 +45,12 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		nda <- nda[inc_idevent,]
 	}
 	
+	# Define allowed values
+	valid_familyIDs <- c('ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'rel_family_id')
+	  if (!familyID %in% valid_familyIDs) {
+		stop("Error: familyID must be either 'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen or 'rel_family_id'.")
+	  }
+
 	allvars<-c(contvar,catvar,delta)
 	if ("src_subject_id" %in% names(nda)) {
 		nda[,'age']<-nda$interview_age
@@ -60,6 +66,7 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		nda <- nda[idx_time,]
 	} else {
 		nda[,'age']<-nda$ab_g_dyn__visit_age
+		
 		nda <- nda[,c("participant_id","session_id","ab_g_stc__design_id__fam","age",allvars)]
 		nda <- nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
