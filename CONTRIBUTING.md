@@ -8,6 +8,8 @@ If you are facing a specific problem, remember to report some minimal informatio
 
 Generally, if you want to make changes to the code yourself, you can fork this repo, make changes on your forked version, test the changes, and then submit a pull request. An overview of this process is [here](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project)
 
+If you have questions about using our tools, we suggest taking a look at our [Wiki](https://github.com/cmig-research-group/cmig_tools/wiki). If that does not answer your question, you can use the [Discussions](https://github.com/cmig-research-group/cmig_tools/discussions) area to ask a question.
+
 Thank you for your time and interest!
 
 The FEMA Team
