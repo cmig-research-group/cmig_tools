@@ -32,7 +32,6 @@ function fig = plotManhattan(Chr, bpLoc, logpVals, strTitle, markers, GWASThresh
 % Remove fixed number of chromosomes
 % Handle situation where one or more chromosome(s) may be missing
 % Add space between chromosomes
-% Handle missing / NaN / Inf values
 % Detect p values instead of -log10 p values
 % Allow an axis handle to be passed in
 
@@ -58,6 +57,25 @@ else
         error('Unknown style type provided; should be one of: mono, dark, diverge, dark-diff, diverge-diff');
     end
 end
+
+%% Some sanity checks on p values
+% Delete any NaN, Inf, or complex values
+locNaN  = isnan(logpVals);
+locInf  = isinf(logpVals);
+locImag = imag(logpVals) ~= 0;
+locDel  = locNaN | locInf | locImag;
+
+if sum(locDel) > 0
+    warning(['Removing ', num2str(sum(locNaN)),  ' NaN values, ',     ...
+                          num2str(sum(locInf)),  ' Inf values, and ', ...
+                          num2str(sum(locImag)), ' complex valued p values']);
+    logpVals(locDel) = [];
+    Chr(locDel)      = [];
+    bpLoc(locDel)    = [];
+end
+
+% Ensure we are working with unsigned p values
+logpVals = abs(logpVals);
 
 %% Style configuration
 switch(style)

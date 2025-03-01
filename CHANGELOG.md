@@ -17,11 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Output figure size is 12 cm tall and 18 cm wide (better aligned with publication style)
     - Can optionally plot separate colors for significant and non-significant SNPs
     - Better alignment of chromosome numbers
+    - Handling NaN / Inf / complex valued p values: these are removed
 * `cmig_tools_utils/matlab/plotQQ.m`:
     - Fixed outdated documentation
     - Optionally user can turn off axis labels
     - Additionally returning axis and line handles
-    - Handling NaN / Inf / complex valued p values - removed
+    - Handling NaN / Inf / complex valued p values: these are removed
     - Automatically converts log p values to p values
     - Making sure y ticks are not too crowded
     - Handling case when a figure handle is passed instead of axis handle
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * `FEMA_unstructuredGLS.m`: performs GLS estimation for unstructured covariance for a given phenotype
 * `FEMA_convert_splines.m`: generic utility function that computes weighted combinations of splines and its derivatives
+* `cmig_tools_utils/matlab/plotMiami.m`: utility function to create Miami plots (mirrored Manhattan plots)
 
 ## [Unreleased - 2025-02-27]
 ### Added
