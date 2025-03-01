@@ -57,6 +57,9 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 %                                       * 'wildbootstrap':    residual boostrap --> creates null distribution by randomly flipping the sign of each observation
 %                                       * 'wildbootstrap-nn': non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
 % returnReusable  <boolean>        default false - if true, additionally returns reusableVars as a structure with some variables that can be reused (primarily by FEMA-GWAS)
+% doPar           <boolean>        default false - if parallel processing should be used for GLS solution (only for unstructured covariance)
+% numWorkers      <num>            default 2 - how many parallel workers to start (if doPar is true)
+% numThreads      <num>            default 2 - how many threads per worker (if doPar is true)
 %
 %% Outputs:
 % beta_hat        <num>      [c+p x v]          estimated beta coefficients
@@ -153,6 +156,9 @@ addParamValue(p,'HomeID', {}); % Home effect (defined as same address ID), order
 addParamValue(p,'FamilyStruct',{}); % Avoids recomputing family strucutre et al
 addParamValue(p,'returnReusable',false); % Additionally returns a few useful variables
 addParamValue(p,'synthstruct',''); % True / synthesized random effects
+addParamValue(p,'doPar',false);
+addParamValue(p,'numWorkers',2);
+addParamValue(p,'numThreads',2);
 
 parse(p,varargin{:})
 CovType              = p.Results.CovType; %#ok<*NASGU>
@@ -174,6 +180,9 @@ PermType             = p.Results.PermType;
 FamilyStruct         = p.Results.FamilyStruct;
 returnReusable       = p.Results.returnReusable;
 synthstruct          = p.Results.synthstruct;
+doPar                = p.Results.doPar;
+numWorkers           = p.Results.numWorkers;
+numThreads           = p.Results.numThreads;
 
 % Check if CovType is unstructured
 if strcmpi(CovType, 'unstructured')
@@ -991,132 +1000,194 @@ for permi = 0:nperms
 
             % Keep track of convergence of nearestSPD
             converge = false(num_y, 1);
-            
-            % Go over bins / phenotypes
-            for ivec_bin = 1:num_y
 
-                % Initialize: required for every y
-                allV  = zeros(nnz_max, 1);
-                count = 1;
+            % Compile some variables
+            count = 1;
+            for fi = 1:nfam
 
-                % Go over families and compute W
-                for fi = 1:nfam
+                % Extract current cluster
+                currClus   = struct2cell(clusterinfo{fi});
 
-                    % Extract current cluster
-                    currClus   = struct2cell(clusterinfo{fi});
+                % Save size for later
+                allSz(fi) = length(currClus{locJVec});
 
-                    % Save size for later
-                    if ivec_bin == 1
-                        allSz(fi) = length(currClus{locJVec});
-                    end
-                    tmpSize = allSz(fi);
-                    wchLocs = currClus{locJVec};
+                % Current information
+                tmpSize = allSz(fi);
+                wchLocs = currClus{locJVec};
 
-                    % Compute V
-                    Vs_fam = zeros(tmpSize);
-                    b = visitnum(wchLocs);
-                    for ri = 1:num_RFX-1
-                        Vs_fam = Vs_fam + sig2mat(b, b, ri, ivec_bin) .* currClus{RFX_ord(ri)};
-                    end
-                    % [a,b]  = ismember(eid(clusterinfo{fi}.jvec_fam), dummy);
-                    % b = eid(clusterinfo{fi}.jvec_fam);
-                    % b = visitnum(currClus{locJVec});
+                currIDX                 = wchLocs; % currClus{locJVec};
+                tmpR                    = repmat(currIDX', tmpSize, 1);
+                tmpC                    = repmat(currIDX,  tmpSize, 1);
+                tmp                     = numel(tmpR);
+                allR(count:count+tmp-1) = tmpR(:);
+                allC(count:count+tmp-1) = tmpC(:);
+                count                   = count + tmp;
+            end
 
-                    % Compute inverse of V
-                    Vis_fam = cast(double(Vs_fam) \ eye(tmpSize), SingleOrDouble);
-                    msg     = lastwarn;
-                    if ~isempty(msg)
-                        Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
-                        msg = '';
-                        lastwarn('');
-                    end
-                    % Ws_fam{fi} = Vis_fam;
-
-                    % XtW(:, currClus{locJVec}) = X(currClus{locJVec},:)' * Vis_fam;
-
-                    % Compile allWsFam
-                    % Only populate rows and columns when ivec_bin == 1
-                    if ivec_bin == 1
-                        currIDX                 = wchLocs; % currClus{locJVec};
-                        tmpR                    = repmat(currIDX', tmpSize, 1);
-                        tmpC                    = repmat(currIDX,  tmpSize, 1);
-                        tmp                     = numel(tmpR);
-                        allR(count:count+tmp-1) = tmpR(:);
-                        allC(count:count+tmp-1) = tmpC(:);
-                    end
-
-                    % Values are updated for every ivec_bin / y
-                    tmp                     = numel(Vis_fam);
-                    allV(count:count+tmp-1) = Vis_fam(:);
-                    count                   = count + tmp;
-
-                    % [a1, a2]   = ndgrid(agevec(clusterinfo{fi}.jvec_fam));
-                    % a1q        = sqrt(a1 + a2);
-                    % a2q        = a1 - a2;
-                    % tmp_F      = reshape(g_F(a1q(:), a2q(:)), tmpSize, tmpSize);
-                    % tmp_A      = reshape(g_A(a1q(:), a2q(:)), tmpSize, tmpSize);
-                    % tmp_S      = reshape(g_S(a1q(:), a2q(:)), tmpSize, tmpSize);
-    
-                    % Vs_fam = tmp_F.* clusterinfo{fi}.V_F + tmp_A.* clusterinfo{fi}.V_A + tmp_S .* clusterinfo{fi}.V_S;
-    
-                    % % Interpolated F, A, and S terms
-                    % interpF = reshape(g_F(a1(:), a2(:)), tmpSize, tmpSize);
-                    % interpA = reshape(g_A(a1(:), a2(:)), tmpSize, tmpSize);
-                    % interpS = reshape(g_S(a1(:), a2(:)), tmpSize, tmpSize);
-                    %
-                    % interpF = reshape(interp2(x_grid, y_grid, F, a1(:), a2(:), 'linear', true), tmpSize, tmpSize);
-                    % interpA = reshape(interp2(x_grid, y_grid, A, a1(:), a2(:)), tmpSize, tmpSize);
-                    % interpS = reshape(interp2(x_grid, y_grid, S, a1(:), a2(:)), tmpSize, tmpSize);
-    
-                    % Compute V
-                    % Vs_fam     = zeros(tmpSize);
-                    % for ri = 1:length(RandomEffects)
-                    %     Vs_fam = Vs_fam + sig2vec(ri) * currClus{RFX_ord(ri)};
-                    % end
-                    % Vs_fam = interpF .* clusterinfo{fi}.V_F + interpA .* clusterinfo{fi}.V_A + interpS .* clusterinfo{fi}.V_S;
-                end
-                allWsFam = sparse(allR, allC, allV, num_obs, num_obs, nnz_max);
-
-                % Compute XtW
-                XtW = X' * allWsFam;
-                % XtW(:, currClus{locJVec}) = X(currClus{locJVec},:)' * Vis_fam;
-
-                % Compute XtWX
-                B  = XtW * X;
-    
-                % Calculate inverse of XtWX
-                if rank(B) < size(B,2)
-                    if useLSQ
-                        Bi = lsqminnorm(B, eye(size(B)));
-                    else
-                        Bi = pinv(B);
-                    end
+            if doPar
+                % Initialize parallel pool
+                pool = gcp('nocreate');
+                if isempty(pool)
+                    delPool          = true;
+                    local            = parcluster('local');
+                    local.NumThreads = numThreads;
+                    pool             = local.parpool(numWorkers);
                 else
-                    Bi = B \ eye(size(B));
+                    delPool          = false;
                 end
-    
-                % Calculate beta coefficient
-                [Cov_beta, converge(ivec_bin)]  = nearestSPD_timeout(Bi);
-                beta_hat_tmp                    = Cov_beta * (XtW * ymat(:, ivec_bin));
-                beta_hat(:, ivec_bin)           = beta_hat_tmp;
-                beta_se(:,  ivec_bin)           = sqrt(diag(Cov_beta) * sig2tvec(ivec_bin));
-    
-                % Save coefficient covariance matrix
-                if permi == 0
-                    coeffCovar(:,:,ivec_bin) = Cov_beta .* sig2tvec(ivec_bin);
+
+                % Go over phenotypes
+                parfor yy = 1:num_y
+                    [beta_hat(:, yy), beta_se(:, yy), coeffCovar(:,:,yy), ...
+                     converge(yy), betacon_hat(:,yy), betacon_se(:,yy)] = ...
+                     FEMA_unstructuredGLS(X, ymat(:,yy), sig2tvec(yy), sig2mat(:,:,:,yy),    ...
+                                          clusterinfo, visitnum, allSz, allR, allC,          ...
+                                          nnz_max, num_obs, num_RFX, RFX_ord, locJVec,       ...
+                                          contrasts, SingleOrDouble);
                 end
-    
-                % Evaluate contrasts
-                for ci = 1:size(contrasts,1)
-                    betacon_hat(ci, ivec_bin) = contrasts(ci,:) * beta_hat(:,ivec_bin);
-                    betacon_se(ci,  ivec_bin) = sqrt(contrasts(ci,:) * Cov_beta * contrasts(ci,:)' * sig2tvec(ivec_bin));
+
+                % Delete parallel pool
+                if delPool
+                    delete(pool);
+                    clear local;
                 end
+            else
+                for yy = 1:num_y
+                    [beta_hat(:, yy), beta_se(:, yy), coeffCovar(:,:,yy), ...
+                     converge(yy), betacon_hat(:,yy), betacon_se(:,yy)] = ...
+                     FEMA_unstructuredGLS(X, ymat(:,yy), sig2tvec(yy), sig2mat(:,:,:,yy),    ...
+                                          clusterinfo, visitnum, allSz, allR, allC,          ...
+                                          nnz_max, num_obs, num_RFX, RFX_ord, locJVec,       ...
+                                          contrasts, SingleOrDouble);
+                end
+
+                % % Go over bins / phenotypes
+                % for ivec_bin = 1:num_y
+                % 
+                %     % Initialize: required for every y
+                %     allV  = zeros(nnz_max, 1);
+                %     count = 1;
+                % 
+                %     % Go over families and compute W
+                %     for fi = 1:nfam
+                % 
+                %         % Extract current cluster
+                %         currClus   = struct2cell(clusterinfo{fi});
+                % 
+                %         % Save size for later
+                %         if ivec_bin == 1
+                %             allSz(fi) = length(currClus{locJVec});
+                %         end
+                %         tmpSize = allSz(fi);
+                %         wchLocs = currClus{locJVec};
+                % 
+                %         % Compute V
+                %         Vs_fam = zeros(tmpSize);
+                %         b = visitnum(wchLocs);
+                %         for ri = 1:num_RFX-1
+                %             Vs_fam = Vs_fam + sig2mat(b, b, ri, ivec_bin) .* currClus{RFX_ord(ri)};
+                %         end
+                %         % [a,b]  = ismember(eid(clusterinfo{fi}.jvec_fam), dummy);
+                %         % b = eid(clusterinfo{fi}.jvec_fam);
+                %         % b = visitnum(currClus{locJVec});
+                % 
+                %         % Compute inverse of V
+                %         Vis_fam = cast(double(Vs_fam) \ eye(tmpSize), SingleOrDouble);
+                %         msg     = lastwarn;
+                %         if ~isempty(msg)
+                %             Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                %             msg = '';
+                %             lastwarn('');
+                %         end
+                %         % Ws_fam{fi} = Vis_fam;
+                % 
+                %         % XtW(:, currClus{locJVec}) = X(currClus{locJVec},:)' * Vis_fam;
+                % 
+                %         % Compile allWsFam
+                %         % Only populate rows and columns when ivec_bin == 1
+                %         if ivec_bin == 1
+                %             currIDX                 = wchLocs; % currClus{locJVec};
+                %             tmpR                    = repmat(currIDX', tmpSize, 1);
+                %             tmpC                    = repmat(currIDX,  tmpSize, 1);
+                %             tmp                     = numel(tmpR);
+                %             allR(count:count+tmp-1) = tmpR(:);
+                %             allC(count:count+tmp-1) = tmpC(:);
+                %         end
+                % 
+                %         % Values are updated for every ivec_bin / y
+                %         tmp                     = numel(Vis_fam);
+                %         allV(count:count+tmp-1) = Vis_fam(:);
+                %         count                   = count + tmp;
+                % 
+                %         % [a1, a2]   = ndgrid(agevec(clusterinfo{fi}.jvec_fam));
+                %         % a1q        = sqrt(a1 + a2);
+                %         % a2q        = a1 - a2;
+                %         % tmp_F      = reshape(g_F(a1q(:), a2q(:)), tmpSize, tmpSize);
+                %         % tmp_A      = reshape(g_A(a1q(:), a2q(:)), tmpSize, tmpSize);
+                %         % tmp_S      = reshape(g_S(a1q(:), a2q(:)), tmpSize, tmpSize);
+                % 
+                %         % Vs_fam = tmp_F.* clusterinfo{fi}.V_F + tmp_A.* clusterinfo{fi}.V_A + tmp_S .* clusterinfo{fi}.V_S;
+                % 
+                %         % % Interpolated F, A, and S terms
+                %         % interpF = reshape(g_F(a1(:), a2(:)), tmpSize, tmpSize);
+                %         % interpA = reshape(g_A(a1(:), a2(:)), tmpSize, tmpSize);
+                %         % interpS = reshape(g_S(a1(:), a2(:)), tmpSize, tmpSize);
+                %         %
+                %         % interpF = reshape(interp2(x_grid, y_grid, F, a1(:), a2(:), 'linear', true), tmpSize, tmpSize);
+                %         % interpA = reshape(interp2(x_grid, y_grid, A, a1(:), a2(:)), tmpSize, tmpSize);
+                %         % interpS = reshape(interp2(x_grid, y_grid, S, a1(:), a2(:)), tmpSize, tmpSize);
+                % 
+                %         % Compute V
+                %         % Vs_fam     = zeros(tmpSize);
+                %         % for ri = 1:length(RandomEffects)
+                %         %     Vs_fam = Vs_fam + sig2vec(ri) * currClus{RFX_ord(ri)};
+                %         % end
+                %         % Vs_fam = interpF .* clusterinfo{fi}.V_F + interpA .* clusterinfo{fi}.V_A + interpS .* clusterinfo{fi}.V_S;
+                %     end
+                %     allWsFam = sparse(allR, allC, allV, num_obs, num_obs, nnz_max);
+                % 
+                %     % Compute XtW
+                %     XtW = X' * allWsFam;
+                %     % XtW(:, currClus{locJVec}) = X(currClus{locJVec},:)' * Vis_fam;
+                % 
+                %     % Compute XtWX
+                %     B  = XtW * X;
+                % 
+                %     % Calculate inverse of XtWX
+                %     if rank(B) < size(B,2)
+                %         if useLSQ
+                %             Bi = lsqminnorm(B, eye(size(B)));
+                %         else
+                %             Bi = pinv(B);
+                %         end
+                %     else
+                %         Bi = B \ eye(size(B));
+                %     end
+                % 
+                %     % Calculate beta coefficient
+                %     [Cov_beta, converge(ivec_bin)]  = nearestSPD_timeout(Bi);
+                %     beta_hat_tmp                    = Cov_beta * (XtW * ymat(:, ivec_bin));
+                %     beta_hat(:, ivec_bin)           = beta_hat_tmp;
+                %     beta_se(:,  ivec_bin)           = sqrt(diag(Cov_beta) * sig2tvec(ivec_bin));
+                % 
+                %     % Save coefficient covariance matrix
+                %     if permi == 0
+                %         coeffCovar(:,:,ivec_bin) = Cov_beta .* sig2tvec(ivec_bin);
+                %     end
+                % 
+                %     % Evaluate contrasts
+                %     for ci = 1:size(contrasts,1)
+                %         betacon_hat(ci, ivec_bin) = contrasts(ci,:) * beta_hat(:,ivec_bin);
+                %         betacon_se(ci,  ivec_bin) = sqrt(contrasts(ci,:) * Cov_beta * contrasts(ci,:)' * sig2tvec(ivec_bin));
+                %     end
+                % end
             end
 
             % Save convergence information
             if returnReusable
                 reusableVars.converge = converge;
             end
+
         else
             % Regular compound symmetry
             for sig2bini = unique(binvec(isfinite(binvec)), 'stable')
