@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * `FEMA_unstructuredGLS.m`: performs GLS estimation for unstructured covariance for a given phenotype
+* `FEMA_convert_splines.m`: generic utility function that computes weighted combinations of splines and its derivatives
 
 ## [Unreleased - 2025-02-27]
 ### Added
