@@ -18,7 +18,7 @@ function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico,
 %	 ico: icosahedral order for plotting
 %
 %	 Optional Inputs:
-%	 title: title for the plot
+%	 fhtitle: title for the plot
 %
 %	 legendPosition: position of the colorbar legend, can be 'South' (default) or 'East'
 %	
