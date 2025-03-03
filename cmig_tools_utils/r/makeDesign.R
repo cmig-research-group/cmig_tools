@@ -1,3 +1,6 @@
+library(arrow)
+library(furrr)
+library(purrr)
 library(plyr)
 library(dplyr)
 library(tidyverse)
@@ -6,9 +9,9 @@ library(Matrix)
 library(ordinal)
 library(pracma)
 
-makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, familyID='ab_g_stc__design_id__fam') {
+makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, familyID='ab_g_stc__design_id__fam') {
 
-	#nda = data frame with variables of interest
+	#data = data frame with variables of interest or path to tabulated data or path to directory with complete tabulated data needed for design matrix
 	#outfile = filepath and name to save design matrix to
 	#time = 'eventname' the events that you want to include e.g. c('baseline_year_1_arm_1','2_year_follow_up_y_arm_1')
 	#contvar = list of continuous variables e.g. c('interview_age','nihtbx_pattern_uncorrected')
@@ -25,10 +28,133 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	#	 '*_full.txt' = will include mediator as penultimate column (before intercept)
 	#	 '*_red.txt' = will be nested model with same sample NOT including mediator
 	#Currently only supported for continuous variables or interactions for mediation of moderation
-		
-	if (is.null(catvar) & is.null(contvar)) {
+
+	################################
+	# The following R packages need to be loaded
+	for (p in c('arrow','furrr','purrr','plyr','dplyr','tidyverse','psych','Matrix','ordinal','pracma')) {
+	        if(!eval(parse(text=paste("require(",p,")")))) {
+	                install.packages(p)
+	                lapply(p,library,character.only=TRUE)
+	        }
+	}
+	################################
+
+	# check what variables have supplied 
+	if (is.null(contvar) & is.null(catvar) & is.null(delta)) & is.null(allvar) {
 		stop('ERROR! No variables supplied')
 	}
+
+	if (is.null(allvar)) { # TO DO: INLCLUDE DATA DICTIONARY TO CHECK WHETHER VARIABLES ARE CONTINUOUS OR CATEGORICAL 
+		allvar <- c(contvar, catvar, delta)
+	}
+
+	# Define allowed values for damily ID
+	valid_familyIDs <- c('ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'rel_family_id')
+	if (!familyID %in% valid_familyIDs) {
+		stop("Error: familyID must be either 'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen' or 'rel_family_id'.")
+	  }
+
+	# define the first four columns of the design matrix
+	reqvar <- c(familyID,'ab_g_dyn__visit_age')
+
+	# Function to join datasets while handling missing keys
+	merge_dataframe <- function(df1, df2) {
+		common_keys <- intersect(c('participant_id', 'session_id'), colnames(df1))
+		if ('participant_id' %in% colnames(df1) & 'session_id' %in% colnames(df1) & 'participant_id' %in% colnames(df2) & 'session_id' %in% colnames(df2)) {
+			full_join(df1, df2, by = c('participant_id', 'session_id'))
+		} else {
+			full_join(df1, df2, by = 'participant_id')
+		}
+	}
+
+	if is.character(data) {
+		print(paste0('Reading tabulated data from ', nda)) 
+		# detect the file format used 
+		data_files <- list.files(nda)
+		ext <- unique(tools::file_ext(data_files))
+		if 'parquet' %in% ext {
+			# get only parquet files in case there are other file types in the directory
+			parquet_files <- data_files[grep('parquet', data_files)]
+			parquet_files <- paste0(nda, '/', parquet_files)
+			# Function to extract variables from parquet files
+			process_parquet_file <- function(file, extractvar) {
+  				parquet_dataset <- open_dataset(file, format = "parquet")
+				# Identify available columns in the file
+  				parquetvar <- names(parquet_dataset)
+
+				# Find which columns from `allvar` are present
+				present_extractvar <- intersect(extractvar, parquetvar)
+				# If no relevant columns, return NULL to avoid processing
+  				if (length(present_extractvar) == 0) {
+  					return(NULL)  # Or return an empty data frame: return(data.frame())
+  				}
+				# If at least one column from `allvar` is present, also extract `idvar`
+				id_columns <- intersect(c('participant_id', 'session_id'), parquetvar)  # Only keep existing IDs
+ 				selected_columns <- unique(c(id_columns, present_extractvar))
+  				# Select columns if available
+  				extracted_data <- parquet_dataset %>% select(any_of(selected_columns))
+  				# Convert to a data frame
+  				return(as.data.frame(extracted_data))
+			}
+			# Number of parallel processes
+			plan(multisession, workers = 4) 
+			data_list <- furrr::future_map(parquet_files, process_parquet_file, allvar)
+			data_list <- data_list[!sapply(data_list, is.null)]
+			# Merge all data frames iteratively
+			combined_df <- reduce(data_list, merge_dataframe)
+		}
+
+		# use csv and tsv files if present but not parquet
+		if (('csv' %in% ext | 'tsv' %in% ext ) & !'parquet' %in% ext ) {
+			# get only tsv files in case there are other file types in the directory
+			tsv_files <- data_files[grep("\\.tsv$", data_files)]
+			if (length(tsv_files) > 0) {  # Change condition to check if files exist
+				tsv_files <- paste0(nda, '/', tsv_files)
+			} else {
+				tsv_files <- NULL
+			}
+			csv_files <- data_files[grep("\\.csv$", data_files)]
+			if (length(csv_files) > 0) {  # Change condition to check if files exist
+				csv_files <- paste0(nda, '/', csv_files)
+			} else {
+				csv_files <- NULL
+			}
+			all_files <- c(tsv_files, csv_files)
+			# Function to read and select columns
+			process_delim_file <- function(file, extractvar) {
+				# Read the file
+				if (grepl(".csv$", file)) {
+				  df <- read.csv(file)
+				} else {
+				  df <- read.delim(file)
+				}
+				# Keep only relevant columns that exist in the file
+ 				# Identify available columns in the file
+				available_columns <- colnames(df)
+				# Find which columns from `extractvar` are present
+				present_extractvar <- intersect(extractvar, available_columns)
+				# If no relevant columns, return NULL to avoid processing
+				if (length(present_extractvar) == 0) {
+				  return(NULL)
+				}
+ 				# If at least one column from `extractvar` is present, also extract `idvar`
+				id_columns <- intersect(c('participant_id', 'session_id'), available_columns)  # Only keep existing IDs
+				selected_columns <- unique(c(id_columns, present_extractvar))
+				# Select columns if available
+  				extracted_data <- df[, selected_columns, drop = FALSE]
+  				return(extracted_data)
+			}
+			# Number of parallel processes
+			plan(multisession, workers = 4) 
+			# Process TSV and CSV files in parallel
+			data_list <- furrr::future_map(all_files, process_delim_file, extractvar = allvar)
+			data_list <- data_list[!sapply(data_list, is.null)]
+			combined_df <- reduce(data_list, merge_dataframe)
+		}
+	nda <- combined_df
+	}
+	
+
 	# create path to outfile if doesn't exist
 	outpath <- dirname(outfile)
 	if ( ! dir.exists(outpath) ) {
@@ -39,22 +165,27 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	if ( !is.null(subjs)) {
 		s_mat <- read.delim(subjs, header=FALSE)
 		s <- data.frame(s_mat)
-		names(s) <- 'idevent'
+		names(s) <- 'idevent's
 		inc_idevent <- lapply(FUN=grep, s$idevent, nda$idevent)
 		inc_idevent <- unlist(inc_idevent)
 		nda <- nda[inc_idevent,]
 	}
 	
-	# Define allowed values
-	valid_familyIDs <- c('ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'rel_family_id')
-	  if (!familyID %in% valid_familyIDs) {
-		stop("Error: familyID must be either 'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen or 'rel_family_id'.")
-	  }
+	# SHOUDL YOU BE ALLOWED TO MIX AND MATH CSV/TDV/PARQUET FILES?
+	# NEED TO ADD HOW TO ASSING ALLVAR TO CATEFORICAL OR CONTINUOUS
+	
+	# add particupant_id and session_id to reqvar 
+	if ("participant_id" %in% names(nda) & "session_id" %in% names(nda)) {
+		reqvar <- c('participant_id','session_id',reqvar)
+	} else if ("src_subject_id" %in% names(nda) & "eventname" %in% names(nda)) {
+		reqvar <- c('src_subject_id','eventname',reqvar)
+	} else {
+		stop('ERROR! No participant_id and session_id or src_subject_id and eventname in data')
+	}
 
-	allvars<-c(contvar,catvar,delta)
-	if ("src_subject_id" %in% names(nda)) {
+	if ("src_subject_id" %in% names(nda)) { # I DONT KNOW WHETHER TO KEEP THIS OR NOT 
 		nda[,'age']<-nda$interview_age
-		nda = nda[,c("src_subject_id","eventname","rel_family_id","age",allvars)]
+		nda = nda[,c("src_subject_id","eventname","rel_family_id","age",allvar)]
 		nda = nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$eventname)
 		# get subject ids at that time point
@@ -65,9 +196,15 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		rel_family_id<-nda$rel_family_id[idx_time]
 		nda <- nda[idx_time,]
 	} else {
-		nda[,'age']<-nda$ab_g_dyn__visit_age
-		
-		nda <- nda[,c("participant_id","session_id","ab_g_stc__design_id__fam","age",allvars)]
+		# make sure column order is 'participant_id','session_id','ab_g_stc__design_id__fam', 'ab_g_dyn__visit_age'
+		# check that all required variables are present
+		if ( !all(reqvar %in% colnames(nda))) {
+			stop('ERROR! Not all required variables present')
+		}
+		# check order re-arrange if necessary
+		if ( !identical(colnames(nda), c('participant_id','session_id','ab_g_stc__design_id__fam','ab_g_dyn__visit_age',allvar))) {
+			nda <- nda[,c('participant_id','session_id','ab_g_stc__design_id__fam','ab_g_dyn__visit_age',allvar)]
+		}
 		nda <- nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
 		# get subject ids at that time point
