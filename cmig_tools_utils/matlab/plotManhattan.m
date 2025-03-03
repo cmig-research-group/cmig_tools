@@ -1,41 +1,39 @@
-function fig = plotManhattan(Chr, bpLoc, logpVals, strTitle, markers)
-% Function that reads a GWAS summary file and prepares a Manhattan plot
+function fig = plotManhattan(Chr, bpLoc, logpVals, strTitle, markers, GWASThresh, style)
+% Function to create Manhattan plot
 %% Inputs:
-% fileName:     full path to a GWAS summary file
+% Chr:          [g x 1]     numeric vector of values indicating chromosome
+%                           number for every genetic variant g
 %
-% outDir:       full path to where the figure should be saved (if empty,
-%               figure handle is returned and image is not saved)
+% bpLoc:        [g x 1]     numeric vector of values indicating the base
+%                           pair location for every genetic variant g
 %
-% strTitle:     character indicating the title of the figure (if left
-%               empty, no title will be put on top of the figure); this is
-%               also used for deciding output name; if empty, the output
-%               plot name is 'ManhattanPlot.png'; else 'Manhattan_strTitle'
+% logpVals:     [g x 1]     numeric vector of values indicating the -log10
+%                           p values for every genetic variant g
 %
-% fileFlag:     indicate which software was used to generate the GWAS 
-%               summary file (not case sensitive):
-%                   * 'FEMA'    (default)
-%                   * 'GCTA'    (assumes fastGWA output)
-%                   * 'Regenie'
-%                   * 'PLINK'   (assumes PLINK 2)
-% 
-% GWSAThresh:   number indicating the GWAS significance threshold level;
-%               assumes -log10 p value
-%               (default: -log10(5 x 10^-8))
+% strTitle:     <character> text to use as a title to the plot (optional)
 %
-% The following three inputs can be used instead of a fileName to create a
-% plot from some custom/pre-read GWAS summary file (ignored if fileName is 
-% provided):
-% Chr:          vector of chromosome numbers for m SNPs
-% 
-% bpLoc:        vector of base pair locations for m SNPs
+% markers:      <numeric>   vector of values to use as tick values for y
+%                           axis (optional)
 %
-% logpVals:     vector of -log10(p) values for m SNPs
+% GWSAThresh:   <numeric>   number indicating the GWAS significance
+%                           threshold level; assumes -log10 p value; 
+%                           (default: -log10(5 x 10^-8))
+%
+% style:        <character> should be one of the following (see Notes):
+%                               * 'mono'
+%                               * 'dark'
+%                               * 'dark-diff' (default)
+%                               * 'diverge'
+%                               * 'diverge-diff'
 %
 %% TO-DO:
+% Reintroduce the reading of summary statistics file
 % Detect and handle sex chromosomes
 % Remove fixed number of chromosomes
 % Handle situation where one or more chromosome(s) may be missing
 % Add space between chromosomes
+% Detect p values instead of -log10 p values
+% Allow an axis handle to be passed in
 
 %% Check inputs
 % Check strTitle
@@ -46,69 +44,160 @@ else
 end
 
 % Check GWASThresh
-GWASThresh = -log10(5e-08);
+if ~exist('GWASThresh', 'var') || isempty(GWASThresh)
+    GWASThresh = -log10(5e-08);
+end
+
+% Check style
+if ~exist('style', 'var') || isempty(style)
+    style = 'dark-diff';
+else
+    style = lower(style);
+    if ~ismember(style, {'mono', 'dark', 'diverge', 'dark-diff', 'diverge-diff'})
+        error('Unknown style type provided; should be one of: mono, dark, diverge, dark-diff, diverge-diff');
+    end
+end
+
+%% Some sanity checks on p values
+% Delete any NaN, Inf, or complex values
+locNaN  = isnan(logpVals);
+locInf  = isinf(logpVals);
+locImag = imag(logpVals) ~= 0;
+locDel  = locNaN | locInf | locImag;
+
+if sum(locDel) > 0
+    warning(['Removing ', num2str(sum(locNaN)),  ' NaN values, ',     ...
+                          num2str(sum(locInf)),  ' Inf values, and ', ...
+                          num2str(sum(locImag)), ' complex valued p values']);
+    logpVals(locDel) = [];
+    Chr(locDel)      = [];
+    bpLoc(locDel)    = [];
+end
+
+% Ensure we are working with unsigned p values
+logpVals = abs(logpVals);
+
+%% Style configuration
+switch(style)
+    case 'mono'
+        % Single colour: 3-class Dark2 [colorbrewer2.org]
+        colOdd      = [117,112,179]./255;
+        colEven     = [117,112,179]./255;
+        colOdd_ns   = [117,112,179]./255;
+        colEven_ns  = [117,112,179]./255;        
+        col_thresh  = [217,95,2]./255;
+
+    case 'dark'
+        % Two colours: 3-class Dark2 [colorbrewer2.org]
+        colOdd      = [27,158,119]./255;
+        colEven     = [117,112,179]./255;
+        colOdd_ns   = [27,158,119]./255;
+        colEven_ns  = [117,112,179]./255;
+        col_thresh  = [217,95,2]./255;
+
+    case 'diverge'
+        % Define colours - 3-class BrBG [colorbrewer2.org]
+        colOdd      = [216,179,101]./255;
+        colEven     = [90,180,172]./255;        
+        colOdd_ns   = [216,179,101]./255;
+        colEven_ns  = [90,180,172]./255;
+        col_thresh  = [0 0 0];
+
+    case 'dark-diff'
+        % Define colours - 3-class Dark2 [colorbrewer2.org]
+        colOdd  = [27,158,119]./255;
+        colEven = [117,112,179]./255;
+        
+        % Define colours - 3-class Set2 [colorbrewer2.org]
+        colOdd_ns  = [102,194,165]./255;
+        colEven_ns = [141,160,203]./255;
+
+        % Color threshold
+        col_thresh = [217,95,2]./255;
+
+    case 'diverge-diff'
+        % Define colours: 4-class BrBG
+        colOdd      = [166,97,26]./255;
+        colEven     = [1,133,113]./255;        
+        colOdd_ns   = [223,194,125]./255;
+        colEven_ns  = [128,205,193]./255;
+        col_thresh  = [0 0 0];
+end
 
 %% Create figure
-fig = figure('Units', 'centimeters', 'Position', [10 10 19 16]);
+fig  = figure('Units', 'centimeters', 'Position', [10 10 18 12]);
 if doTitle
-    tight_subplot(1, 1, 0, [0.045 0.04], [0.1 0.02]);
+    allH = tight_subplot(1, 1, 0, [0.05 0.04], [0.08 0.01]);
 else
-   tight_subplot(1, 1, 0, [0.045 0.01], [0.1 0.02]); 
+   allH = tight_subplot(1, 1, 0, [0.05 0.0], [0.08 0.01]); 
 end
-ax       = gca;
+hold(allH(1), 'on');
+
+%% Some settings
 offset   = 0;
 numChr   = 22;
 tickLoc  = zeros(numChr,1);
-hold(ax, 'on');
+sizeData = 60;
 
-% Define colours - 3-class BuPu [colorbrewer2.org]
-colOdd  = [216, 179, 101]./255;
-colEven = [90,  180, 172]./255;
-
-% Do plot
+%% Do plot
 for chr = 1:numChr
-    % Find locations to plot
-    locs = Chr == chr;
-    
+    % Find locations to plot - non significant ones
+    locs = Chr == chr & logpVals <= GWASThresh;
+
     % Plot
     if logical(mod(chr,2))
-        scatter(bpLoc(locs) + offset, logpVals(locs), 'Marker', '.', 'MarkerEdgeColor', colEven, 'SizeData', 45);
+        scatter(allH(1), bpLoc(locs) + offset, logpVals(locs), 'Marker', '.', 'MarkerEdgeColor', colEven_ns, 'SizeData', sizeData);
     else
-        scatter(bpLoc(locs) + offset, logpVals(locs), 'Marker', '.', 'MarkerEdgeColor', colOdd,  'SizeData', 45);
+        scatter(allH(1), bpLoc(locs) + offset, logpVals(locs), 'Marker', '.', 'MarkerEdgeColor', colOdd_ns,  'SizeData', sizeData);
     end
-    
+
+    % Find locations to plot - non significant ones
+    locs = Chr == chr & logpVals > GWASThresh;
+
+    % Plot
+    if logical(mod(chr,2))
+        scatter(allH(1), bpLoc(locs) + offset, logpVals(locs), 'Marker', '.', 'MarkerEdgeColor', colEven, 'SizeData', sizeData);
+    else
+        scatter(allH(1), bpLoc(locs) + offset, logpVals(locs), 'Marker', '.', 'MarkerEdgeColor', colOdd,  'SizeData', sizeData);
+    end
+
     % Figure out where to place the tick
-    tickLoc(chr) = offset + ((offset + max(bpLoc(locs))) - (offset + min(bpLoc(locs))))/2;
+    locs = Chr == chr;
+    tickLoc(chr) = offset + mean(bpLoc(locs));
+    % tickLoc(chr) = offset + ((offset + max(BP(locs))) - (offset + min(BP(locs))))/2;
 
     % Update offset to the last base pair
     offset = offset + max(bpLoc(locs));
 end
 
-% Add GWAS line
-plot([0, offset + max(bpLoc(Chr == numChr))], [GWASThresh, GWASThresh], 'Color', 'k', 'LineStyle', ':', 'LineWidth', 1.5);
+%% Add GWAS line
+plot(allH(1), [0, offset + max(bpLoc(Chr == numChr))], [GWASThresh, GWASThresh], 'Color', col_thresh, 'LineStyle', ':', 'LineWidth', 2);
 
-% Adjust X axis settings
-xlim([0, offset + max(bpLoc(Chr == numChr))]);
+%% Adjust X axis settings
+% xlim([0, offset + max(BP(Chr == numChr))]);
+xlim(allH(1), [0, offset]);
 xticks(tickLoc);
-xticklabels(1:numChr);
+xticklabels(num2str((1:numChr)'));
 xtickangle(90);
-ax.XAxis.FontSize = 8;
-ax.XAxis.FontName = 'Courier';
+allH(1).XAxis.FontSize   = 10;
+allH(1).XAxis.TickLength = [0 0];
 
-% Adjust Y axis settings
-if not(exist('markers', 'var'))
-    ylim([min(logpVals) max(logpVals)+1]);
-    ax.YAxis.TickValues = sort([ax.YAxis.TickValues, round(GWASThresh, 2)]);
-    ax.YAxis.TickLabelsMode = 'auto';
+%% Adjust Y axis
+if ~exist('markers', 'var') || isempty(markers)
+    ylim(allH(1), [min(logpVals) max(logpVals)+1]);
+    allH(1).YAxis.TickValues     = sort([allH(1).YAxis.TickValues, round(GWASThresh, 2)]);
+    allH(1).YAxis.TickLabelsMode = 'auto';
+    allH(1).YAxis.FontSize       = 10;
 else
-    ylim([min(markers) max(markers)]);
-    ax.YAxis.TickValues = markers;
-    ax.YAxis.TickLabelsMode = 'auto';
+    ylim(allH(1), [min(markers) max(markers)]);
+    allH(1).YAxis.TickValues     = markers;
+    allH(1).YAxis.TickLabelsMode = 'auto';
+    allH(1).YAxis.FontSize       = 10;
 end
-ylabel('-log_{10} \itp', 'Interpreter', 'tex', 'FontSize', 12, 'FontName', 'Courier');
-ax.YAxis.FontName = 'Courier';
 
-% Put a title, if user wants
+ylabel(allH(1), '-log_{10} \itp', 'Interpreter', 'tex', 'FontSize', 12);
+
+%% Put a title, if user wants
 if doTitle
-    title(strTitle, 'FontSize', 12, 'FontName', 'Courier');
+    title(allH(1), strTitle, 'FontSize', 12);
 end

@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-03-01]
+### Changed
+* `FEMA_fit.m`:
+    - Added support for parallel processing for implementing GLS solution in case of unstructured covariance
+    - Explicitly compiling `allR`, `allC`, and `allSz` once prior to performing GLS
+    - Moved the GLS estimation for unstructured covariance to `FEMA_unstructuredGLS.m`
+* `cmig_tools_utils/matlab/plotManhattan.m`:
+    - Fixed outdated documentation
+    - Can optionally take custom GWAS threshold
+    - Introduced five different color styles
+    - Output figure size is 12 cm tall and 18 cm wide (better aligned with publication style)
+    - Can optionally plot separate colors for significant and non-significant SNPs
+    - Better alignment of chromosome numbers
+    - Handling NaN / Inf / complex valued p values: these are removed
+* `cmig_tools_utils/matlab/plotQQ.m`:
+    - Fixed outdated documentation
+    - Optionally user can turn off axis labels
+    - Additionally returning axis and line handles
+    - Handling NaN / Inf / complex valued p values: these are removed
+    - Automatically converts log p values to p values
+    - Making sure y ticks are not too crowded
+    - Handling case when a figure handle is passed instead of axis handle
+
+### Added
+* `FEMA_unstructuredGLS.m`: performs GLS estimation for unstructured covariance for a given phenotype
+* `FEMA_convert_splines.m`: generic utility function that computes weighted combinations of splines and its derivatives
+* `cmig_tools_utils/matlab/plotMiami.m`: utility function to create Miami plots (mirrored Manhattan plots)
+
 ## [Unreleased - 2025-02-27]
 ### Added
 * `CONTRIBUTING.md`
@@ -20,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - default `roundOff` is `false`
     - Updated code to GLS solution for standard GWAS
     - Keeping track of any complex valued standard errors being produced
+* `cmig_tools_utils/r/makeDesign.R`:
+    - Included option for different family IDs
+    - Making `ab_g_stc__design_id__fam` as the default family ID
 
 ## [Unreleased - 2025-02-26]
 ### Changed
