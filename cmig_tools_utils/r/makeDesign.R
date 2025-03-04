@@ -66,7 +66,6 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		nda <- nda[idx_time,]
 	} else {
 		nda[,'age']<-nda$ab_g_dyn__visit_age
-		
 		nda <- nda[,c("participant_id","session_id","ab_g_stc__design_id__fam","age",allvars)]
 		nda <- nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
@@ -75,7 +74,7 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		#src_subject_id <-gsub('NDAR_','',subjid)
 		participant_id <- subjid
 		session_id <- nda$session_id[idx_time]
-		ab_g_stc__design_id_fam<-nda$ab_g_stc__design_id_fam[idx_time]
+		ab_g_stc__design_id__fam<-nda$ab_g_stc__design_id__fam[idx_time]
 		nda <- nda[idx_time,]
 	}
 	
