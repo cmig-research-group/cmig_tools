@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * `FEMA_fit.m`: added missing parameter `useLSQ` for FEMA_unstructuredGLS.m`
 * `FEMA_unstructuredGLS`: added missing parameter `useLSQ`
+* `showVol/utils/expandVol.m`: fixed stray character
 
 ## [Unreleased - 2025-03-03]
 ### Changed

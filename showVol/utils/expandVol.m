@@ -1,4 +1,4 @@
-function vol = expandVol(c)\
+function vol = expandVol(c)
 	%% compression/expansion
 	%simple compression method: only store non-zero values, as single precision. since ROIs are very sparse
 	%for the most part, the space savings (thus load time improvement) is
