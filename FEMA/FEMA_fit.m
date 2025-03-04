@@ -651,7 +651,9 @@ for permi = 0:nperms
             % g_A = griddedInterpolant(a1, a2, interpA, 'nearest', 'nearest');
             % g_S = griddedInterpolant(a1, a2, interpS, 'nearest', 'nearest');
         else
-            reusableVars.visitnum = [];
+            if returnReusable
+                reusableVars.visitnum = [];
+            end
         end
 
         %% Using maximum likelihood solution

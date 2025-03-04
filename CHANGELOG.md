@@ -6,7 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased - 2025-03-04]
 ### Changed
-* `FEMA_fit.m`: added missing parameter `useLSQ` for FEMA_unstructuredGLS.m`
+* `FEMA_fit.m`: 
+    - Added missing parameter `useLSQ` for FEMA_unstructuredGLS.m`
+    - Only returning `visitnum` if `returnReusable` is `true`
 * `FEMA_unstructuredGLS`: added missing parameter `useLSQ`
 * `showVol/utils/expandVol.m`: fixed stray character
 
