@@ -9,18 +9,21 @@ library(Matrix)
 library(ordinal)
 library(pracma)
 
-makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, familyID='ab_g_stc__design_id__fam') {
+makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	combvar=NULL, combvar_name=NULL, filter=NULL, delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, familyID='ab_g_stc__design_id__fam', rta_na=TRUE, dk_na=TRUE) {
 
-	#data = data frame with variables of interest or path to tabulated data or path to directory with complete tabulated data needed for design matrix
-	#outfile = filepath and name to save design matrix to
-	#time = 'eventname' the events that you want to include e.g. c('baseline_year_1_arm_1','2_year_follow_up_y_arm_1')
-	#contvar = list of continuous variables e.g. c('interview_age','nihtbx_pattern_uncorrected')
-	#catvar = list of categorical variables e.g. c('sex_at_birth','hisp','household.income','high.educ')
-	#delta = list of variables to be divided into baseline and change scores e.g. c('bmi') - DO NOT ALSO INCLUDE IN OTHER LISTS
-	#interact = list of pairwise interactions e.g. c('interview_age_delta*sex_at_birth','interview_age_base*sex_at_birth','interview_age_base*interview_age_delta')
-	#subjs = path to text file with list of subjects to use if want to subsample NO HEADER
-	#demean = if TRUE will demean all continuous variables in design matrix inc deltas
-	#quadratic = list of variables that you want quadratic predictors for --> STILL BETA TESTING
+	#	data = data frame with variables of interest or path to tabulated data or path to directory with complete tabulated data needed for design matrix
+	#	outfile = filepath and name to save design matrix to
+	#	time = 'eventname' the events that you want to include e.g. c('baseline_year_1_arm_1','2_year_follow_up_y_arm_1')
+	#	contvar = list of continuous variables e.g. c('interview_age','nihtbx_pattern_uncorrected')
+	#	catvar = list of categorical variables e.g. c('sex_at_birth','hisp','household.income','high.educ')
+	#	delta = list of variables to be divided into baseline and change scores e.g. c('bmi') - DO NOT ALSO INCLUDE IN OTHER LISTS
+	#	interact = list of pairwise interactions e.g. c('interview_age_delta*sex_at_birth','interview_age_base*sex_at_birth','interview_age_base*interview_age_delta')
+	#	subjs = path to text file with list of subjects to use if want to subsample NO HEADER
+	#	demean = if TRUE will demean all continuous variables in design matrix inc deltas
+	#	quadratic = list of variables that you want quadratic predictors for --> STILL BETA TESTING
+	#	rta_na = convert 777 (Refuse to Answer) to NA, default is TRUE
+	#	dk_na = convert 999 (Don't Know) to NA, default is TRUE
+	# 	combvar = variables to coalesce e.g. c('parental_education','household_income') 
 
 	# FOR MEDIATION ANALYSIS:	 mediator = name of mediator
 	#Include all variables as if creating for the full model.	Mediator MUST already be included in contvar, delta or interact
@@ -40,13 +43,12 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 	################################
 
 	# check what variables have supplied 
-	if (is.null(contvar) & is.null(catvar) & is.null(delta)) & is.null(allvar) {
+	if (is.null(contvar) & is.null(catvar) & is.null(delta) & is.null(combvar) ) {
 		stop('ERROR! No variables supplied')
 	}
 
-	if (is.null(allvar)) { # TO DO: INLCLUDE DATA DICTIONARY TO CHECK WHETHER VARIABLES ARE CONTINUOUS OR CATEGORICAL 
-		allvar <- c(contvar, catvar, delta)
-	}
+	# combine all variables to extrtact 
+	allvar <- c(contvar, catvar, delta, unlist(combvar), filter)
 
 	# Define allowed values for damily ID
 	valid_familyIDs <- c('ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'rel_family_id')
@@ -54,7 +56,7 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 		stop("Error: familyID must be either 'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen' or 'rel_family_id'.")
 	  }
 
-	# define the first four columns of the design matrix
+	# define the first four columns of the design matrix 
 	reqvar <- c(familyID,'ab_g_dyn__visit_age')
 
 	# Function to join datasets while handling missing keys
@@ -67,15 +69,18 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 		}
 	}
 
-	if is.character(data) {
-		print(paste0('Reading tabulated data from ', nda)) 
+	if ( is.character(data) ) {
+		print(paste0('Reading tabulated data from ', data)) 
 		# detect the file format used 
-		data_files <- list.files(nda)
+		data_files <- list.files(data)
 		ext <- unique(tools::file_ext(data_files))
-		if 'parquet' %in% ext {
+		if (!'parquet' %in% ext & !'csv' %in% ext & !'tsv' %in% ext) {
+			stop('ERROR! No tabulated data files found')
+		}
+		if ('parquet' %in% ext ) {
 			# get only parquet files in case there are other file types in the directory
 			parquet_files <- data_files[grep('parquet', data_files)]
-			parquet_files <- paste0(nda, '/', parquet_files)
+			parquet_files <- paste0(data, '/', parquet_files)
 			# Function to extract variables from parquet files
 			process_parquet_file <- function(file, extractvar) {
   				parquet_dataset <- open_dataset(file, format = "parquet")
@@ -98,24 +103,24 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 			}
 			# Number of parallel processes
 			plan(multisession, workers = 4) 
-			data_list <- furrr::future_map(parquet_files, process_parquet_file, allvar)
+			data_list <- furrr::future_map(parquet_files, process_parquet_file, c(reqvar, allvar))
 			data_list <- data_list[!sapply(data_list, is.null)]
 			# Merge all data frames iteratively
 			combined_df <- reduce(data_list, merge_dataframe)
 		}
 
-		# use csv and tsv files if present but not parquet
+		# use csv and tsv files if present but parquet not present
 		if (('csv' %in% ext | 'tsv' %in% ext ) & !'parquet' %in% ext ) {
 			# get only tsv files in case there are other file types in the directory
 			tsv_files <- data_files[grep("\\.tsv$", data_files)]
 			if (length(tsv_files) > 0) {  # Change condition to check if files exist
-				tsv_files <- paste0(nda, '/', tsv_files)
+				tsv_files <- paste0(data, '/', tsv_files)
 			} else {
 				tsv_files <- NULL
 			}
 			csv_files <- data_files[grep("\\.csv$", data_files)]
 			if (length(csv_files) > 0) {  # Change condition to check if files exist
-				csv_files <- paste0(nda, '/', csv_files)
+				csv_files <- paste0(data, '/', csv_files)
 			} else {
 				csv_files <- NULL
 			}
@@ -147,25 +152,25 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 			# Number of parallel processes
 			plan(multisession, workers = 4) 
 			# Process TSV and CSV files in parallel
-			data_list <- furrr::future_map(all_files, process_delim_file, extractvar = allvar)
+			data_list <- furrr::future_map(all_files, process_delim_file, extractvar = c(reqvar, allvar))
 			data_list <- data_list[!sapply(data_list, is.null)]
 			combined_df <- reduce(data_list, merge_dataframe)
 		}
+	# rename to nda for consistency
 	nda <- combined_df
 	}
 	
-
 	# create path to outfile if doesn't exist
 	outpath <- dirname(outfile)
 	if ( ! dir.exists(outpath) ) {
 		dir.create(outpath, recursive=TRUE)
 	}
 	
-	# if filtering by subjid 
+	# if filtering by subjid 	
 	if ( !is.null(subjs)) {
 		s_mat <- read.delim(subjs, header=FALSE)
 		s <- data.frame(s_mat)
-		names(s) <- 'idevent's
+		names(s) <- 'idevent'
 		inc_idevent <- lapply(FUN=grep, s$idevent, nda$idevent)
 		inc_idevent <- unlist(inc_idevent)
 		nda <- nda[inc_idevent,]
@@ -173,19 +178,70 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 	
 	# SHOUDL YOU BE ALLOWED TO MIX AND MATH CSV/TDV/PARQUET FILES?
 	# NEED TO ADD HOW TO ASSING ALLVAR TO CATEFORICAL OR CONTINUOUS
+	# HOW ARE WE TO HANDLE CREATING NEW VARIABLES EG COMBINING THE PARENTAL EDUCATION OR HOUSEHOLD INCOME?
 	
-	# add particupant_id and session_id to reqvar 
+	# add particupant_id and session_id to reqvar and renames 'age' variable to age 
 	if ("participant_id" %in% names(nda) & "session_id" %in% names(nda)) {
-		reqvar <- c('participant_id','session_id',reqvar)
+		reqvar <- c('participant_id','session_id',familyID,'age')
+		nda$age <- nda$ab_g_dyn__visit_age
 	} else if ("src_subject_id" %in% names(nda) & "eventname" %in% names(nda)) {
-		reqvar <- c('src_subject_id','eventname',reqvar)
+		reqvar <- c('src_subject_id','eventname',familyID,'age')
+		nda[,'age']<-nda$interview_age
 	} else {
 		stop('ERROR! No participant_id and session_id or src_subject_id and eventname in data')
 	}
 
+	# if combining variables
+	if (!is.null(combvar)) {
+		for (ci in 1:length(combvar)) {
+			tmp <- combvar[[ci]]
+			newvar <- nda %>% mutate(newvar = pmap(pick(all_of(tmp)), ~ coalesce(...))) %>% pull(newvar)
+			if (!is.null(combvar_name)) {
+				nda[, combvar_name[ci]] <- newvar
+				# add combvar_name to allvar
+				allvar <- c(allvar, combvar_name[ci])
+			} else {
+				nda[, paste0('combvar', ci)] <- newvar
+				# add combvar_name to allvar
+				allvar <- c(allvar, paste0('combvar', ci))
+			}
+		}
+	}
+
+	# make sure column order is 'participant_id','session_id','ab_g_stc__design_id__fam', 'ab_g_dyn__visit_age'
+	# check that all required variables are present
+	if ( !all(reqvar %in% colnames(nda)) ) {
+		stop('ERROR! Not all required variables present')
+	}
+	# check order re-arrange if necessary
+	if ( !identical(colnames(nda), c('participant_id', 'session_id', familyID, 'age', allvar)) ) {
+		nda <- nda[,c('participant_id','session_id',familyID,'age', allvar)]
+	}
+
+	# remove the combvar from allvar but keep the combined variables combvar_name
+	if ( !is.null(combvar) ) {
+		allvar <- setdiff(allvar, unlist(combvar))
+	}
+	# remove filter from allvar 
+	#if ( !is.null(filter) ) {
+	#	allvar <- setdiff(allvar, filter)
+	#}
+
+	# IS THIS THE RIGHT PLACE? 
+	# the next bit filters the dataframe to complete cases only 
+	# convert '', 777 and 999 to NAs - default behaviour 
+	nda[nda == ''] <- NA	
+	# 999 (“Don’t know”)
+	if (dk_na == TRUE) {
+		nda[nda == 999] <- NA
+	}
+	# 777 (“Refuse to answer”)
+	if (rta_na == TRUE) {
+		nda[nda == 777] <- NA
+	}
+
 	if ("src_subject_id" %in% names(nda)) { # I DONT KNOW WHETHER TO KEEP THIS OR NOT 
-		nda[,'age']<-nda$interview_age
-		nda = nda[,c("src_subject_id","eventname","rel_family_id","age",allvar)]
+		nda <- nda[,c(reqvar,allvar)]
 		nda = nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$eventname)
 		# get subject ids at that time point
@@ -196,15 +252,8 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 		rel_family_id<-nda$rel_family_id[idx_time]
 		nda <- nda[idx_time,]
 	} else {
-		# make sure column order is 'participant_id','session_id','ab_g_stc__design_id__fam', 'ab_g_dyn__visit_age'
-		# check that all required variables are present
-		if ( !all(reqvar %in% colnames(nda))) {
-			stop('ERROR! Not all required variables present')
-		}
-		# check order re-arrange if necessary
-		if ( !identical(colnames(nda), c('participant_id','session_id','ab_g_stc__design_id__fam','ab_g_dyn__visit_age',allvar))) {
-			nda <- nda[,c('participant_id','session_id','ab_g_stc__design_id__fam','ab_g_dyn__visit_age',allvar)]
-		}
+		# keep only reqvar and allvar
+		nda <- nda[,c(reqvar,allvar)]
 		nda <- nda[complete.cases(nda),]
 		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
 		# get subject ids at that time point
@@ -212,8 +261,14 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 		#src_subject_id <-gsub('NDAR_','',subjid)
 		participant_id <- subjid
 		session_id <- nda$session_id[idx_time]
-		ab_g_stc__design_id_fam<-nda$ab_g_stc__design_id_fam[idx_time]
+		ab_g_stc__design_id_fam<-nda[idx_time, familyID]
 		nda <- nda[idx_time,]
+		# filter by filter if present
+		if ( !is.null(filter) ) {
+			nda <- nda[nda[,filter] == 1,]
+			# remove filter column from nda 
+			nda <- nda[, !names(nda) %in% filter]
+		}
 	}
 	
 	# calculate deltas
@@ -293,13 +348,13 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 	
 	if ( !is.null(delta)) {
 		name_base <- paste0(delta, '_base')
-								name_delta <- paste0(delta, '_delta')
+		name_delta <- paste0(delta, '_delta')
 		d0 <- lapply(name_base, varextract, data=nda, index=idx_time, dummy=0, int=int)
 		if (demean==TRUE){
 			d0<-apply(data.frame(d0), 2, function(y) y - mean(y, na.rm=T))
 		}
-							 #d0 <- data.frame(src_subject_id, eventname, d0)
-							 #names(d0) <- c('src_subject_id', 'eventname', name_base)
+		#d0 <- data.frame(src_subject_id, eventname, d0)
+		#names(d0) <- c('src_subject_id', 'eventname', name_base)
 		dD <- lapply(name_delta, varextract, data=nda, index=idx_time, dummy=0)
 		if (demean==TRUE){
 			dD<-apply(data.frame(dD), 2, function(y) y - mean(y, na.rm=T))
@@ -355,7 +410,6 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 	
 	
 	## MAKING COVARIATE STRING FOR MODEL
-	
 	if (!is.null(delta)){
 		covariate_str = paste(c(name_base,name_delta,contvar,catvar), collapse=' + ')
 	} else {
@@ -388,11 +442,8 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 	
 	####################################
 
-	if ("src_subject_id" %in% names(nda)) {
-		outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
-	} else {
-		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id__fam','age')]
-	}
+	# combine into final output matrix
+	outmat<-nda[,reqvar]
 	
 	#if (fam==TRUE && incage==TRUE){
 	#	outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
@@ -405,12 +456,9 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 	if (!is.null(delta)){
 		delta_df<-data.frame(nda[,c(name_base, name_delta)])
 		outmat<-data.frame(outmat, delta_df)
-
-			modelmat<-modelmat[,-c(which(colnames(modelmat) %in% name_base))]
-			modelmat<-modelmat[,-c(which(colnames(modelmat) %in% name_delta))]
+		modelmat<-modelmat[,-c(which(colnames(modelmat) %in% name_base))]
+		modelmat<-modelmat[,-c(which(colnames(modelmat) %in% name_delta))]
 	 }
-	
-	
 	outmat<-cbind(outmat,modelmat)
 	
 	if (!is.null(mediator)){
@@ -435,7 +483,7 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	delta=NUL
 		outmat[[1]]<-outmat_reduced
 		outmat[[2]]<-outmat_full
 		
-	}else{
+	} else {
 		write.table(outmat, outfile, col.names=TRUE, row.names=FALSE, sep='\t') 
 	}
 	
