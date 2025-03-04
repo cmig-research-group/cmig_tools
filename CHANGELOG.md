@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-03-04]
+### Changed
+* `FEMA_fit.m`: added missing parameter `useLSQ` for FEMA_unstructuredGLS.m`
+* `FEMA_unstructuredGLS`: added missing parameter `useLSQ`
+
+## [Unreleased - 2025-03-03]
+### Changed
+* `showSurf/showSurfPlot.m`: minor edit in function documentation
+
 ## [Unreleased - 2025-03-01]
 ### Changed
 * `FEMA_fit.m`:
