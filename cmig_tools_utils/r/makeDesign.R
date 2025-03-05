@@ -25,6 +25,14 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	#	 '*_full.txt' = will include mediator as penultimate column (before intercept)
 	#	 '*_red.txt' = will be nested model with same sample NOT including mediator
 	#Currently only supported for continuous variables or interactions for mediation of moderation
+
+	# Load necessary libraries
+	for (p in c('plyr','dplyr','tidyverse','psych','Matrix','ordinal','pracma')) {
+	    if(!eval(parse(text=paste("require(",p,")")))) {
+	            install.packages(p)
+	            lapply(p,library,character.only=TRUE)
+	    }
+	}
 		
 	if (is.null(catvar) & is.null(contvar)) {
 		stop('ERROR! No variables supplied')
