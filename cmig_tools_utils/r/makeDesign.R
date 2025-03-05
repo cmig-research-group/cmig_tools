@@ -195,7 +195,7 @@ makeDesign <- function(data, outfile, time, contvar=NULL, catvar=NULL,	combvar=N
 	if (!is.null(combvar)) {
 		for (ci in 1:length(combvar)) {
 			tmp <- combvar[[ci]]
-			newvar <- nda %>% mutate(newvar = pmap(pick(all_of(tmp)), ~ coalesce(...))) %>% pull(newvar)
+			newvar <- nda %>% mutate(newvar = coalesce(!!!syms(tmp)))  %>% pull(newvar)
 			if (!is.null(combvar_name)) {
 				nda[, combvar_name[ci]] <- newvar
 				# add combvar_name to allvar
