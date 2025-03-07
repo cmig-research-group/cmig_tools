@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-03-07]
+### Changed
+* `FEMA_fit.m`: ensuring `contrasts` is a matrix if reading from a file
+
+## [Unreleased - 2025-03-06]
+### Added
+* `FEMA_classify.m`: for classification of binary outcome variables
+
+## [Unreleased - 2025-03-05]
+### Changed
+* `cmig_tools_utils/r/makeDesign.R`:
+    - fixed typo in family ID variable
+    - installing libraries if they are not found
+
 ## [Unreleased - 2025-03-04]
 ### Changed
 * `FEMA_fit.m`: 
