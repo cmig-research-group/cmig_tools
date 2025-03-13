@@ -119,6 +119,9 @@ if ~isfinite(contrasts)
     fname_contrasts = p.Results.contrasts;
     logging('Reading contrast matrix from %s', fname_contrasts);
     contrasts = readtable(fname_contrasts);
+
+    % Convert contrasts into a matrix
+    contrasts = contrasts{:,:};
 end
 
 % Zeros-pad contrasts, if needed
