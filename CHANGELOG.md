@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-03-27]
+### Changed
+* `cmig_tools_utils/matlab/plotManhattan.m`:
+    - added option to filter p values
+    - added addtional `stark` style option
+    - added primitive support to highlight certain SNPs
+    - additionally returning various components of the plot for selective rasterization
+    - setting default plotting point size to 30
+    - updated min and max range of y axis
+    - detecting if the input values are p values instead of -log10 p values
+* `cmig_tools_utils/matlab/plotMiami.m`:
+    - added option to filter p values
+    - added additional styles: 'mono2', 'diverge-diff2', 'stark'
+    - allow user to control tick marks
+    - added primitive support to highlight certain SNPs
+    - additionally returning various components of the plot for selective rasterization
+    - axis colours are handled separately
+    - setting default plotting point size to 30
+    - updated min and max range of y axis
+    - detecting if the input values are p values instead of -log10 p values
+
+## [Unreleased - 2025-03-13]
+### Changed
+* `cmig_tools_utils/matlab/extract_roi_val.m`: added option to extract ROI values from 2D matrix
+
 ## [Unreleased - 2025-03-07]
 ### Changed
 * `FEMA_fit.m`: ensuring `contrasts` is a matrix if reading from a file
