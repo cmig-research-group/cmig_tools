@@ -6,25 +6,27 @@ library(Matrix)
 library(ordinal)
 library(pracma)
 
-makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, familyID='ab_g_stc__design_id__fam') {
+makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, filtervar=NULL, familyID='ab_g_stc__design_id__fam') {
 
-	#nda = data frame with variables of interest
-	#outfile = filepath and name to save design matrix to
-	#time = 'eventname' the events that you want to include e.g. c('baseline_year_1_arm_1','2_year_follow_up_y_arm_1')
-	#contvar = list of continuous variables e.g. c('interview_age','nihtbx_pattern_uncorrected')
-	#catvar = list of categorical variables e.g. c('sex_at_birth','hisp','household.income','high.educ')
-	#delta = list of variables to be divided into baseline and change scores e.g. c('bmi') - DO NOT ALSO INCLUDE IN OTHER LISTS
-	#interact = list of pairwise interactions e.g. c('interview_age_delta*sex_at_birth','interview_age_base*sex_at_birth','interview_age_base*interview_age_delta')
-	#subjs = path to text file with list of subjects to use if want to subsample NO HEADER
-	#demean = if TRUE will demean all continuous variables in design matrix inc deltas
-	#quadratic = list of variables that you want quadratic predictors for --> STILL BETA TESTING
+	# nda = data frame with variables of interest
+	# outfile = filepath and name to save design matrix to
+	# time = 'eventname' the events that you want to include e.g. c('baseline_year_1_arm_1','2_year_follow_up_y_arm_1')
+	# contvar = list of continuous variables e.g. c('interview_age','nihtbx_pattern_uncorrected')
+	# catvar = list of categorical variables e.g. c('sex_at_birth','hisp','household.income','high.educ')
+	# delta = list of variables to be divided into baseline and change scores e.g. c('bmi') - DO NOT ALSO INCLUDE IN OTHER LISTS
+	# interact = list of pairwise interactions e.g. c('interview_age_delta*sex_at_birth','interview_age_base*sex_at_birth','interview_age_base*interview_age_delta')
+	# subjs = path to text file with list of subjects to use if want to subsample NO HEADER
+	# demean = if TRUE will demean all continuous variables in design matrix inc deltas
+	# quadratic = list of variables that you want quadratic predictors for --> STILL BETA TESTING
+	# filter = character vector of length 2 to filter by specific variable and the value of the variable which to keep 
 
-	# FOR MEDIATION ANALYSIS:	 mediator = name of mediator
-	#Include all variables as if creating for the full model.	Mediator MUST already be included in contvar, delta or interact
-	#This function will make two design matrices:
+	# FOR MEDIATION ANALYSIS:	 
+	# mediator = name of mediator
+	# Include all variables as if creating for the full model.	Mediator MUST already be included in contvar, delta or interact
+	# This function will make two design matrices:
 	#	 '*_full.txt' = will include mediator as penultimate column (before intercept)
 	#	 '*_red.txt' = will be nested model with same sample NOT including mediator
-	#Currently only supported for continuous variables or interactions for mediation of moderation
+	# Currently only supported for continuous variables or interactions for mediation of moderation
 
 	# Load necessary libraries
 	for (p in c('plyr','dplyr','tidyverse','psych','Matrix','ordinal','pracma')) {
@@ -84,6 +86,11 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		session_id <- nda$session_id[idx_time]
 		ab_g_stc__design_id__fam<-nda$ab_g_stc__design_id__fam[idx_time]
 		nda <- nda[idx_time,]
+	}
+
+	# filter by specific variable and value
+	if ( !is.null(filtervar) ) {
+		nda <- filter(nda, filtervar[1] == filtervar[2])
 	}
 	
 	# calculate deltas
