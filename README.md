@@ -4,20 +4,16 @@ This package includes code to run mass univariate linear mixed effects analysis 
 
 Technical details on how FEMA works can be found [here](https://doi.org/10.1002/hbm.26579)
 
-**Citation**: Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579 
+**Reference**: Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579 
 
-Please see the user guide in docs for more details on how to use FEMA.
+Please see the see the tutorials in the [`CMIG Tools Wiki`](https://github.com/cmig-research-group/cmig_tools/wiki) for more details on how to use FEMA.
 
 * [Installation](#installation)
   + [Data](#data)
   + [Code dependencies](#code-dependencies)
   + [Local setup](#local-setup)
 * [Usage](#usage)
-  + [Design matrix](#design-matrix)
-  + [FEMA](#fema)
-  + [Visualization](#visualization)
-* [Demos](#demos)
-* [Authors](#authors)
+* [Reference](#reference)
 * [Copyright](#copyright)
 * [Contributing](#contributing)
 
@@ -44,7 +40,7 @@ If you want to run the [`FEMA_wrapper_demo.m`](ABCD_DEMOS/FEMA_wrapper_demo.m), 
 ## Usage
 For instructions on how to create design matrices for FEMA, run FEMA analyses and visualise the results see the tutorials in the [`CMIG Tools Wiki`](https://github.com/cmig-research-group/cmig_tools/wiki). 
 
-## Citation
+## Reference
 Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579
 
 ## Copyright
