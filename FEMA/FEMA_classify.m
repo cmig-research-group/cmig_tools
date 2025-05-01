@@ -83,6 +83,7 @@ addParamValue(inputs,'pihat_file',[]);
 addParamValue(inputs,'preg_file',[]);
 addParamValue(inputs,'address_file',[]);
 addParamValue(inputs,'binsz',2.5);
+addParamValue(inputs,'do_agebins', [1]); % split by age bins or not 
 
 parse(inputs,varargin{:})
 % Display input arguments for log
@@ -96,6 +97,8 @@ fname_pihat = inputs.Results.pihat_file;
 fname_address = inputs.Results.address_file;
 fname_pregnancy = inputs.Results.preg_file;
 binsz = inputs.Results.binsz;
+do_agebins = inputs.Results.do_agebins;
+
 % make it possible to submit multiple targets same as design matrices
 if ~iscell(fname_design)
     fname_design = {fname_design};
@@ -236,7 +239,7 @@ for des=1:length(fname_design)
             [label,score] = predict(mdl,D(ivec_repl,1:ncomp));
             scorevec(ivec_repl) = score(:,2);
         end
-        if 0 % Whould check that D is very similar to ymat_resid -- i.e., that the U, S, and V computed based on the
+        if do_agebins % Whould check that D is very similar to ymat_resid -- i.e., that the U, S, and V computed based on the
             figure; 
             imagesc(U_resid(ivec_disc,:)); 
             colormap(blueblackred); 
@@ -259,39 +262,42 @@ for des=1:length(fname_design)
         drawnow;
         AUCvec(repi) = AUC;
         scorevec_cat = cat(1,scorevec_cat,scorevec);
-        for bini = 1:nbins % Should perhaps crossvalidate based on only families/subjects in bin?
-            ivec_bin = agevec>=agebinlist(bini) & agevec<agebinlist(bini+1);
-            scorevec(:) = NaN;
-            for ki = 1:k % This loop is suspiciously fast, AUC curves suspiciously jagged -- check sum(isfinite(scorevec)) scorevec_cat and Y_cat
-                fprintf(1,'  bini=%d/%d ki=%d/%d (%s)\n',bini,nbins,ki,k,datestr(now));
-                ivec_disc = find(cvind~=ki&ivec_bin); 
-                ivec_repl = find(cvind==ki&ivec_bin);
-                U_resid = U - M*pinv(M(ivec_disc,:))*U(ivec_disc,:);
-                if 1
-                    [U_tmp S_tmp V_tmp] = svd(U_resid(ivec_disc,:)*S,'econ'); 
-                    D = U_resid*S*V_tmp;
-                else
-                    D = U_resid;
+
+        if do_agebins % ignore age bins for now
+            for bini = 1:nbins % Should perhaps crossvalidate based on only families/subjects in bin?
+                ivec_bin = agevec>=agebinlist(bini) & agevec<agebinlist(bini+1);
+                scorevec(:) = NaN;
+                for ki = 1:k % This loop is suspiciously fast, AUC curves suspiciously jagged -- check sum(isfinite(scorevec)) scorevec_cat and Y_cat
+                    fprintf(1,'  bini=%d/%d ki=%d/%d (%s)\n',bini,nbins,ki,k,datestr(now));
+                    ivec_disc = find(cvind~=ki&ivec_bin); 
+                    ivec_repl = find(cvind==ki&ivec_bin);
+                    U_resid = U - M*pinv(M(ivec_disc,:))*U(ivec_disc,:);
+                    if 1
+                        [U_tmp S_tmp V_tmp] = svd(U_resid(ivec_disc,:)*S,'econ'); 
+                        D = U_resid*S*V_tmp;
+                    else
+                        D = U_resid;
+                    end
+                    mdl = fitcsvm(D(ivec_disc,1:ncomp),Y(ivec_disc),'Standardize',true,'KernelFunction','RBF','KernelScale','auto');
+                    [label,score] = predict(mdl,D(ivec_repl,1:ncomp));
+                    scorevec(ivec_repl) = score(:,2);
                 end
-                mdl = fitcsvm(D(ivec_disc,1:ncomp),Y(ivec_disc),'Standardize',true,'KernelFunction','RBF','KernelScale','auto');
-                [label,score] = predict(mdl,D(ivec_repl,1:ncomp));
-                scorevec(ivec_repl) = score(:,2);
-            end
-            scorevecs_cat{bini} = cat(1,scorevecs_cat{bini},scorevec);
-            %    sfigure(20); subplot(nr,nc,bini); [AUC SPEC SENS ACC F80] = plot_ROC(colvec(scorevec(Y==1)),colvec(scorevec(Y==0))); title(sprintf('%s predicting %s AUC=%0.2f',fstem_imaging,colnames_model{colnum},AUC),'Interpreter','none'); axis equal tight; drawnow;
-            sfigure(20); 
-            subplot(nr,nc,bini); 
-            [AUC SPEC SENS ACC F80] = plot_ROC(colvec(scorevecs_cat{bini}(Y_cat==1)),colvec(scorevecs_cat{bini}(Y_cat==0))); 
-            title(sprintf('%s predicting %s AUC=%0.3f',fstem_imaging,colnames_model{colnum},AUC),sprintf('Age [%0.1f %0.1f>',agebinlist(bini),agebinlist(bini+1)),'Interpreter','none'); 
-            axis equal tight;
-            drawnow;
-            corrval = nancorr(scorevec,Y);
-            cohensdval = cmig_tools_cohensd(nanmean(scorevec(Y==1)),nanmean(scorevec(Y==0)),nanstd(scorevec(Y==1)),nanstd(scorevec(Y==0)));
-            AUCmat(bini,repi) = AUC;
-            corrmat(bini,repi) = corrval;
-            cohensdmat(bini,repi) = cohensdval;
-            %    disp(nancorr(scorevec,Y));
-            %    disp(cohensd(nanmean(scorevec(Y==1)),nanmean(scorevec(Y==0)),nanstd(scorevec(Y==1)),nanstd(scorevec(Y==0))))
+                scorevecs_cat{bini} = cat(1,scorevecs_cat{bini},scorevec);
+                %    sfigure(20); subplot(nr,nc,bini); [AUC SPEC SENS ACC F80] = plot_ROC(colvec(scorevec(Y==1)),colvec(scorevec(Y==0))); title(sprintf('%s predicting %s AUC=%0.2f',fstem_imaging,colnames_model{colnum},AUC),'Interpreter','none'); axis equal tight; drawnow;
+                sfigure(20); 
+                subplot(nr,nc,bini); 
+                [AUC SPEC SENS ACC F80] = plot_ROC(colvec(scorevecs_cat{bini}(Y_cat==1)),colvec(scorevecs_cat{bini}(Y_cat==0))); 
+                title(sprintf('%s predicting %s AUC=%0.3f',fstem_imaging,colnames_model{colnum},AUC),sprintf('Age [%0.1f %0.1f>',agebinlist(bini),agebinlist(bini+1)),'Interpreter','none'); 
+                axis equal tight;
+                drawnow;
+                corrval = nancorr(scorevec,Y);
+                cohensdval = cmig_tools_cohensd(nanmean(scorevec(Y==1)),nanmean(scorevec(Y==0)),nanstd(scorevec(Y==1)), nanstd(scorevec(Y==0)));
+                AUCmat(bini,repi) = AUC;
+                corrmat(bini,repi) = corrval;
+                cohensdmat(bini,repi) = cohensdval;
+                %    disp(nancorr(scorevec,Y));
+                %    disp(cohensd(nanmean(scorevec(Y==1)),nanmean(scorevec(Y==0)),nanstd(scorevec(Y==1)),nanstd(scorevec(Y==0)))) 
+            end 
         end
     end
 
@@ -318,31 +324,39 @@ for des=1:length(fname_design)
     f2=figure(2);
     saveas(f2,sprintf('%s/%s_%s_predicting_%s_across_age.png',dirname_out{des},datatype,fstem_imaging,colnames_model{colnum}));
 
-    fontScaleFactor=0.8;
-    for bini = 1:nbins
-        figure(20); 
-        subplot(nr,nc,bini); 
-        [AUC SPEC SENS ACC F80] = plot_ROC(colvec(scorevecs_cat{bini}(Y_cat==1)),colvec(scorevecs_cat{bini}(Y_cat==0))); 
-        title({sprintf('%s',agecat{bini}); 
-        sprintf('AUC=%0.2f (SD=%0.3f)',AUC,AUC_std_perage(bini))}); 
-        xlabel('');
-        ylabel('');
-        ax=gca; 
-        set(ax, 'FontSize', ax.FontSize * fontScaleFactor); 
-        axis equal tight;
-        han=axes(figure(20),'visible','off');
-        han.XLabel.Visible='on';
-        han.YLabel.Visible='on';
-        ylabel(han,'True Positive Rate (Sensitivity)');
-        xlabel(han,'False Positive Rate (1-Specificity)');
-    end
+    if do_agebins % ignore age bins for now 
+        fontScaleFactor=0.8;
+        for bini = 1:nbins
+            figure(20); 
+            subplot(nr,nc,bini); 
+            [AUC SPEC SENS ACC F80] = plot_ROC(colvec(scorevecs_cat{bini}(Y_cat==1)),colvec(scorevecs_cat{bini}(Y_cat==0))); 
+            title({sprintf('%s',agecat{bini}); 
+            sprintf('AUC=%0.2f (SD=%0.3f)',AUC,AUC_std_perage(bini))}); 
+            xlabel('');
+            ylabel('');
+            ax=gca; 
+            set(ax, 'FontSize', ax.FontSize * fontScaleFactor); 
+            axis equal tight;
+            han=axes(figure(20),'visible','off');
+            han.XLabel.Visible='on';
+            han.YLabel.Visible='on';
+            ylabel(han,'True Positive Rate (Sensitivity)');
+            xlabel(han,'False Positive Rate (1-Specificity)');
+        end
 
-    f20=figure(20);
-    saveas(f20,sprintf('%s/%s_%s_predicting_%s_100rep_SVMout.png',dirname_out{des},datatype,fstem_imaging,target{des}));
+        f20=figure(20);
+        saveas(f20,sprintf('%s/%s_%s_predicting_%s_100rep_SVMout.png',dirname_out{des},datatype,fstem_imaging,target{des}));
+    end 
 
     fpath_out=sprintf('%s/%s_%s_predicting_%s_100rep_SVMout.mat',dirname_out{des},datatype,fstem_imaging,target{des});
-    base_variables_to_save={'AUCvec','AUCmat','Y','scorevec','scorevec_cat','scorevecs_cat','X','cvind','U','fid','fidlist','corrmat','cohensdmat'};
+    if do_agebins
+        base_variables_to_save={'AUCvec','AUCmat','Y','scorevec','scorevec_cat','scorevecs_cat','X','cvind','U','fid','fidlist','corrmat','cohensdmat'};
+    else
+        base_variables_to_save={'AUCvec','AUCmat','Y','scorevec','scorevec_cat','scorevecs_cat','X','cvind','U','fid','fidlist'};
+    end 
     save(fpath_out,base_variables_to_save{:},'-v7.3');
+    
+    PrintMemoryUsage
 end
 %keyboard
 
