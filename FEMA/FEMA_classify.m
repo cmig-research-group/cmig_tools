@@ -83,7 +83,7 @@ addParamValue(inputs,'pihat_file',[]);
 addParamValue(inputs,'preg_file',[]);
 addParamValue(inputs,'address_file',[]);
 addParamValue(inputs,'binsz',2.5);
-addParamValue(inputs,'do_agebins', [1]); % split by age bins or not 
+addParamValue(inputs,'do_agebins', 1); % split by age bins or not 
 
 parse(inputs,varargin{:})
 % Display input arguments for log
@@ -239,7 +239,7 @@ for des=1:length(fname_design)
             [label,score] = predict(mdl,D(ivec_repl,1:ncomp));
             scorevec(ivec_repl) = score(:,2);
         end
-        if do_agebins % Whould check that D is very similar to ymat_resid -- i.e., that the U, S, and V computed based on the
+        if 0 % Whould check that D is very similar to ymat_resid -- i.e., that the U, S, and V computed based on the
             figure; 
             imagesc(U_resid(ivec_disc,:)); 
             colormap(blueblackred); 
@@ -291,7 +291,7 @@ for des=1:length(fname_design)
                 axis equal tight;
                 drawnow;
                 corrval = nancorr(scorevec,Y);
-                cohensdval = cmig_tools_cohensd(nanmean(scorevec(Y==1)),nanmean(scorevec(Y==0)),nanstd(scorevec(Y==1)), nanstd(scorevec(Y==0)));
+                cohensdval = cmig_tools_cohensd(nanmean(scorevec(Y==1)),nanmean(scorevec(Y==0)),nanstd(scorevec(Y==1)),nanstd(scorevec(Y==0)));
                 AUCmat(bini,repi) = AUC;
                 corrmat(bini,repi) = corrval;
                 cohensdmat(bini,repi) = cohensdval;
