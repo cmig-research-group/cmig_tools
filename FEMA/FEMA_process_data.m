@@ -38,6 +38,7 @@ addParamValue(p,'ico',5);
 addParamValue(p,'pihat_file',[]);
 addParamValue(p,'preg_file',[]);
 addParamValue(p,'address_file',[]);
+addParamValue(p,'corrvec_thresh',0.8);
 
 parse(p,varargin{:})
 ico = str2num_amd(p.Results.ico);
@@ -47,6 +48,7 @@ varnorm = str2num_amd(p.Results.varnorm);
 fname_pihat = p.Results.pihat_file;
 fname_preg = p.Results.preg_file;
 fname_address = p.Results.address_file;
+corrvec_thresh = p.Results.corrvec_thresh;
 
 readvolumesflag = true;
 if fstem_imaging(1)=='-'
@@ -92,22 +94,27 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 		sitevec = cell(size(dirlist)); 
 		datevec = cell(size(dirlist)); 
 		visitidvec = cell(size(dirlist));
-        for diri = 1:length(dirlist)
-        	tmp = regexp(dirlist{diri}, '^DTIREG_(?<site>\w+)_(?<SubjID>\w+)_(?<event>\w+)_(?<date>\d+).', 'names');
-        	subjidvec{diri} = tmp.SubjID;
-        	sitevec{diri} = tmp.site;
-        	eventvec{diri} = tmp.event;
-        	datevec{diri} = tmp.date;
-        	visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
-        end
-        iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
-        eid_concat = eventvec';
-		idevent = strcat(iid_concat(:),'_',eid_concat(:));
+        if any(contains(dirlist, 'DTIREG_'))
+            for diri = 1:length(dirlist)
+            	tmp = regexp(dirlist{diri}, '^DTIREG_(?<site>\w+)_(?<SubjID>\w+)_(?<event>\w+)_(?<date>\d+).', 'names');
+            	subjidvec{diri} = tmp.SubjID;
+            	sitevec{diri} = tmp.site;
+            	eventvec{diri} = tmp.event;
+            	datevec{diri} = tmp.date;
+            	visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
+            end
+            iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
+            eid_concat = eventvec';
+        else 
+            iid_concat = tmp_volinfo.participant_id;
+            eid_concat = tmp_volinfo.session_id;
+        end 
+        idevent = strcat(iid_concat(:),'_',eid_concat(:));
         corrmat_concat = tmp_volinfo.corrmat;
 
 		%QC FOR VOXELWISE DATA
 		corrvec=mean(corrmat_concat,2);
-		thresh = 0.8;
+        thresh = corrvec_thresh;
 		defvec=find(corrvec>=thresh); 
 		ymat=ymat(defvec,:);
 		idevent=idevent(defvec,:);
