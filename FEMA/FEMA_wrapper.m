@@ -90,6 +90,7 @@ addParamValue(inputs,'mediation',0);
 addParamValue(inputs,'tfce',0);
 addParamValue(inputs,'colsinterest',1);
 addParamValue(inputs,'demean',0);
+addParamValue(inputs,'corrvec_thresh',0.8); 
 
 %FEMA_fit variable inputs
 addParamValue(inputs,'niter',1);
@@ -160,6 +161,7 @@ synth = str2num_amd(inputs.Results.synth);
 tfce = str2num_amd(inputs.Results.tfce);
 colsinterest = str2num_amd(inputs.Results.colsinterest);
 demean = str2num_amd(inputs.Results.demean);
+corrvec_thresh = str2num_amd(inputs.Results.corrvec_thresh);
 
 if ~iscell(fname_design)
   fname_design = {fname_design};
@@ -180,7 +182,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
