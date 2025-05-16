@@ -6,10 +6,10 @@ library(Matrix)
 library(ordinal)
 library(pracma)
 
-makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, filtervar=NULL, familyID='ab_g_stc__design_id__fam') {
+makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL, interact=NULL, subjs=NULL, demean=FALSE, quadratic=NULL, mediator=NULL, filtervar=NULL, familyID='ab_g_stc__design_id__fam', study='ABCD6') {
 
 	# nda = data frame with variables of interest
-	# outfile = filepath and name to save design matrix to
+	# outfile = filepath and name to save design matrix tox
 	# time = 'eventname' the events that you want to include e.g. c('baseline_year_1_arm_1','2_year_follow_up_y_arm_1')
 	# contvar = list of continuous variables e.g. c('interview_age','nihtbx_pattern_uncorrected')
 	# catvar = list of categorical variables e.g. c('sex_at_birth','hisp','household.income','high.educ')
@@ -57,36 +57,35 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	
 	# Define allowed values
 	valid_familyIDs <- c('ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'rel_family_id')
-	  if (!familyID %in% valid_familyIDs) {
+	if (!familyID %in% valid_familyIDs) {
 		stop("Error: familyID must be either 'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen or 'rel_family_id'.")
-	  }
+	}
+
+    if (study=='ABCD5') {
+		agevar <- 'interview_age'
+        idvar <- 'src_subject_id'
+        visitvar <- 'eventname'
+        familyID <- 'rel_family_id'
+    } else if (study=='ABCD6') {
+        agevar <- 'ab_g_dyn__visit_age'
+        idvar <- 'participant_id'
+        visitvar <- 'session_id'
+    } else if (study=='HBCD') {
+            agevar <- 'candidate_age'
+            idvar <- 'participant_id'
+            visitvar <- 'session_id'
+            familyID <- 'rel_family_id'
+    }
 
 	allvars<-c(contvar,catvar,delta)
-	if ("src_subject_id" %in% names(nda)) {
-		nda[,'age']<-nda$interview_age
-		nda = nda[,c("src_subject_id","eventname","rel_family_id","age",allvars)]
-		nda = nda[complete.cases(nda),]
-		idx_time <-grep(paste0(time, collapse='|'), nda$eventname)
-		# get subject ids at that time point
-		subjid<-as.character(nda$src_subject_id[idx_time])
-		#src_subject_id <-gsub('NDAR_','',subjid)
-		src_subject_id <- subjid
-		eventname <- nda$eventname[idx_time]
-		rel_family_id<-nda$rel_family_id[idx_time]
-		nda <- nda[idx_time,]
-	} else {
-		nda[,'age']<-nda$ab_g_dyn__visit_age
-		nda <- nda[,c("participant_id","session_id","ab_g_stc__design_id__fam","age",allvars)]
-		nda <- nda[complete.cases(nda),]
-		idx_time <-grep(paste0(time, collapse='|'), nda$session_id)
-		# get subject ids at that time point
-		subjid<-as.character(nda$participant_id[idx_time])
-		#src_subject_id <-gsub('NDAR_','',subjid)
-		participant_id <- subjid
-		session_id <- nda$session_id[idx_time]
-		ab_g_stc__design_id__fam<-nda$ab_g_stc__design_id__fam[idx_time]
-		nda <- nda[idx_time,]
-	}
+
+	nda[,'age']<-nda[, agevar]
+	nda <- nda[,c(idvar, visitvar, familyID, 'age', allvars)]
+	nda = nda[complete.cases(nda),]
+	idx_time <-grep(paste0(time, collapse='|'), nda[, visitvar])
+    nda <- nda[idx_time,]
+	# get subject ids at that time point
+	subjid<-as.character(nda[, idvar])
 
 	# filter by specific variable and value
 	if ( !is.null(filtervar) ) {
@@ -100,14 +99,9 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 			vec0 <- rep(NA,dim(nda)[1]);
 			vecD <- rep(NA,dim(nda)[1]);
 			for (i in 1:length(uniq_subj)) {
-				if ("eventname" %in% names(nda)) {
-					idx_subj <- which(nda$src_subject_id==uniq_subj[i])
-					idx_tmp <- which(nda$interview_age[idx_subj]==min(nda$interview_age[idx_subj]))	
-				} else {
-					idx_subj <- which(nda$participant_id==uniq_subj[i])
-					idx_tmp <- which(nda$ab_g_dyn__visit_age[idx_subj]==min(nda$ab_g_dyn__visit_age[idx_subj]))
-				}
-				idx_subj0 <- idx_subj[idx_tmp]	
+				idx_subj <- which(nda[, idvar]==uniq_subj[i])
+				idx_tmp <- which(nda$age[idx_subj]==min(nda$age[idx_subj]))
+                idx_subj0 <- idx_subj[idx_tmp]	
 				vec0[idx_subj] <- nda[idx_subj0,d]
 				vecD[idx_subj0] <- 0
 				idx_fu <- setdiff(idx_subj, idx_subj0)
@@ -175,14 +169,10 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 		if (demean==TRUE){
 			d0<-apply(data.frame(d0), 2, function(y) y - mean(y, na.rm=T))
 		}
-							 #d0 <- data.frame(src_subject_id, eventname, d0)
-							 #names(d0) <- c('src_subject_id', 'eventname', name_base)
 		dD <- lapply(name_delta, varextract, data=nda, index=idx_time, dummy=0)
 		if (demean==TRUE){
 			dD<-apply(data.frame(dD), 2, function(y) y - mean(y, na.rm=T))
 		}
-							 #dD <- data.frame(src_subject_id, eventname, dD)
-							 #names(dD) <- c('src_subject_id', 'eventname', name_delta)
 		nda[,name_base]<-data.frame(d0)
 		nda[,name_delta]<-data.frame(dD)		
 	}
@@ -265,20 +255,10 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 	
 	####################################
 
-	if ("src_subject_id" %in% names(nda)) {
-		outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
-	} else {
-		outmat<-nda[,c('participant_id','session_id','ab_g_stc__design_id__fam','age')]
-	}
+    # define the first four columns required by FEMA_wrapper
+    outmat<-nda[,c(idvar, visitvar, familyID, 'age')]
 	
-	#if (fam==TRUE && incage==TRUE){
-	#	outmat<-nda[,c('src_subject_id','eventname','rel_family_id','age')]
-	#} else if (fam==TRUE && incage!=TRUE){
-	#	outmat<-nda[,c('src_subject_id','eventname','rel_family_id')]
-	#}else if (fam!=TRUE && incage==TRUE){
-	#	outmat<-nda[,c('src_subject_id','eventname','age')]
-	#}
-	
+    # add delta if supplied
 	if (!is.null(delta)){
 		delta_df<-data.frame(nda[,c(name_base, name_delta)])
 		outmat<-data.frame(outmat, delta_df)
@@ -287,9 +267,9 @@ makeDesign <- function(nda, outfile, time, contvar=NULL, catvar=NULL,	delta=NULL
 			modelmat<-modelmat[,-c(which(colnames(modelmat) %in% name_delta))]
 	 }
 	
-	
 	outmat<-cbind(outmat,modelmat)
 	
+    # add mediatator if supplied
 	if (!is.null(mediator)){
 		#Check mediator is included already in design matrix
 		if (mediator %in% colnames(outmat)==FALSE){
