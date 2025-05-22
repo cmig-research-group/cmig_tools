@@ -251,8 +251,16 @@ elseif strcmpi(datatype,'external') %does not need to be intersected with abcd m
 
 	logging('Reading EXTERNAL imaging data');
 	roidat = readtable(dirname_imaging);
-	iid_concat = roidat.src_subject_id; % Not sure why imaging subject IDs are missing the NDAR_ part
-	eid_concat = roidat.eventname;
+	% Check which ID + event columns are present for the different releases
+	if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
+    	iid_concat = roidat.src_subject_id;
+    	eid_concat = roidat.eventname;
+	elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
+    	iid_concat = roidat.participant_id;
+    	eid_concat = roidat.session_id;
+	else
+    	error('No recognized ID/event columns found in the external file.');
+	end
 	ymat=table2array(roidat(:,3:end));
 	colnames_imaging=roidat.Properties.VariableNames(3:end);
 	idevent = strcat(iid_concat(:),'_',eid_concat(:));
