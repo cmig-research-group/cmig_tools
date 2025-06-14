@@ -466,7 +466,7 @@ for permi = 0:nperms
         if useLSQ
             iXtX = lsqminnorm(XtX, eye(size(XtX)));
         else
-            iXtX = pinv(X);
+            iXtX = pinv(XtX);
         end
     else
         iXtX     = XtX \ eye(size(XtX));
