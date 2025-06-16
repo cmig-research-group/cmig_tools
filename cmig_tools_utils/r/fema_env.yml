@@ -1,0 +1,14 @@
+name: fema_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - radian # not necessary, but nice to have
+  - r-base
+  - r-plyr
+  - r-dplyr
+  - r-tidyverse
+  - r-psych
+  - r-matrix
+  - r-ordinal
+  - r-pracma
