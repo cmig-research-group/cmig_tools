@@ -12,15 +12,20 @@ else
     useLSQ = false;
 end
 
-if rank(C) < size(C, 2)
-    if useLSQ
-        betahat_out = lsqminnorm(C, d);
-    else
-        betahat_out = pinv(C)*d;
-    end
-else
-    betahat_out = C \ d;
-end
+betahat_out = pinv(C)*d;
+% Using lsqminnorm or backslash in this case seems to be quite slow
+% compared to using pinv; the only possible exception is M1 chip running
+% Apple native silicon version of MATLAB (at least that is how it was for
+% MATLAB R2023b)
+% if rank(C) < size(C, 2)
+%     if useLSQ
+%         betahat_out = lsqminnorm(C, d);
+%     else
+%         betahat_out = pinv(C)*d;
+%     end
+% else
+%     betahat_out = C \ d;
+% end
 
 ivec_neg = (sum(betahat_out<0,1)>0);
 

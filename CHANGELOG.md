@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-06-17]
+### Added
+* `cmig_tools_utils/r/fema_env.yml`: configuration file to create conda environment to run `makeDesign.R`
+
+## [Unreleased - 2025-06-14]
+### Changed
+* `FEMA/FEMA_fit.m`: bug fix OLS inversion when using `pinv` [issue #33]
+
+## [Unreleased - 2025-05-22]
+### Changed
+* `FEMA/FEMA_process_data.m`: added `participant_id` and `session_id` for external analyses
+
+## [Unreleased - 2025-05-17]
+### Changed
+* `cmig_tools_utils/r/makeDesign.R`: added a `study` parameter
+
+## [Unreleased - 2025-05-02]
+### Changed
+* `FEMA/FEMA_classify.m`: added option to skip bin by age
+* `FEMA/FEMA_process_data.m`: added option to vary threshold for correlation to atlas
+* `FEMA/FEMA_wrapper.m`: added option to vary threshold for correlation to atlas
+
+## [Unreleased - 2025-04-19]
+### Changed
+* Updated `README`
+
+## [Unreleased - 2025-04-18]
+### Added
+* Added figures to `docs/pictures/showVolWiki/` and `docs/pictures/showSurfWiki/`
+* Added `showVol` and `showSurf` wiki
+* Added `.gitkeep`
+
+## [Unreleased - 2025-04-01]
+### Changed
+* `cmig_tools_utils/r/makeDesign.R`:
+    - added `filtervar` option
+    - documentation update
+
 ## [Unreleased - 2025-03-27]
 ### Changed
 * `cmig_tools_utils/matlab/plotManhattan.m`:
