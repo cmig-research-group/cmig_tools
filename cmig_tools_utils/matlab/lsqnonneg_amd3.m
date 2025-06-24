@@ -41,16 +41,16 @@ for comboi = 1:ncombos % Should only re-do voxels that provide negative values f
   bitvec = colvec(~nnvec);
   bitvec(nnlist) = ~logical(bitget(comboi-1,[1:length(nnlist)]'));
   betahat = zeros(size(C,2),nvox);
-  if rank(C(:,bitvec)) < size(C(:,bitvec), 2)
-      if useLSQ
-          betahat(bitvec,:) = lsqminnorm(C(:,bitvec), d);
-      else
-          betahat(bitvec,:) = pinv(C(:,bitvec))*d;
-      end
-  else
-      betahat(bitvec,:) = C(:,bitvec) \ d;
-  end
-  % betahat(bitvec,:) = pinv(C(:,bitvec))*d;
+  % if rank(C(:,bitvec)) < size(C(:,bitvec), 2)
+  %     if useLSQ
+  %         betahat(bitvec,:) = lsqminnorm(C(:,bitvec), d);
+  %     else
+  %         betahat(bitvec,:) = pinv(C(:,bitvec))*d;
+  %     end
+  % else
+  %     betahat(bitvec,:) = C(:,bitvec) \ d;
+  % end
+  betahat(bitvec,:) = pinv(C(:,bitvec))*d;
   betahat(nnlist,:) = max(0,betahat(nnlist,:));
   costvec = sum((d-C*betahat).^2,1);
   betamat(:,:,comboi) = betahat;
