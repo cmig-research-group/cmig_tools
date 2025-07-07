@@ -68,22 +68,35 @@ infoL = load(ls{end}, 'genStruct', 'beta_hat', 'Wald_F', 'coeffCovar');
 % Number of SNPs
 numSNPs = length(info1.genStruct.Chr) * (length(ls)-1) + length(infoL.genStruct.Chr);
 
-% Number of coefficients and number of phenotypes
-if ndims(infoL.beta_hat) == 3
-    is3D                   = true;
-    [~, numCoeff, numPhen] = size(infoL.beta_hat);
-else
-    is3D         = false;
-    numCoeff     = 1;
-    [~, numPhen] = size(infoL.beta_hat);
-end
-
-% Number of contrasts
+% First make sure that Wald test was done or not; get number of contrasts
 if isempty(infoL.Wald_F)
     doWald = false;
 else
     doWald = true;
     numCon = size(infoL.Wald_F, 3);
+end
+
+% Number of coefficients and number of phenotypes
+% Four possibilities:
+% single phenotype, single coefficient = not 3D, not Wald
+% single phenotype, multi  coefficient = not 3D, yes Wald
+% multi  phenotype, single coefficient = not 3D, not Wald
+% multi  phenotype, multi  coefficient = yes 3D, yes Wald
+if ndims(infoL.beta_hat) == 3
+    % Multiple phenotype, multiple coefficients
+    is3D                   = true;
+    [~, numCoeff, numPhen] = size(infoL.beta_hat);
+else
+    is3D         = false;
+    % If Wald exists, single phenotype multiple coefficients
+    if doWald
+        numPhen  = 1;
+        numCoeff = size(infoL.beta_hat,2);
+    else
+        % Wald does not exist, single coefficient
+        numCoeff     = 1;
+        [~, numPhen] = size(infoL.beta_hat);
+    end
 end
 
 %% Initialize
@@ -93,9 +106,14 @@ if is3D
         [Wald_F, Wald_p] = deal(zeros(numSNPs, numPhen, numCon));
     end
 else
-    [beta_hat, beta_se, tStats, logpValues] = deal(zeros(numSNPs, numPhen));
-    Wald_F = [];
-    Wald_p = [];
+    if doWald
+        [Wald_F, Wald_p] = deal(zeros(numSNPs, numPhen, numCon));
+        [beta_hat, beta_se, tStats, logpValues] = deal(zeros(numSNPs, numCoeff, numPhen));
+    else
+        [beta_hat, beta_se, tStats, logpValues] = deal(zeros(numSNPs, numPhen));
+        Wald_F = [];
+        Wald_p = [];
+    end
 end
 
 % Also initialize chromosome, base pair location, and rsID
