@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-07-09]
+### Changed
+* `FEMA/FEMA_process_data`:
+    - robust handling of path to `SurfView_surfs.mat`
+    - only loading `icsurfs` from `SurfView_surfs.mat`
+    - minor formatting fixes
+* `FEMA/FEMA_wrapper`:
+    - robust handling of path to `SurfView_surfs.mat`
+    - only loading `icsurfs` from `SurfView_surfs.mat`
+
 ## [Unreleased - 2025-07-07]
 ### Changed
 * `FEMA/FEMA_gatherGWAS.m`: bug fix incorrect dimensionality when single phenotype, multiple coefficients [issue #34]

@@ -447,7 +447,8 @@ for des=1:length(fname_design)
       % Write out in FreeSurfer curv format, with naming consistent with volumes
       fieldnamelist = setdiff(fieldnames(results),randomFields);
       icnum = ico+1;
-      load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
+      load(fullfile(fileparts(fileparts(which('FEMA_wrapper'))), 'showSurf', 'SurfView_surfs.mat'), 'icsurfs');
+      % load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
       S = struct;
       S.nverts = 2*size(icsurfs{icnum}.vertices,1);
       S.nfaces = 2*size(icsurfs{icnum}.faces,1);
