@@ -31,7 +31,7 @@ FEMA_DEAP_gencache/FEMA_DEAP_gencache: FEMA_DEAP_gencache.m Makefile
 	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
 
 clean:
-	rm -rf test_worker test_client FEMA_DEAP_gencache FEMA_DEAP_worker FEMA_DEAP_wrapper ../FEMA/FEMA_wrappper
+	rm -rf test_worker test_client FEMA_DEAP_gencache FEMA_DEAP_worker FEMA_DEAP_wrapper ../FEMA/FEMA_wrapper
 
 run: test_client/test_client
 	./test_client/run_test_client.sh $(MATLAB)
