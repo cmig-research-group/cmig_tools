@@ -3,27 +3,27 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat
 % ABCD specific function to load and process imaging data from abcd-sync
 %
 % INPUTS
-%	 fstem_imaging <char>			 :	name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
-%	 dirname_imaging <char>		 :	path to imaging data directory
-%	 datatype <char>						:	'voxel','vertex','external', 'corrmat'
-%																		%Other then 'external' all code is written to expect ABCD data in same format as abcd-sync
+%	 fstem_imaging <char>		:	name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
+%	 dirname_imaging <char>		:	path to imaging data directory
+%	 datatype <char>			:	'voxel','vertex','external', 'corrmat'
+%									Other then 'external' all code is written to expect ABCD data in same format as abcd-sync
 %
 % Optional input arguments:
-%	 ico <num>									:	ico-number for vertexwise analyses (0-based, default 5)
-%	 ranknorm <boolean>				 :	rank normalise imaging data (default 0)
-%	 varnorm <boolean>					:	variance normalise imaging data (default 0)
-%	 pihat_file <char>					:	path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
-%	 preg_file <char>					 :	path to pregnancy data - default [] - only required if T random effect specified
-%	 address_file <char>				:	path to address data - default [] - only required if H random effect specified
+%	 ico <num>					:	ico-number for vertexwise analyses (0-based, default 5)
+%	 ranknorm <boolean>			:	rank normalise imaging data (default 0)
+%	 varnorm <boolean>			:	variance normalise imaging data (default 0)
+%	 pihat_file <char>			:	path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+%	 preg_file <char>			:	path to pregnancy data - default [] - only required if T random effect specified
+%	 address_file <char>		:	path to address data - default [] - only required if H random effect specified
 %
 % OUTPUTS
-%	 ymat											 :	matrix of imaging data (n x v)
-%	 iid_concat								 :	src_subject_id
-%	 eid_concat								 :	eventname
-%	 ivec_mask									:	vector mask for voxelwise data (155179x1) --> not yet available for vertexwise
-%	 mask									 :	volume mask mask for voxelwise data (100x100x130) --> not yet available for vertexwise
-%	 colnames_imaging					 :	imaging column labels for external data inputs
-%	 pihat											:	intersected genetic relatedness matrix
+%	 ymat						:	matrix of imaging data (n x v)
+%	 iid_concat					:	src_subject_id
+%	 eid_concat					:	eventname
+%	 ivec_mask					:	vector mask for voxelwise data (155179x1) --> not yet available for vertexwise
+%	 mask						:	volume mask mask for voxelwise data (100x100x130) --> not yet available for vertexwise
+%	 colnames_imaging			:	imaging column labels for external data inputs
+%	 pihat						:	intersected genetic relatedness matrix
 %
 
 %
@@ -127,7 +127,8 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 		logging('Reading VERTEXWISE %s imaging data',fstem_imaging);
 		tic
 		%	SurfView_loadsurfs; % Shouldn't be neccessary, if data saved out pre-truncated
-		load('SurfView_surfs.mat'); %this matfile is included in the executable when compiling using -a
+		% load('SurfView_surfs.mat'); %this matfile is included in the executable when compiling using -a
+        load(fullfile(fileparts(fileparts(which('FEMA_process_data'))), 'showSurf', 'SurfView_surfs.mat'), 'icsurfs');
 
 		hemistrings = {'lh','rh'};
 
