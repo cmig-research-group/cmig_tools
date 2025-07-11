@@ -30,10 +30,14 @@ function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico,
 	p = inputParser;
 	addParamValue(p, 'fhtitle', '');
 	addParamValue(p, 'legendPosition', 'South');
-	
+    addParamValue(p, 'viewname', {'left' 'right' 'right' 'left'}, @iscellstr);
+    addParamValue(p, 'includemat', [1 0; 0 1; 1 0; 0 1], @isvector);
+
 	parse(p, varargin{:});
 	fhtitle = p.Results.fhtitle;
 	legendPosition = p.Results.legendPosition;
+    viewname = p.Results.viewname;
+    includemat = p.Results.includemat;
 
 	load SurfView_surfs.mat
 
@@ -107,10 +111,14 @@ function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico,
 		cm = cmap;
 	end
 
-	axes(allH(1)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
-	axes(allH(2)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
-	axes(allH(3)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'right',[1 0],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
-	axes(allH(4)); SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,'left', [0 1],curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); set(gca,'visible','off'); axis tight;
+    for vi=1:length(viewname)
+        view = viewname{vi};
+        includevec = includemat(vi,:); % location to plot to
+	    axes(allH(vi)); % selecting subplot axes
+        SurfView_show_new(surf_lh_pial,surf_rh_pial,vertvals_lh,vertvals_rh,fvals,cm,view, includevec ,curvvec_lh,curvvec_rh,icsurfs{icnum},polarity,curvcontrast,bgcol); 
+        set(gca,'visible','off'); 
+        axis tight;
+    end 
 
 	if ~isempty(fhtitle)
 		titleAx = axes;
