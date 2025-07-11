@@ -12,3 +12,4 @@ dependencies:
   - r-matrix
   - r-ordinal
   - r-pracma
+  - r-arrow
