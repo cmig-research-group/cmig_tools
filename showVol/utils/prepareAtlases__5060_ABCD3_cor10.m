@@ -42,7 +42,7 @@ function prepareAtlases__5060_ABCD3_cor10
 	atlasVersion = '6.0_ABCD3_cor10'; % '6.0_ABCD3_cor10' or '5.0_ABCD3_cor10'
 	processDate = datestr(now,'yyyy/mm/dd');
 
-	adjustCenter = true; %false;
+	adjustCenter = false; %false;
 	if adjustCenter
   		disp('Adjusting volume center')
   		rcscenter_1mm = [100 99 130]; % ** Emprically, the  ABCD3 atlas_dspace T1 has its center at 100 99 130
@@ -50,8 +50,8 @@ function prepareAtlases__5060_ABCD3_cor10
 	end
 
 	%% CHANGE HERE if locations differ
-	source = '/space/syn65/1/data/abcd-sync/6.0/imaging_concat/voxelwise/roi';
-	sourceAnat = '/space/syn65/1/data/abcd-sync/6.0/imaging_concat/voxelwise/smri';
+	source = '/space/ceph/1/ABCD/release/concat/imaging/voxelwise/roi';
+	sourceAnat = '/space/ceph/1/ABCD/release/concat/imaging/voxelwise/smri';
 	atlas_dspace = '/home/dale/tmp/atlas_dspace';
 	%%
 
