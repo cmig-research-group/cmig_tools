@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-07-11]
+### Changed
+* `showSurf/showSurfPlot`: added additional view options for surface results
+### Added
+* `save_showVol_images`: automatically save showVol images as screenshots
+* `cmig_tools_utils/r/makeDesign_DEAP.R`: DEAP compatible version of `makeDesign`
+
 ## [Unreleased - 2025-07-09]
 ### Changed
 * `FEMA/FEMA_process_data`:
