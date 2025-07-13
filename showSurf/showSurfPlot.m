@@ -21,7 +21,15 @@ function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico,
 %	 fhtitle: title for the plot
 %
 %	 legendPosition: position of the colorbar legend, can be 'South' (default) or 'East'
-%	
+%
+%	 viewname: cell array of view names for each subplot, e.g. {'left', 'right', 'right', 'left'}
+%	 
+% 	 includemat: matrix indicating which hemisphere to plot in each subplot, e.g. [1 0; 0 1; 1 0; 0 1]
+%	 
+% 	 subplotDims: dimensions of the subplot grid, e.g. [2 2]
+%	 
+%    figPosition: position of the figure in centimeters, e.g. [0 0 16 10]
+%
 %	 Output:
 %	 fh: figure handle
 %	
@@ -31,13 +39,24 @@ function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico,
 	addParamValue(p, 'fhtitle', '');
 	addParamValue(p, 'legendPosition', 'South');
     addParamValue(p, 'viewname', {'left' 'right' 'right' 'left'}, @iscellstr);
-    addParamValue(p, 'includemat', [1 0; 0 1; 1 0; 0 1], @isvector);
+    addParamValue(p, 'includemat', [1 0; 0 1; 1 0; 0 1], @ismatrix);
+	addParamValue(p, 'subplotDims', [2 2], @(x) isnumeric(x) && numel(x) == 2);  
+	addParamValue(p, 'figPosition', [0 0 16 10], @(x) isnumeric(x) && numel(x) == 4);
 
 	parse(p, varargin{:});
 	fhtitle = p.Results.fhtitle;
 	legendPosition = p.Results.legendPosition;
     viewname = p.Results.viewname;
     includemat = p.Results.includemat;
+	subplotDims = p.Results.subplotDims;
+	figPosition = p.Results.figPosition;
+
+	numSubplots = prod(subplotDims);
+	if length(viewname) > numSubplots
+		warning('Number of views exceeds available subplot slots. Truncating view list.');
+		viewname = viewname(1:numSubplots);
+		includemat = includemat(1:numSubplots, :);
+	end
 
 	load SurfView_surfs.mat
 
@@ -99,10 +118,10 @@ function fh = showSurfPlot(vertvals, str, cmap, polarity, climMin, climMax, ico,
 	bgcol = [0 0 0];
 
 	% Create figure
-	fh = figure('Units', 'centimeters', 'Position', [0 0 16 10], 'Color', bgcol, 'InvertHardcopy', 'off');
+	fh = figure('Units', 'centimeters', 'Position', p.Results.figPosition, 'Color', bgcol, 'InvertHardcopy', 'off');
 
 	% Create axes
-	allH = tight_subplot(2, 2, hvgap, btgap, lrgap);
+	allH = tight_subplot(subplotDims(1), subplotDims(2), hvgap, btgap, lrgap);
 	hold(allH(:), 'on');
 
 	if ischar(cmap) || isstring(cmap)
