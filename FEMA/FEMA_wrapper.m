@@ -161,10 +161,6 @@ permtype = inputs.Results.permtype;
 mediation = str2num_amd(inputs.Results.mediation);
 synth = str2num_amd(inputs.Results.synth);
 tfce = str2num_amd(inputs.Results.tfce);
-<<<<<<< Updated upstream
-=======
-colsinterest = str2num(inputs.Results.colsinterest);
->>>>>>> Stashed changes
 demean = str2num_amd(inputs.Results.demean);
 corrvec_thresh = str2num_amd(inputs.Results.corrvec_thresh);
 colsinterest = str2num(inputs.Results.colsinterest);
