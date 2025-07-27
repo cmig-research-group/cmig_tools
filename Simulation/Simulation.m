@@ -16,7 +16,7 @@ niter            = 1;
 nRepeats         = 10;
 
 %% File Save path
-saveDir = "./Simulation/DATA";
+saveDir = "./DATA";
 if ~exist(saveDir, 'dir')
     mkdir(saveDir);
 end
