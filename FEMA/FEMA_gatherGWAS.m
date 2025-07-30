@@ -179,25 +179,51 @@ if is3D
         end
     end
 else
-    for files = 1:length(ls)
-        % Load data
-        tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'genStruct', 'errFlag');
+    if doWald
+        for files = 1:length(ls)
+            % Load data
+            tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_p', 'genStruct', 'coeffCovar', 'errFlag');
 
-        % How many rows?
-        chk = size(tmp.beta_hat, 1);
+            % How many rows?
+            chk = size(tmp.beta_hat, 1);
 
-        % Assign
-        beta_hat(init:init+chk-1,   :) = tmp.beta_hat;
-        beta_se(init:init+chk-1,    :) = tmp.beta_se;
-        tStats(init:init+chk-1,     :) = tmp.tStats;
-        logpValues(init:init+chk-1, :) = tmp.logpValues;
-        Chr(init:init+chk-1)           = tmp.genStruct.Chr;
-        BP(init:init+chk-1)            = tmp.genStruct.BP;
-        rsID(init:init+chk-1)          = tmp.genStruct.SNPs;
-        errFlag(init:init+chk-1, :)    = tmp.errFlag;
+            % Assign
+            beta_hat(init:init+chk-1, :)        = tmp.beta_hat;
+            beta_se(init:init+chk-1, :)         = tmp.beta_se;
+            tStats(init:init+chk-1, :)          = tmp.tStats;
+            logpValues(init:init+chk-1, :)      = tmp.logpValues;
+            Wald_F(init:init+chk-1, :)          = tmp.Wald_F;
+            Wald_p(init:init+chk-1, :)          = tmp.Wald_p;
+            Chr(init:init+chk-1)                = tmp.genStruct.Chr;
+            BP(init:init+chk-1)                 = tmp.genStruct.BP;
+            rsID(init:init+chk-1)               = tmp.genStruct.SNPs;
+            coeffCovar(init:init+chk-1, :, :)   = tmp.coeffCovar;
+            errFlag(init:init+chk-1, :)         = tmp.errFlag;
 
-        % Update init
-        init = init + chk;
+            % Update init
+            init = init + chk;
+        end
+    else
+        for files = 1:length(ls)
+            % Load data
+            tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'genStruct', 'errFlag');
+    
+            % How many rows?
+            chk = size(tmp.beta_hat, 1);
+    
+            % Assign
+            beta_hat(init:init+chk-1,   :) = tmp.beta_hat;
+            beta_se(init:init+chk-1,    :) = tmp.beta_se;
+            tStats(init:init+chk-1,     :) = tmp.tStats;
+            logpValues(init:init+chk-1, :) = tmp.logpValues;
+            Chr(init:init+chk-1)           = tmp.genStruct.Chr;
+            BP(init:init+chk-1)            = tmp.genStruct.BP;
+            rsID(init:init+chk-1)          = tmp.genStruct.SNPs;
+            errFlag(init:init+chk-1, :)    = tmp.errFlag;
+    
+            % Update init
+            init = init + chk;
+        end
     end
 end
 
