@@ -35,6 +35,13 @@ function varargout = showVol(varargin)
 %           roiset      path to ROI settings file (a set of displayed ROIs, saved previously--very useful)
 %           annotations true/false(default): Enable anatomical annotations, a 'yelp' for the brain
 %
+% NOTE 5: Orientation is a scalar that specifies the orientation for initial view:
+%           1 = coronal (default)
+%           2 = sagittal
+%           3 = axial
+%
+%         Orientation and configStruct can appear in ANY order — 
+%            showVol will scan all arguments and extract them safely.
 %
 % Commands that can be entered in the "Command" edit box:
 % ------------------------------------------------------
@@ -169,7 +176,49 @@ handles.anat.roiatlas = '6.0_ABCD3'; % default to latest release
 handles.anat.roifile = [];
 handles.anat.roiset = [];
 
-for iii = 1:nargin-3
+% ----------------------------------------------------------
+%  Parse orientation & configStruct
+% ----------------------------------------------------------
+initOrientation = 1;       % default orientation: 1=axial, 2=coronal, 3=sagittal
+configStruct = [];         % default: none
+
+orientation_idx = [];      % index for orientation
+config_idx = [];           % index for config struct
+
+for k = 1:numel(varargin)
+    arg = varargin{k};
+
+    % Look for orientation (numeric scalar: 1, 2, or 3)
+    if isempty(orientation_idx) && isnumeric(arg) && isscalar(arg) && ismember(arg, [1 2 3])
+        orientation_idx = k;
+
+    % Look for configStruct (a struct that is NOT a volume)
+    % skip anything that looks like a volume (has .imgs or .Mvxl2lph)
+    % or pre-rendered slices (has .imgs1)
+    elseif isempty(config_idx) && isstruct(arg) ...
+            && ~isfield(arg, 'imgs') && ~isfield(arg, 'Mvxl2lph') ...
+            && ~isfield(arg, 'imgs1')
+        config_idx = k;
+    end
+end
+
+% Extract orientation if found
+if ~isempty(orientation_idx)
+    initOrientation = varargin{orientation_idx};
+    varargin(orientation_idx) = [];   % remove so later code only sees vols/meshes
+
+    % Validate orientation
+    assert(ismember(initOrientation, [1 2 3]), ...
+        'Orientation must be 1 (axial), 2 (coronal), or 3 (sagittal).');
+end
+
+% Extract configStruct if found 
+if ~isempty(config_idx)
+    configStruct = varargin{config_idx};
+    varargin(config_idx) = [];        % remove so later code only sees vols/meshes
+end
+
+for iii = 1:numel(varargin)
   if iscell(varargin{iii}) % AMD: Handle cell arrays of vols and/or meshes -- recursively call function for cell arrays (avoid duplication)
     v = varargin{iii};
     for vi = 1:length(v)
@@ -596,7 +645,7 @@ handles.currentVol = 1;
 handles.currentVolPB = handles.volPB(1);
 set(handles.currentVolPB, 'ForegroundColor', 'r');
 set(handles.currentVolPB, 'TooltipString', ['Hide ' handles.volnames{handles.currentVol}]);
-handles.ORIENTATION = 1;
+handles.ORIENTATION = initOrientation;
 handles.HIDE1 = 0;
 handles.HIDE2 = 0;
 handles.HIDE3 = 0;
@@ -2640,7 +2689,7 @@ for iA = 1:length(atlases)
       if contains(mode,'fill') && handles.anat.params.overlayAlpha>0
         c = [1 1 1]; %when showing colored roiprob, use white outline FIXME: make this UI-selectable
       else
-        c = A.roicolors(A.uiRoiOverlayIdx(iR),:);
+        %c = A.roicolors(A.uiRoiOverlayIdx(iR),:);
         m = max(c(:)); %FIXME: temporary fix, will be fixed permanentyly in prepareAtlases.m
         if m > 1
           c = c/255;
