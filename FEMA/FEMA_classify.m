@@ -368,4 +368,117 @@ end
 %   Explore other "built-in" classifier methods
 %   Explore mixture distributions
 
+end
+
+%% Helper Functions
+
+function [AUC, SPEC, SENS, ACC, F80] = plot_ROC(pos_scores, neg_scores)
+    % Plot ROC curve and calculate performance metrics
+    % Inputs:
+    %   pos_scores: scores for positive class
+    %   neg_scores: scores for negative class
+    % Outputs:
+    %   AUC: Area Under Curve
+    %   SPEC: Specificity
+    %   SENS: Sensitivity  
+    %   ACC: Accuracy
+    %   F80: F-score at 80% sensitivity
+    
+    % Remove NaN values
+    pos_scores = pos_scores(~isnan(pos_scores));
+    neg_scores = neg_scores(~isnan(neg_scores));
+    
+    if isempty(pos_scores) || isempty(neg_scores)
+        AUC = NaN; SPEC = NaN; SENS = NaN; ACC = NaN; F80 = NaN;
+        return;
+    end
+    
+    % Create labels
+    labels = [ones(length(pos_scores), 1); zeros(length(neg_scores), 1)];
+    scores = [pos_scores; neg_scores];
+    
+    % Calculate ROC curve
+    [X, Y, T, AUC] = perfcurve(labels, scores, 1);
+    
+    % Plot ROC curve
+    plot(X, Y, 'b-', 'LineWidth', 2);
+    hold on;
+    plot([0 1], [0 1], 'k--', 'LineWidth', 1);
+    xlabel('False Positive Rate (1-Specificity)');
+    ylabel('True Positive Rate (Sensitivity)');
+    grid on;
+    
+    % Find optimal threshold (closest to top-left corner)
+    [~, opt_idx] = min((1-X).^2 + (1-Y).^2);
+    opt_thresh = T(opt_idx);
+    
+    % Calculate metrics at optimal threshold
+    pred_labels = scores >= opt_thresh;
+    TP = sum(pred_labels & labels);
+    TN = sum(~pred_labels & ~labels);
+    FP = sum(pred_labels & ~labels);
+    FN = sum(~pred_labels & labels);
+    
+    SENS = TP / (TP + FN);  % Sensitivity/Recall
+    SPEC = TN / (TN + FP);  % Specificity
+    ACC = (TP + TN) / (TP + TN + FP + FN);  % Accuracy
+    
+    % Calculate F-score at 80% sensitivity
+    [~, idx_80] = min(abs(Y - 0.8));
+    if ~isempty(idx_80)
+        thresh_80 = T(idx_80);
+        pred_80 = scores >= thresh_80;
+        TP_80 = sum(pred_80 & labels);
+        FP_80 = sum(pred_80 & ~labels);
+        FN_80 = sum(~pred_80 & labels);
+        
+        precision_80 = TP_80 / (TP_80 + FP_80);
+        recall_80 = TP_80 / (TP_80 + FN_80);
+        F80 = 2 * (precision_80 * recall_80) / (precision_80 + recall_80);
+    else
+        F80 = NaN;
+    end
+    
+    % Plot optimal point
+    plot(X(opt_idx), Y(opt_idx), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
+    legend('ROC Curve', 'Random', 'Optimal Point', 'Location', 'southeast');
+    title(sprintf('ROC Curve (AUC = %.3f)', AUC));
+end
+
+function d = cmig_tools_cohensd(m1, m2, s1, s2)
+    % Calculate Cohen's d effect size
+    % Inputs:
+    %   m1, m2: means of groups 1 and 2
+    %   s1, s2: standard deviations of groups 1 and 2
+    % Output:
+    %   d: Cohen's d effect size
+    
+    % Pooled standard deviation
+    sp = sqrt(((s1^2 + s2^2) / 2));
+    
+    % Cohen's d
+    d = (m1 - m2) / sp;
+end
+
+function r = nancorr(x, y)
+    % Calculate correlation ignoring NaN values
+    % Inputs:
+    %   x, y: vectors to correlate
+    % Output:
+    %   r: correlation coefficient
+    
+    % Remove NaN values
+    valid_idx = ~isnan(x) & ~isnan(y);
+    x_clean = x(valid_idx);
+    y_clean = y(valid_idx);
+    
+    if length(x_clean) < 2
+        r = NaN;
+        return;
+    end
+    
+    % Calculate correlation
+    r = corr(x_clean, y_clean);
+end
+
 
