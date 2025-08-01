@@ -59,9 +59,6 @@ p.addParameter('drawROI', false, @(x) islogical(x) || isnumeric(x));
 p.addParameter('parcellation', {}, @(x) iscell(x) || isstring(x));
 p.addParameter('roiNames', struct(), @isstruct);
 
-% Labels & naming
-%p.addParameter('Labels', {}, @(x) ischar(x) || isstring(x) || iscell(x));
-
 % Coordinate space option
 p.addParameter('CoordSpace', 'RCS', @(x) any(strcmpi(x, {'LPH','RCS'})));
 
@@ -113,18 +110,6 @@ if numel(fstem) == 1
 elseif numel(fstem) ~= nVols
     error('fstem must be a single string or match number of vols (%d).', nVols);
 end
-
-% % Expand labels if needed
-% if isempty(opts.Labels)
-%     opts.Labels = repmat({''}, 1, nVols);
-% elseif ischar(opts.Labels) || isstring(opts.Labels)
-%     opts.Labels = {char(opts.Labels)};
-% end
-% if numel(opts.Labels) == 1
-%     opts.Labels = repmat(opts.Labels, 1, nVols);
-% elseif numel(opts.Labels) ~= nVols
-%     error('Labels must be empty, one string, or match number of vols (%d).', nVols);
-% end
 
 % Orientation state
 orientation = handles.ORIENTATION;
@@ -180,12 +165,6 @@ for v = 1:nVols
 
     % Track duplicate fstem count for numbering
     dupCount = sum(strcmp(fstem(1:v), fstem{v}));
-
-    % % Label suffix
-    % labelSuffix = opts.Labels{v};
-    % if ~isempty(labelSuffix)
-    %     labelSuffix = ['_' labelSuffix];
-    % end
 
     %% --------------------
     % Coord loop
@@ -318,33 +297,8 @@ for v = 1:nVols
 
         drawnow; pause(0.3);
 
-        % % Save screenshot
-        % coord_str = sprintf('X%s_Y%s_Z%s', num2str(coord(1)), num2str(coord(2)), num2str(coord(3)));
-        % coord_str = strrep(coord_str, '-', 'N');
-        % switch handles.ORIENTATION
-        %     case 1
-        %         orientation_name = 'coronal';
-        %     case 2
-        %         orientation_name = 'sagittal';
-        %     case 3
-        %         orientation_name = 'axial';
-        %     otherwise
-        %         orientation_name = sprintf('orient%d', handles.ORIENTATION);
-        % end
-
-        % outdir_full = fullfile(outdir, coord_str, orientation_name);
-        % if ~exist(outdir_full, 'dir'), mkdir(outdir_full); end
-
-        % if dupCount > 1
-        %     fname_base = sprintf('%s%s_%02d', fstem{v}, labelSuffix, dupCount);
-        % else
-        %     fname_base = sprintf('%s%s', fstem{v}, labelSuffix);
-        % end
-
-        % fname_out = fullfile(outdir_full, [fname_base '.png']);
-
         % -------------------------
-        % FORMAT COORD STRING
+        % Save screenshots
         % -------------------------
         if strcmpi(opts.CoordSpace, 'RCS')
             % 3-digit padded for RCS (e.g., 096)
@@ -362,9 +316,6 @@ for v = 1:nVols
             coord_str = sprintf('X%s_Y%s_Z%s', coord_parts{:});
         end
 
-        % -------------------------
-        % ORIENTATION AS TOP DIR
-        % -------------------------
         switch handles.ORIENTATION
             case 1, orientation_name = 'coronal';
             case 2, orientation_name = 'sagittal';
@@ -375,9 +326,6 @@ for v = 1:nVols
         outdir_full = fullfile(outdir, orientation_name);
         if ~exist(outdir_full, 'dir'), mkdir(outdir_full); end
 
-        % -------------------------
-        % FILENAME CONSTRUCTION
-        % -------------------------
         vol_str = sprintf('vol%03d', v);
 
         if ~isempty(fstem{v})
@@ -390,7 +338,6 @@ for v = 1:nVols
 
         % Final PNG path
         fname_out = fullfile(outdir_full, [fname_base '.png']);
-
 
         shot = getframe(handles.axes1);
         imwrite(shot.cdata, fname_out);
