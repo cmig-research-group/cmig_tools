@@ -163,9 +163,6 @@ for v = 1:nVols
 
     V = handles.vols{handles.currentVol};
 
-    % Track duplicate fstem count for numbering
-    dupCount = sum(strcmp(fstem(1:v), fstem{v}));
-
     %% --------------------
     % Coord loop
     %% --------------------
