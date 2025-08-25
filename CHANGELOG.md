@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `FEMA/caller_FEMA_fit_GWAS.m`: caller function for compiled version of `FEMA_fit_GWAS`
 * `FEMA/caller_createBasisFunctions.m`: caller function for compiled version of `createBasisFunctions`
 * Help files created by `FEMA_exportDoc` to be used by compiled version of FEMA
+* `FEMA/FEMA_parse_contrastFile.m`: function that reads in a contrast file and constructs zero-padded univarate and multivariate contrasts
 
 ### Changed
 * `FEMA/FEMA_WaldTest.m`: additionally returns `LB_hat` and `LB_SE`
