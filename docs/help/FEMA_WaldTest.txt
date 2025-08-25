@@ -1,0 +1,95 @@
+ Function to compute multivariate Wald test given a set of parameters
+ Inputs:
+ L:            numeric (vector or matrix) or cell type containing weights 
+               to be used for Wald test; if cell type, each cell can 
+               contain a vector or matrix of weights; should be a [1 x p] 
+               vector or a [l x p] matrix, where p is the number of 
+               covariates and l is the number of linear combinations to be 
+               tested); weights will be zero-padded on the right side
+
+ beta_hat:     [p x v] matrix of estimated beta coefficients (such as from 
+               FEMA_fit) where p is the number of covariates and v is the 
+               number of voxels/vertices (y variable)
+
+ coeffCovar:   [p x p x v] matrix of estimated beta coefficient covariance
+               (such as from FEMA_fit) where p is the number of covariates
+               and v is the number of voxels/vertices (y variable)
+
+ hypValue:     numeric scalar or [1 x k] vector (where k is the number of 
+               cell in L) containing the hypothesised value against which 
+               the null hypothesis will be tested; defaults to zero (i.e., 
+               H0 = the linear combination of coefficients is zero); if 
+               a vector is specified, then the number of entries should be 
+               equal to number of cells in L (i.e., for every cell in L, 
+               a separate hypothesised value)
+
+ doF:          true or false indicating if F test should be conducted
+               instead of the default Wald test for and then use F
+               distribution for calculating the p values (default: false)
+
+ numObs:       [1 x 1] numeric value indicating how many observations were
+               present at the time of estimating beta_hat and coeffCovar;
+               used for calculating df2 (df2 = numObs - p); alternatively,
+               it is possible to provide a vector of [1 x k] values, where
+               k is the number of cells in L, indicating that for every
+               cell, a different number of observation / degree of freedom
+               should be used
+
+ Outputs:
+ W:            [k x v] vector of Wald statistics, where k is the number of
+               cells in the input L; if L was numeric, F is scalar
+
+ p:            [k x v] vector of p values, where k is the number of cells
+               in the input L; if L was numeric, p is scalar; this is the
+               p value under F or chi-squared distribution testing the
+               null hypothesis that the linear combination of coefficients
+               are equal to the hypothesised value (or zero)
+
+ logp:         [k x v] vector of log10 p values, where k is the number of
+               cells in the input L; if L was numeric, logp is scalar;
+               this is the log10 p value under F or chi-squared
+               distribution testing the null hypothesis that the linear
+               combination of coefficients are equal to the hypothesised
+               value (or zero); note that p values smaller than realmin
+               (2.2251e-308) are truncated to realmin and a warning
+               messsage is shown
+ 
+ LB_hat:       [k x 1] cell type where k is the number of cells in the
+               input L; this is the product of L and beta_hat (meaningful
+               for univariate contrasts which would be a scalar for every
+               outcome variable v)
+ 
+ LB_SE:        [k x 1] cell type where k is the number of cells in the
+               input L; this is the standard error for the evaluated
+               contrast, estimated as sqrt(diag({L * Cov * L'})) and
+               will be meaningful for univariate contrast which would be a
+               scalar for every outcome variable v
+
+ df:           [k x 1] vector of numerator degrees of freedom, where k is
+               the number of cells in the input L; if L was numeric, df1 
+               is a scalar; df1 = number of linearly independent rows in
+               L, determined as the rank of that weight matrix
+
+ L:            [k x 1] cell type containing the validated and zero-padded
+               contrats / weights (useful sanity check)
+
+ Notes:
+ MATLAB calculates the F statistics in the same way as the Wald statistics
+ calculated in this function; however, MATLAB additionally penalizes the F
+ by dividing it with the numerator degrees of freedom. Then, they perform
+ a lookup using a F distribution.
+ 
+ For univariate contrasts, sqrt(W) = LB_hat./LB_SE
+ 
+ N.B.: the p values (or -log10(p) values) returned from FEMA_WaldTest are
+ unsigned
+ 
+ Reference:
+ Fitzmaurice, G. M., Laird, N. M., & Ware, J. H. (2011). Applied 
+ longitudinal analysis (2nd ed.). Wiley Series in Probability and 
+ Statistics. John Wiley & Sons. [Page 98]
+
+ See also:
+ coefTest.m
+ Lines 524-599 of StandardLinearLikeMixedModel.m 
+ [23.2.0.2409890 (R2023b)Update 3]

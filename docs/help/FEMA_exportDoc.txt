@@ -1,0 +1,10 @@
+ Function that exports the header of all .m files in a specified inDir to
+ a plain text file in outDir, removing all occurrances of  and 
+ 
+ Assumes that documentation of an input file ends when we encounter
+ discontinuity in lines begining with 
+ 
+ Inputs:
+ inDir:        full path to an input directory having .m files
+ 
+ outDir:       full path to where the .txt files should be saved

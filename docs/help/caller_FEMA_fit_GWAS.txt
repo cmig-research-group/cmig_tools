@@ -1,0 +1,121 @@
+ Caller function for FEMA_fit_GWAS (compiled version)
+ Mandatory inputs:
+ ------------------
+ file_PLINK:       full path to a PLINK file (no extension)
+
+ file_FEMA_fit:    full path to output from caller_FEMA_fit (point to
+                   *_estimates.mat file)
+
+ GWASType:         should be one of the following (default: long_interact):
+                       * cross:            standard cross-sectional GWAS
+                       * cross_interact:   cross-sectional GWAS with
+                                           interaction of SNPs with basis
+                                           function
+                       * long:             standard longitudinal GWAS
+                       * long_interact:    longitudinal GWAS with
+                                           interaction of SNPs with basis
+                                           function
+ 
+ dirOutput:        full path to where the results should be written out
+ 
+ outPrefix:        prefix to the output file names (without extension;
+                   default: FEMA_GWAS-GWASType-yyyyMMMdd-HHmmSS)
+
+ Optional inputs (comma-separated name-value pairs):
+ ----------------------------------------------------
+ file_basisFunc:   full path to the output file(s) from calling 
+                   caller_createBasisFunctions (either point to the .mat
+                   file or the *-basisFunction.csv file); required for
+                   cross_interact and long_interact analyses (default: [])
+                   If this is a csv file, we assume that the files have
+                   header rows
+ 
+ appendMainEffect: true or false indicating if the main effect of SNP (an
+                   intercept term) should be appended as the first column
+                   of the basis functions specified in file_BasisFunc; if
+                   yes, the first estimate is the main effect of the SNP,
+                   followed by the estimates of the interaction terms; if
+                   not, the main effect is not estimated - this can be a
+                   scenario where the user has already appended the main
+                   effec of the SNP as part of the basis function OR can
+                   be a scenario where the basis functions were not SVD
+                   modified, therefore, the main effect is captured as
+                   part of the overall basis functions (default: true)
+
+ file_contrast:    full path to a contrast file relevant for GWAS: note
+                   that this file is different from the contrast file for
+                   fixed effects contrasts - this file should have column
+                   names corresponding to the basis functions (relevant
+                   for cross_interact and long_intereact GWAS types): by
+                   default, an omnibus eye(k) test is run, where k is the
+                   number of basis functions after accounting for
+                   appendMainEffect being true (default: [])
+ 
+ splitBy:          how should the genome be split-up for processing;
+                   should be one of the following (default: snp) 
+                       * 'snp'
+                       * 'chromosome'
+ 
+ chunkSize         if the genome is being split by SNPs, this controls the
+                   number of SNPs in each chunk (default: 1000)
+ 
+ meanImpute:       should missing SNPs be replaced with mean imputed
+                   values? If not, will resule in NaN (default: true)
+ 
+ roundOff:         after mean imputation, should the values be converted
+                   to 0/1/2 or left as fractions? (default: false)
+ 
+ transform:        should be one of the following:
+                       * 'center'
+                       * 'centre'
+                       * 'std'
+                       * 'none' (default)
+ 
+ stdType:          if transform is 'std', then should be one of the
+                   following (controls how the standardization happens): 
+                       * 'emperical' (default)
+                       * 'gcta'
+ 
+ pValType:         distribution for calculating p values; should be one of:
+                       * 'z' (default)
+                       * 't'
+                       * 'chi'
+ 
+ df:               degrees of freedom (required for computing the
+                   appropriately penalised mean squared error); the
+                   default is: size(ymat, 1) - (size(Xvars, 2) + numBasisFunc)
+ 
+ OLSflag:          true or false indicating if OLS solution should be used
+                   for estimating SNP effect (default: false)
+ 
+ doF:              true or false indicating if F test should be conducted
+                   instead of the default Wald test, and then use F
+                   distribution for calculating the p values (default: false)
+ 
+ doCoeffCovar:     if coefficient covariance for SNPs should be saved
+                   (default: false); note that this is false by default as
+                   the variable size can become quite massive; coefficient
+                   covariance is required for any post fitting contrast
+                   estimation
+ 
+ SingleOrDouble:   control the numerical precision; should be one of the
+                   following (default: setting that was used for FEMA_fit): 
+                       * 'double'
+                       * 'single'
+ 
+ doPar:            should parallel processing be used to process different
+                   chunks of the genome? (default: false)
+ 
+ numWorkers:       if doPar is true, how many parallel workers to start
+                   (default: 2)
+ 
+ numThreads:       if doPar is true, how many threads per parallel worker
+                   (default: 2)
+
+ To Do:
+ * Handle scneario where *_designMatrix file is not saved as part of
+ caller_FEMA_fit - this will require inputs of file_X, file_ymat,
+ re-intersecting the data, calling FEMA_parse_family to generate
+ clusterinfo, and then proceeding with analysis
+ 
+ * incorporate interaction by sex - what should be the input file?

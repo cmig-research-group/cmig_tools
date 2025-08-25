@@ -1,0 +1,115 @@
+ Function that presents voxel-wise FEMA-derived statistics - fixed or 
+ random effcts as a mosaic - sagittal, coronal, transverse, or multi-view 
+ with all three orientations
+ Inputs:
+ volData:      [R x C x P] 3D volume data containing voxel-wise statistics
+
+ cbarTxt:      text to be displayed with the colorbar
+
+ The following input arguments are optional:
+
+ maskBinary:   [R x C x P] 3D binary volume used for masking
+
+ orientation:  should be one of the following (see Notes):
+                   * 'sagittal'    [mosaic of sagittal orientation]
+                   * 'coronal'     [mosaic of coronal orientation]
+                   * 'transverse'  [mosaic of transverse orientation]
+                   * 'multi'       [mosaic of all three orientation]
+ 
+ slices:       vector of numbers indicating which slices to show 
+               (see Notes)
+ 
+ cmap:         name of the colormap to be used
+
+ climits:      vector having the lower and upper limits for the colorbar
+
+ cLocation:    location of colorbar; should be one of:
+                   * 'right' : colorbar on the right of the figure
+                   * 'bottom': colorbar at the bottom of the figure
+
+ bgColor:      an RGB vector specifying the background color of the
+               figure; the values should be between 0 and 1 
+
+ interp:       interpolation mode for imagesc which is used to generate
+               each slice; should be either of the following:
+                   * 'nearest'
+                   * 'bilinear'
+
+ Output(s):
+ fig:          handle to the figure containing all the slices; the figure
+               handle can then be used for further customization or saving
+               as an image
+
+ allH:         axis handles to each slice
+
+ Notes:
+ The 'orientation' variable controls which of the three views are shown as
+ a mosaic; if 'orientation' is specified as 'multi', the first row of the
+ mosaic contains sagittal view, the second row contains coronal view, and
+ the third row contains transverse view
+
+ When the orientation is set to 'multi' and the user wants to specify the
+ slices to be shown, then, 'slices' should be [3 x n] matrix where each 
+ row contains the slices to be selected for each of the three orientations 
+ (sagittal, coronal, and transverse - in this order); equal number of 
+ slices should be specified in each orientation. If, instead of [3 x n],
+ the user specifies [1 x n] slices, then the same slices are used for each
+ of the orientations
+
+ This script makes several assumptions - first, it assumes that input
+ image and the generated/specified mask are all in alignment with each 
+ other and have the same NIfTI header. Additionally, this script is 
+ written for ABCD images and assumes that the first dimension of the 
+ volume indexes the transverse slices, the second dimension of the volume 
+ indexes the sagittal slices, and the third dimension of the volume 
+ indexes the coronal slices. Further, it assumes that transverse slices 
+ need to be rotated clockwise by 90 degrees before visualization
+
+ If the background mask and the volData size do not match, the maskBinary
+ is either upsampled or downsampled - volData is untouched
+
+ Note that the interpolation flag controls the internal interpolation of
+ the image when slices are created using imagesc function; if the user
+ selects 'bilinear', there might be a visible lag in drawing, depending on
+ the number of slices, etc.
+
+ In some situations, the resulting figure can have a large amount of empty
+ space between each row of images (for example, when using multi-view for
+ a large number of slices); this can be edited, as needed, using the
+ returned figure handle
+
+ Examples:
+ Display Z statistics for the 10th fixed effect
+ FEMA_imageMosaic(vol_z(:, :, :, 10), '10th FFX');
+ 
+ Display 2nd random effect
+ FEMA_imageMosaic(vol_sig2(:, :, :, 2), '2nd RFX');
+
+ Display the 1st random effect, resclaed to original variance values
+ FEMA_imageMosaic(vol_sig2(:, :, :, 1) .* vol_sig2t, '1st RFX');
+
+ Save figure as a 900 DPI png image
+ fig = FEMA_imageMosaic(vol_sig2(:, :, :, 3) .* vol_sig2t, '3rd RFX');
+ print(fig, fullfile(outputDir, 'RFX_3.png'), '-dpng', '-r900');
+ close(fig);
+
+ Override the colorbar to parula
+ FEMA_imageMosaic(vol_z(:, :, :, 5), '5th FFX', [], [], [], 'parula');
+
+ Specify custom slices in coronal orientation 
+ FEMA_imageMosaic(vol_sig2(:, :, :, 2), '2nd RFX', [], 'coronal', [30, 40, 50]);
+
+ Specify custom slices in coronal orientation 
+ FEMA_imageMosaic(vol_sig2(:, :, :, 2), '2nd RFX', [], 'multi', 45:5:60);
+ 
+ Defaults:
+ orientation:      'multi';
+ maskBinary:       a whole brain mask based on ABCD atlas is created
+ slices:           five linearly spaced slices between 25 and 75
+ cmap:             'blueblackred' for data containing positive and
+                   negative values; 'fire' for data containing only 
+                   positive values
+ climits:          [min(volData), max(volData)]
+ cLocation:        'bottom'
+ bgColor:          [0 0 0] i.e., black background
+ interp:           'nearest'

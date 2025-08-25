@@ -1,0 +1,10 @@
+ Mvxl2lph_atlas return the canonical Mvxl2lph transform for current atlas
+
+   M = Mvxl2lph_atlas(atlas)
+
+ (Note, the M_atl field in many prerendered atlases is different: 
+   a) converts from voxel to RAS
+   b) has a center that is off by 1 mm
+
+   to convert this back to that format: M_LPH_TO_RAS*Mvxl2lph (e.g. to use if calling ctx_mgh2ctx)
+

@@ -1,0 +1,6 @@
+ Runs a mediation analysis (Sobel's test) on nested models using output from FEMA_wrapper.m (Sobel, 1990)
+ The mediation effect is calculated as (τ – τ'). This is the change in the magnitude of the effect that
+ the independent variable (IV) has on the dependent variable (DV) after controlling for the mediator.
+ `IVname` specifies the IV of interest.
+ The DV is always the imaging phenotype.
+ The mediator is the variable that is present in the full model but not the reduced model.

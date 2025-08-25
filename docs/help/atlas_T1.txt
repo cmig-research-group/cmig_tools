@@ -1,0 +1,13 @@
+ atlas_T1 return the T1 in ABCD 1mm atlas space
+
+  Convenience function. T1 is also available in PRI
+
+  vol_T1 = atlas_T1(atlas, mask)
+
+  atlas is one of 3.0_ABCD1_cor10, 4.0_ABCD2_cor10 or 5.0_ABCD3_cor10 (or unambiguous abbreviations, e.g. 5.0 or ABCD2: see validateAtlasVersion.m)
+
+ optional input (default true):
+   mask:     if false, return full T1, else returns skull-stripped T1 by default
+
+ demo:
+     showVol(atlas_T1('ABCD1',true),atlas_T1('ABCD2',true),atlas_T1('5.0_ABCD3',true))

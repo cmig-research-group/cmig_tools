@@ -1,0 +1,13 @@
+ Caller function for all FEMA modules (compiled version)
+ Inputs:
+ --------
+ moduleName:       should be one of the following (case in-sensitive):
+                   values separated by OR (|) are equivalent
+                       * help
+                       * FEMA_fit | fit
+                       * createBasisFunctions | createBF | makeBF
+                       * FEMA_fit_GWAS | GWAS | fitGWAS
+ 
+ Modules to be added/worked on
+ * makeContrasts | parseContrasts
+ * evaluateContrasts

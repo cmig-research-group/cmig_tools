@@ -1,0 +1,28 @@
+
+ Gathers outputs from FEMA_wrapper if it was run as multiple jobs (to maximise nperms)
+           1) Gathers outputs and saves them as one file in `outdir`
+           2) If `tfce` and `mostest_reg` args are passed, computes TFCE and MOSTest statistics
+           NB IMPORTANT: relies on having only one .mat file in each of the job directories
+
+ USAGE: ...
+
+ INPUTS
+   outdir <char>                 :  path to the output directory to save the gather data file
+   clusterjobs_outdir  <char>    :  directory (string) containing all job ouput directories to be concatenated
+   nperms                        :  total number of permutations
+
+ Optional input arguments:
+   mostest_reg <int> or 'auto'        :  regularization parameter for the MOSTest, see `FEMA_MOSTest.m` for more info
+                                               If not specified, MOSTest will not run.
+                                               If set to 'auto', the best parameter will be run (not yet implemented)
+                                                     Otherwise set to the chosen custom integer
+   calc_perm_pvals <bool>, default 1  :  whether to compute rank and extrapolated p-values from the permuted empirical distribution
+                                          uses `FEMA_perm_significance.m`
+
+ OUTPUTS
+   zmat_perm                     :  permutation matrix of z-scores
+   beta_hat_perm                 :  permutation matrix of beta coefficients
+   tfce_perm                     :  if TFCE has been run, will concatenate its values
+   save_params <struct>          :  structure output from FEMA_wrapper with parameters to save file with FEMA naming and directory conventions
+                                           N.B. - outputs will only be saved if save_params provided as an input
+

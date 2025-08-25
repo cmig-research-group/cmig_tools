@@ -1,0 +1,1 @@
+pd_pareto = paretotails(statvec,0,0.999);  Check what standard parameters are in PALM

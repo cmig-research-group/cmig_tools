@@ -1,4 +1,4 @@
-function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
+function [W, p, logp, LB_hat, LB_SE, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
 % Function to compute multivariate Wald test given a set of parameters
 %% Inputs:
 % L:            numeric (vector or matrix) or cell type containing weights 
@@ -54,6 +54,17 @@ function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, 
 %               value (or zero); note that p values smaller than realmin
 %               (2.2251e-308) are truncated to realmin and a warning
 %               messsage is shown
+% 
+% LB_hat:       [k x 1] cell type where k is the number of cells in the
+%               input L; this is the product of L and beta_hat (meaningful
+%               for univariate contrasts which would be a scalar for every
+%               outcome variable v)
+% 
+% LB_SE:        [k x 1] cell type where k is the number of cells in the
+%               input L; this is the standard error for the evaluated
+%               contrast, estimated as sqrt(diag({L * Cov * L'})) and
+%               will be meaningful for univariate contrast which would be a
+%               scalar for every outcome variable v
 %
 % df:           [k x 1] vector of numerator degrees of freedom, where k is
 %               the number of cells in the input L; if L was numeric, df1 
@@ -68,6 +79,11 @@ function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, 
 % calculated in this function; however, MATLAB additionally penalizes the F
 % by dividing it with the numerator degrees of freedom. Then, they perform
 % a lookup using a F distribution.
+% 
+% For univariate contrasts, sqrt(W) = LB_hat./LB_SE
+% 
+% N.B.: the p values (or -log10(p) values) returned from FEMA_WaldTest are
+% unsigned
 % 
 %% Reference:
 % Fitzmaurice, G. M., Laird, N. M., & Ware, J. H. (2011). Applied 
@@ -162,9 +178,10 @@ else
 end
 
 %% Initialize
-[W, p] = deal(zeros(numCells, numY));
-df     = zeros(numCells, 1);
-df2    = numObs - numX;
+[W, p]          = deal(zeros(numCells, numY));
+[LB_hat, LB_SE] = deal(cell(numCells, 1));
+df              = zeros(numCells, 1);
+df2             = numObs - numX;
 
 %% Calculate, for every cell
 for cc = 1:numCells
@@ -183,10 +200,16 @@ for cc = 1:numCells
     
         % Difference from hypothesised mean
         LB = LB - hypValue(cc);
+
+        % Save this value of LB_hat
+        LB_hat{cc,1}(:,yy) = LB;
     
         % Calculate W2 = (L * B)' * inv{L * Cov * L'} * (L * B)
         % W2 = LB' * ((L * coeffCovar(:,:,yy) * L') \ eye(numX)) * LB;
         innerTerm = (currWeights * coeffCovar(:,:,yy) * currWeights');
+
+        LB_SE{cc,1}(:,yy) = sqrt(diag(innerTerm));
+
         if rank(innerTerm) < size(innerTerm, 2)
             W(cc, yy) = (LB' *  (pinv(innerTerm) * LB));
         else

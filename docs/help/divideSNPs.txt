@@ -1,0 +1,49 @@
+ Function that divides SNPs into chunks or by chromosomes
+ Input(s):
+ bFile:        character       full path to a bFile without extension
+
+ Optional inputs: 
+ splitBy:      character       should be either of the following:
+                                   * 'snp' (default)
+                                   * 'chromosome'
+
+ chunkSize:    [1 x 1]         if splitBy is 'snp', then chunkSize
+                               indicates the number of SNPs in each chunk
+                               (defaults to 1000); if splitBy is
+                               'chromosome', then chunkSize is not
+                               relevant
+
+ outPrefix:    character       if specified, this prefix is used to create
+                               chunk wise output name; otherwise, defaults
+                               to either 'FEMA_GWAS_Chunk-' or
+                               'FEMA_GWAS_Chr-' depending on splitBy
+ 
+ Other inputs:
+ Parsing of bFile can be skipped if these are additionally input:
+ Chr:          [m x 1]         cell type having chromosome number for
+                               the m SNPs
+
+ SNPID:        [m x 1]         cell type having SNP ID for the m SNPs
+
+ BP:           [m x 1]         cell type having base pair coordinates
+                               for the m SNPs
+
+ genInfo:      structure       should contain the following fields:
+                                   * 'locSNPs'
+                                   * 'locIID'
+                                   * 'numSubjs'
+
+ Output(s):
+ splitInfo:    cell type       each cell contains a structure with the
+                               following fields for chunk/chromosome: 
+                                   * 'fname':   full path to PLINK file
+                                   * 'Locs':    index locations of SNPs
+                                   * 'Chr':     chromosome number of SNPs
+                                   * 'SNPs':    names of the SNPs
+                                   * 'BP':      base pair position
+                                   * 'outName': temporary name for saving
+                                                mat file for every part
+                                   * 'genInfo': contains 'locSNPs',
+                                                'locIID', and 'numSubjs'
+
+ timing:       structure       contains timing information

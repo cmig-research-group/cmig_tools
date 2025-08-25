@@ -1,0 +1,53 @@
+
+ Wrapper function to run whole FEMA pipeline:
+     1) To load and process imaging data (FEMA_process_data)
+     2) To intersect with design matrices (FEMA_intersect_design)
+     3) To run linear mixed effects models (FEMA_fit)
+     4) To save outputs in specified format
+
+ USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
+
+ INPUTS
+   fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
+   fname_design <cell>        :  cell array with path to file with design matrix saved (readable by readtable) --> if want to batch can add multiple filepaths as separate rows within fname_design as a cell array
+   dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include separate output directory as rows within dirname_out as a cell array
+   dirname_imaging <char>     :  path to imaging data directory
+   datatype <char>            :  'voxel','vertex','external', 'corrmat'
+                                   NB: Other than 'external' all code is written to expect ABCD data
+
+ Optional input arguments:
+   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
+   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
+   ranknorm <boolean>         :  rank normalise imaging data (default 0)
+   output <string>            :  'mat' (default) or 'nifti' or 'deap' or concatenations to write multiple formats.
+   ivnames <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
+   RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
+                                   family relatedness (F)
+                                   subject - required for longitudinal analyses (S)
+                                   error (E) - always required
+                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (pihat) for this option
+   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+   preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
+   address_file <char>        :  path to address data - default [] - only required if H random effect specified
+   nperms <num>               :  default 0 --> if >0 will run and output permuted effects
+   mediation <num>            :  default 0 --> if 1 will ensure same seed used for resampling of the two models used for a mediation analysis
+   niter <num>                :  input for FEMA_fit - default 1
+   nbins <num>                :  input for FEMA_fit - default 20 - number of bins across Y for estimating random effects
+   CovType <char>             :  input for FEMA_fit - default 'analytic' --> no other options currently available
+   FixedEstType <char>        :  input for FEMA_fit - default 'GLS' --> other option: 'OLS'
+   GroupByFamType <boolean>   :  input for FEMA_fit - default true
+   Parallelize <boolean>      :  input for FEMA_fit - default false
+   NonnegFlag <blooean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
+   SingleOrDouble <char>      :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
+   logLikflag <boolean>       :  input for FEMA_fit - default 0
+   permtype <char>            :  input for FEMA_fit - options:
+                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation
+                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
+   tfce <num>                 :  default 0 --> if 1 will run TFCE
+   colsinterest <num>         :  used to specify IVs of interest in design matrix (cols in X) for resampling output and tfce (default 1, i.e. 1st column of X) - only used if nperms>0
+
+ OUTPUTS
+   fpaths_out                 :  results will be saved here in the specified format
+   All other outputs are optional if user wants results to be output in the MATLAB workspace
+   All permutation outputs will be empty is nperms==0
+

@@ -1,0 +1,188 @@
+ Caller function for FEMA_fit (compiled version)
+ 
+ General specificaton
+ For inputs X and y (and associated inputs), rows are assumed to be
+ observations and columns are assumed to be variables
+ 
+ Generally, across all inputs, fid, iid, and eid are assumed to be string
+ variables (cell string)
+ 
+ To Do:
+ Support passing in FamilyStruct
+ Regarding contrasts: allow re-analysis on existing models
+ Save summary: n obs, ny, Rsquared, singularity, df, model fit?
+ Should we separate out permutation results? (problematic)
+ Support NIfTI (if variable of interest is passed, then do only those;
+               default: all)
+ 
+ Mandatory inputs:
+ ------------------
+ file_X:           full path to a .mat or a tab-delimited .csv file
+                   containing the design matrix and other information
+ 
+                     - if .mat, it should contain the following variables:
+                           * X:        the actual design matrix
+                           * fid:      the family ID for every observation
+                           * iid:      the individual ID for every observation
+                           * eid:      the event ID for every observation
+                           * agevec:   the age values for every observation
+                           * colnames: the names of each column in X
+ 
+                     - if .csv, the columns should be named as (in order):
+                           * fid:      the family ID for every observation
+                           * iid:      the individual ID for every observation
+                           * eid:      the event ID for every observation
+                           * agevec:   the age values for every observation
+                           * column 5 onwards should be design matrix variables
+
+ file_ymat:        full path to a .mat or a tab-delimited .csv file
+                   containing the outcome variables for which the model
+                   should be fitted (these will be intersected with the
+                   design matrix)
+ 
+                     - if .mat, it should contain the following variables:
+                           * iid:      the individual ID for every observation
+                           * eid:      the event ID for every observation
+                           * ymat:     the matrix of outcome variables
+ 
+                     - if .csv, the columns should be named as (in order): 
+                           * iid:      the individual ID for every observation
+                           * eid:      the event ID for every observation
+                           * column 3 onwards should be the outcome variables
+
+ dir_output:       full path to where the results will be written out
+ 
+ outPrefix:        prefix to the output file names (without extension;
+                   default: FEMA_fit-yyyyMMMdd-HHmmSS)
+
+ Optional inputs (comma-separated name-value pairs):
+ ----------------------------------------------------
+ 
+ niter:            number of iterations (default: 1)
+
+ contrasts:        full path to a tab-delimited csv file that specifies
+                   the contrast (default: [], i.e., no contrasts): 
+                     - first row: name of the variables in the design
+                                  matrix: if file_X was a mat file, these
+                                  names should correspond to colnames; if
+                                  file_X was a csv file, these names
+                                  should match the names of the columns
+                                  from column 5 onwards
+                     - second row onwards should be weight values
+                     - first col: 'Type' which specifies 'u' or 'm'
+                                   followed by a number indicating which
+                                   rows are univariate contrasts and which
+                                   are multivariate contrasts
+                   See, FEMA_parse_contrastFile for specification of the
+                   contrast file
+
+ nbins:            bin spacing (default: 20); set to zero to disable
+                   binning; the nbins parameter controls which y variables
+                   will be "binned" when performing the GLS estimation for
+                   the fixed effects; a bin spacing of 20 translates to a 
+                   spacing of 1/20 = 0.05; outcome variables with
+                   estimated random effects in this range will be binned
+                   together for GLS estimation
+ 
+ GRMfile:          full path to a .mat or .bin file that specifies how
+                   genetically related are the individuals in the study
+                   (default: [], i.e., no GRM file is specified)
+                     - if .mat, it should have the following variables:
+                           * GRM:      matrix of genetic relatedness
+                           * iid_list: ordering of individuals in the GRM
+ 
+                     - if .bin, it should have a a corresponding .csv file
+                       with the same basename in the same location; this
+                       additional file should be a single column (no
+                       column name) which contains the iid_list
+
+ RandomEffects:    list of random effects to estimate (default: {'F', 'S', 'E'}); 
+                   the following random effects are supported:
+                       * F:  family relatedness
+                       * S:  subject effect
+                       * E:  error - always required, added if missing
+                       * A:  additive genetic relatedness - must include
+                             file path to GRM file
+                       * D:  dominant genetic relatedness - square of A
+                       * M:  maternal effect - effect of having same mother
+                       * P:  paternal effect - effect of having same father
+                       * H:  home effect - effect of living at the same address
+                       * T:  twin effect - effect of having the same pregnancy ID
+
+                   If random effect includes 'M', 'P', 'H', or 'T'
+                   effects, an additional tab-delimited two-column csv
+                   file is required for each of these:
+                       * For 'M' effect:
+                           * iid:          individual ID
+                           * MotherID:     mother ID
+                       * For 'P' effect:
+                           * iid:          individual ID
+                           * FatherID:     father ID
+                       * For 'H' effect:
+                           * iid:          individual ID
+                           * HomeID:       address/home ID
+                       * For 'T' effect:
+                           * iid:          individual ID
+                           * PregID:       pregnancy ID
+
+                   The above 'M', 'P', 'H', and 'T' input files should be
+                   passed in as name-value pairs 'MotherID', 'FatherID',
+                   'HomeID', and 'PregID' respectively (which contain the
+                   above columns)
+  
+ nperms:           number of permutations to run (default: 0, i.e., no
+                   permutations will be performed)
+
+ CovType:          should be one of the following (default: analytic):
+                       * 'analytic':       compound symmetry
+                       * 'unstructured':   unstructured covariance
+ 
+ FixedEstType:     should be one of the following (default: GLS):
+                       * 'GLS':    generalised least squares
+                       * 'OLS':    ordinary least squares
+ 
+ RandomEstType:    should be one of the following (default: MoM):
+                       * 'MoM':    method of moments
+                       * 'ML':     maximum likelihood
+ 
+ GroupByFamType:   should grouping by family type be used (default: true);
+                   only relevant for F, S, and E random effects
+ 
+ NonnegFlag:       apply non-negativity constraint on random effects
+                   estimation (default: true)
+ 
+ SingleOrDouble:   control the numerical precision; should be one of the
+                   following (default: double): 
+                       * 'double'
+                       * 'single'
+ 
+ logLikflag:       flag to computate log-likelihood (default: false)
+ 
+ PermType:         controls the type of permutation; should be one of:
+                       * 'wildbootstrap':    null bootstrap: creates null
+                                             distribution by randomly
+                                             flipping the sign of each
+                                             observation
+                       * 'wildbootstrap-nn': non-null boostrap: estimates
+                                             distribution around effect of
+                                             interest using sign flipping
+                                             (used for sobel test)
+ 
+ returnReusable:   controls return of additional variables (default:
+                   true); if true, returns a structure with some
+                   variables that can be reused (primarily by FEMA-GWAS)
+ 
+ doPar:            should parallel processing be used for GLS solution
+                   (only applicable if CovType is unstructured; default:
+                   false)
+ 
+ numWorkers:       if doPar is true, how many parallel workers to start
+                   (default: 2) 
+ 
+ numThreads:       if doPar is true, how many threads per parallel worker
+                   (default: 2)
+ 
+ saveDesignMatrix: if true, filtered X variable and ID lists are written
+                   out as a separate mat file (default: false)
+ 
+ Start

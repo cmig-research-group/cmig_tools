@@ -1,0 +1,25 @@
+JSYSTEM Execute a shell command
+   Executes a shell command as a subprocess using java's ProcessBuilder
+   class. This is much faster than using the builtin matlab 'system'
+   command.
+
+   Input arguments:
+   cmd -   A string, command to execute (with args and any shell
+           directives), e.g. 'ls -al /foo | grep bar > baz.txt'
+   shell - Optional. If specified and not empty, can be either a path of the shell to
+           invoke (e.g. '/bin/zsh') or the string 'noshell' in which case the command
+           will be run directly. In case this argument is omitted or empty,
+           defatuls to '/bin/sh -c' on linux/mac or 'cmd.exe /c' on windows.
+   dir -  Optional. Working directory for the process running the command.
+          If omitted defaults to the current matlab working
+          directory.
+
+   Output arguments:
+   res - The result code returned by the process.
+   out - The output of the process (stdout).
+   err - The stderr output of the process.
+
+   Global settings:
+   jsystem_path - Set this global variable to a cell array of paths that
+   will be prefixed to the PATH enviroment variable of the process running
+   the command. Example: global jsystem_path; jsystem_path = {'/foo', '/bar/baz'};

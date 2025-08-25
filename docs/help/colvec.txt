@@ -1,0 +1,1 @@
+ v = reshape(M,[prod(size(M)) 1]);

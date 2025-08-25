@@ -1,0 +1,4 @@
+ Function called from within FEMA_fit
+
+ Parse family relatedness to create working covariance for estimation of random effects
+ If outputEB==1 will also create exchangeability blocks for permutation testing using PALM (PALM code needed in path) --> code specific to ABCD data family structure

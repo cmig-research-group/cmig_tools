@@ -1,0 +1,8 @@
+
+   vol_rgb = vol_color_overlay(vol_ovl, cm, crange, vol_bg_rgb)
+
+ 10/20: JRI: if crange has 3rd value [tmin tmax tthresh], use it as a threshold for displaying stat results only > abs(crange(3))
+ colormap can have 4th, alpha column
+
+   [vol_rgb, cmap] = vol_color_overlay(vol_ovl, cm, crange, vol_bg_rgb)
+     optionally return the colormap

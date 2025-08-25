@@ -1033,10 +1033,16 @@ for permi = 0:nperms
                 % Initialize parallel pool
                 pool = gcp('nocreate');
                 if isempty(pool)
+                    tInit            = tic;
                     delPool          = true;
                     local            = parcluster('local');
                     local.NumThreads = numThreads;
                     pool             = local.parpool(numWorkers);
+
+                    % Save time taken to create parallel pool
+                    if returnReusable
+                        reusableVars.tCreatePool = toc(tInit);
+                    end
                 else
                     delPool          = false;
                 end
@@ -1053,8 +1059,14 @@ for permi = 0:nperms
 
                 % Delete parallel pool
                 if delPool
+                    tInit = tic;
                     delete(pool);
                     clear local;
+
+                    % Save time taken to delete parallel pool
+                    if returnReusable
+                        reusableVars.tDeletePool = toc(tInit);
+                    end
                 end
             else
                 for yy = 1:num_y

@@ -1,0 +1,5 @@
+function [ctx_vol,mr_parms,volsz] = ctx_load_mgh(fname)
+
+ early mod: 02/29/08 by Don Hagler
+ last mod:  12/11/10 by Don Hagler
+

@@ -1,0 +1,42 @@
+ Function to compute the weighted combination of beta coefficients and its
+ derivatives following a a FEMA analysis using spline basis functions
+
+ Inputs:
+ basisSubset:      [b x q]     matrix of q basis functions output by
+                               createBasisFunctions.m
+
+ Xvars:            [b x 1]     vector of X values over which basis
+                               functions were evaluated; output by
+                               createBasisFunctions.m
+
+ beta_hat:         [p x v]     array of p beta estimates for v variables
+
+ coeffCovar:       [p x p x v] estimated coefficient covariance matrix
+
+ colnums_bf:       [numeric]   column number(s) of beta_hat corresponding
+                               to basis functions
+
+ colnum_intercept: [numeric]   column number of beta_hat corresponding to
+                               the intercept
+
+ Outputs:
+ beta_bf:          [b x v]     array of values showing fitted spline 
+                               trajectories for different values of Xvars
+                               (weighted sum of beta coefficients)
+
+ SEmat_bf:         [b x v]     array of standard errors of mat_bf
+
+ Zmat_bf:          [b x v]     array of Z scores of mat_bf
+
+ beta_dbf:         [b x v]     array of values showing derivatives of
+                               spline estimates for different values of
+                               Xvars (weighted sum of betas for the
+                               derivatives of the splines)
+
+ SEvols_dbf:       [b x v]     array of standard error of mat_dbf
+
+ Zvols_dbf:        [b x v]     array of Z scores of mat_dbf
+
+ Notes:
+ Adapted from FEMA_convert_splinevols but the ordering of both the inputs
+ and the outputs is different

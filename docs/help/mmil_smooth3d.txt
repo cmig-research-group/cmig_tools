@@ -1,0 +1,6 @@
+function vol_out = mmil_smooth3d(vol_in,sig1,sig2,sig3)
+
+ Created:   03/09/10 by Don Hagler based on code from Anders Dale
+ Rcnt Mod:  05/21/12 by Don Hagler
+ Last Mod:  09/14/12 by Don Hagler
+

@@ -1,0 +1,30 @@
+ Compile Ws term for every bin
+ Inputs:
+ clusterinfo:      [1 x f]     cell type of f families/clusters, returned
+                               as an output from FEMA_parse_family
+ 
+ binvec:           [1 x b]     vector of b bin values
+ 
+ sig2mat:          [r x v]     estimates of r random effects across v
+                               voxels in case of analytic covariance type
+                               OR visit * visit * r random effects across
+                               v voxels in case of unstructured covariance
+
+ RandomEffects:    [1 x r]     cell having names of the r random effects
+
+ famtypevec:       [1 x f]     vector of family types
+ 
+ GroupByFamType:   logical     whether to GroupByFamType or not
+
+ CovType:          character   should be either:
+                                   * 'analytic' (compound symmetry)
+                                   * 'unstructured'
+ 
+ SingleOrDouble:   character   single or double precision
+
+ visitnum:         [e x 1]     event number as output from FEMA_fit
+                               (required if CovType is unstructured)
+
+ Output(s):
+ allWsTerms is a cell type containing invers of the "V" term for each bin;
+ additionally, timing for compiling terms is output as a structure

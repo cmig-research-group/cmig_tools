@@ -1,0 +1,124 @@
+ Function to create basis functions, given a set of values, knot values 
+ and other parameters - supports creation of natural cubic splines (ns), 
+ B-splines (bs), and natural cubic splines with unit heights at knots
+ (nsk): ns and bs functions are created using the splines package in R 
+ while nsk are created either using an implementation in MATLAB or using
+ the splines2 package in R
+
+ The default approach is to create nsk splines using MATLAB
+
+ The approach for creating basis functions:
+ 1) Calculate min and max for the values in valvec
+ 2) Create a linearly spaced vector of 100 values between the min and max
+ 3) Create basis functions
+ 4) Linearly regress out the powers of X variables (if required)
+ 5) Perform SVD on the demeaned residuals / basis functions (if required)
+ 6) Perform interpolation and scale data back to the values in valvec
+ 7) Delete any temporary files created along the way
+
+ The powers in step 4 refers to the powers of the vector created in step 2
+ 
+ Inputs:
+ valvec:           vector of values for which basis functions need to be
+                   created (for example, age / time)
+
+ knots:            vector of values which serve as knots
+
+ splineType:       character; one of the following:
+                       * 'nsk'   (natural cubic splines with unit heights at knots)
+                       * 'nsk-R' (natural cubic splines with unit heights at knots created using nsk in R)
+                       * 'ns'    (nautral cubic splines)
+                       * 'bs'    (B-splines)
+
+ Xpowers:          vector indicating which powers of the linearly spaced
+                   variables should be regressed from the basis functions;
+                   for example, 0:1 would mean regressing out the
+                   intercept and the linear effect of the variable; 0:2
+                   would mean regressing out the intercept, the linear
+                   effect, and the quadratic effect of the variable
+
+ method:           character; one of the following (see Notes):
+                       * 'svd'
+                       * 'raw'
+ 
+ outDir:           full path to where the output file should be 
+                   temporarily saved; if empty, pwd is used
+
+ minMax:           numeric vector: if a single value is provided, this is
+                   the number of linearly spaced values that will be
+                   created; if two values are provided, these are the
+                   minimum and the maximum values which are used for
+                   creating a vector linearly spaced values; if three
+                   values are provided, the third value is used as the
+                   number of linearly spaced values; if left empty, the
+                   min and max of valvec is used
+
+ intercept:        logical; indicates if intercept should be used during
+                   the creation of the splines (this parameter is specific 
+                   to R - adding an intercept is not the same as adding a
+                   constant to the basis functions)
+
+ optCommand:       optional command(s) to be issued prior to invoking
+                   R; useful, for example, on cluster environments where
+                   modules may need to be loaded before R is accessible
+
+ optAppend:        optional command to be appended to the call to
+                   'Rscript' - for example, '/usr/local/bin/' can be
+                   appended prior to 'Rscript', if Rscript is not on PATH
+
+ cleanUp:          logical; if true, deletes all temporary files that were
+                   created along the way
+
+ instance:         numeric; useful if function is being called in parallel
+                   to ensure independence of each call (and that files are
+                   not deleted, etc.)
+
+ Output(s):
+ basisFunction:    a matrix containing the spline basis functions
+
+ basisSubset:      the basis functions prior to interpolation to full data
+
+ Xvars:            the linearly spaced vector used to create basisSubset
+ 
+ bfRank:           rank of the basis functions (useful sanity check)
+
+ settings:         structure containing some of the settings used for
+                   creating the basis functions (useful for posteriety)
+ 
+ timing:           structure containing time taken by various steps
+
+ Defaults:
+ knots:            0, 25, 50, 75, and 100th percentiles (if using MATLAB);
+                   otherwise 25, 50, and 75th percentiles; note that
+                   percentiles are calculated of the valvec
+ splineType:       'nsk'
+ Xpowers:          []
+ intercept:        true
+ method:           'svd'
+ outDir:           pwd
+ minMax:           min of valvec, max of valvec
+ optCommand:       ''
+ optAppend:        ''
+ cleanUp:          true
+ instance:         1
+ 
+ Notes:
+ There are two supported methods:
+
+ svd:              first, the basis functions are created; then, the
+                   powers of the uniformly spaced vector are regressed
+                   out; next, the residualized basis functions are
+                   column-wise mean centered, followed by creating their
+                   orthonormal basis (using singular value decomposition;
+                   this might drop one or more basis functions); these are
+                   then scaled to have values between 0 and 1; finally,
+                   the values are interpolated to generate the basis
+                   function for the full data
+ 
+ raw:              this returns the output as such; the basis functions
+                   are computed for the linearly spaced vector, powers are
+                   regressed out (if the user specifies so), and then the
+                   values are interpolated to generate the basis functions
+                   for the full data
+
+ Start global timer

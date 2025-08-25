@@ -1,0 +1,33 @@
+function parms = mmil_args2parms(options, options_schema, [strict])
+
+ Purpose:
+   Take a set of argument-value pairs and a set of argument-value
+   defaults, and create a 'parms' structure where all arguments are fields
+   of the parms object.
+
+ Input Arguments:
+   options         : the 'optional arguments' from a function
+   options_schema  : cell array containing 3 values per known 'option':
+                     - option name
+                     - default value
+                     - allowed values
+                         vector of true/false values
+                         vector of min/max values
+                         vector of allowed values (more than 2 elements)
+                         cell array of allowed values
+                         empty to specify no limitations.
+  strict           : whether to fail if options not specified in the
+                       options_schema are found.
+   {default = true}
+
+ Output Arguments:
+   parms           : structure containing named options as fields
+
+ NOTE: do not pass empty cell {} for default value
+
+ See also: mmil_parms2args
+
+ Created:  07/15/07 by Ben Cipollini 
+ Prev Mod: 10/09/13 by Don Hagler
+ Last Mod: 06/01/17 by Don Hagler
+

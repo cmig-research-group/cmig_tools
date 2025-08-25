@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [Unreleased - 2025-08-25]
+### Added
+* `FEMA/FEMA_exportDoc.m`: function that exports headers as text file
+* `FEMA/caller_FEMA.m`: main caller function for compiled version of FEMA
+* `FEMA/caller_FEMA_fit.m`: caller function for compiled version of `FEMA_fit`
+* `FEMA/caller_FEMA_fit_GWAS.m`: caller function for compiled version of `FEMA_fit_GWAS`
+* `FEMA/caller_createBasisFunctions.m`: caller function for compiled version of `createBasisFunctions`
+* Help files created by `FEMA_exportDoc` to be used by compiled version of FEMA
+
+### Changed
+* `FEMA/FEMA_WaldTest.m`: additionally returns `LB_hat` and `LB_SE`
+* `FEMA/FEMA_fit.m`: additionally record time taken to create and delete a parallel pool
+* `cmig_tools_utils/matlab/divideSNPs.m`: added option to pass in an output prefix
+
+## [Unreleased - 2025-08-13]
+### Added
+* `showVol/utils/rcs2rcs.m`: function to convert rcs coordinates of one image to another
+
+## [Unreleased - 2025-08-01]
+### Added
+* multiple helper functions for `save_showVol_images`:
+    - `showVol/utils/anatomyDrawRoiOutline_save_images.m`
+    - `showVol/utils/anatomyAddRoiOverlay_save_images.m`
+
+### Changed
+* `‎showVol/utils/save_showVol_images.m`: added option for ROI outlining and taking screenshots
+
+## [Unreleased - 2025-07-30]
+### Changed
+* `‎showVol/showVol.m`: added option for selecting orientation for initial view
+
 ## [Unreleased - 2025-07-13]
 ### Changed
 * `‎showSurf/showSurfPlot`: allow controlling for subplot number and dimension

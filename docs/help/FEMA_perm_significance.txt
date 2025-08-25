@@ -1,0 +1,3 @@
+ This function computes uncorrected and corrected log10 p-values based on the resampled
+ empirical null distrbution output from FEMA_fit. This function can be used to estimate
+ p-values from any matrix of permuted statistics e.g. zmat_perm, tfce_perm

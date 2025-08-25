@@ -1,0 +1,51 @@
+function vol_out = mmil_dilate_mask(vol_in,[options])
+
+ Purpose: fill and dilate a mask volume through smoothing and thresholding
+
+ Usage: vol_out = mmil_dilate_mask(vol_in,'key1', value1,...);
+
+ Required Input:
+   vol_in: input mask volume (ctx format)
+     Can be [] if 'fname_in' is specified
+
+ Optional Input:
+  'fname_in': full path of input mask volume file (e.g. brain.mgz, aseg.mgz)
+    If supplied, vol_in is ignored and fname_in is loaded instead
+    {default: []}
+  'fname_out': full path of output mask volume file
+    If supplied, vol_out is saved as fname_out
+    {default: []}
+  'thresh0': threshold applied to mask before first smoothing step
+    {default: 0.01}
+  'smooth1': smoothing sigma (mm) for initial fill step
+    (set to 0 for no fill)
+    {default: 10}
+  'thresh1': threshold applied to mask after first smoothing step
+    (if smooth1=0, this is ignored)
+    {default: 0.5}
+  'smooth2': smoothing sigma (mm) for second dilation step
+    (set to 0 for no dilation)
+    {default: 30}
+  'thresh2': threshold applied to mask after second smoothing step
+    (if smooth2=0, this is ignored)
+    {default: 0.5}
+  'smooth3': smoothing sigma (mm) for third dilation step
+    (set to 0 for no dilation)
+    {default: 5}
+  'thresh3': threshold applied to mask after third smoothing step
+    sets small values to zero, but does not binarize mask
+    (if smooth3=0, this is ignored)
+    {default: 0.01}
+  'erode_flag': allow mask erosion by not resetting original values
+     after smoothing and thresholding
+    {default: 0}
+  'forceflag': [0|1] whether to overwrite existing fname_out
+    Ignored if fname_out is empty
+    {default: 0}
+
+ Output:
+   vol_out: output mask volume (ctx format)
+
+ Created:  06/08/09 by Don Hagler
+ Last Mod: 02/15/11 by Don Hagler
+

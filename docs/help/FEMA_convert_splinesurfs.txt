@@ -1,0 +1,37 @@
+ Function to convert the test statistics of a FEMA analysis using spline
+ basis functions to a 4D surf variable.
+ Inputs:
+ basisSubset:   table of basis functions output by createBasisFunction (typically loaded using readtable)
+
+ Xvars:        vector of x values over which basis functions are evaluated output by creasteBasisFunctions.m;
+               length is equal to number of rows in basisSubset
+
+ beta_hat:      array of beta estimates from FEMA output; 
+
+ colnums_bf:   column numbers of beta_hat corresponding to basis functions
+
+ colnum_intercept: column number of beta_hat corresponding to intercept
+
+ Xvars:         vector of x values over which basis functions are evaluated;
+               length is equal to number of rows in basisSubset
+
+ mask:         binary mask of vertices to be included. 
+
+ coeffCovar:   estimated coefficient covariance matrix
+
+ outpath:      optional; path to location to save nifti file; if empty, 
+               file will not be saved
+
+ Outputs:
+ surf_dbf:     derivatives of spline estimates for different values of Xvars
+
+ semat_dbf:   standard error of the derivative of the spline estimates for each value of Xvars
+
+ zmat_dbf:    z-scores of the derivative of the spline estimates
+
+ surf_bf:      the spline estimates (not their derivatives) for different values of Xvars
+
+ semat_bf:    the standard error of the spline function itself
+
+ zmat_bf:     z-scores of the spline estimates
+

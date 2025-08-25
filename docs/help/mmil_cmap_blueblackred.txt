@@ -1,0 +1,5 @@
+function map = mmil_cmap_blueblackred()
+
+ Created:  01/25/07 by Don Hagler
+ Last Mod: 09/27/12 by Don Hagler
+

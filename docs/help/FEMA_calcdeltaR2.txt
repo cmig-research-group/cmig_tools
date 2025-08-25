@@ -1,0 +1,1 @@
+ Delta R2 = difference between variance explained of full compared to reduced model

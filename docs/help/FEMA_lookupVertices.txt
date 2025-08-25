@@ -1,0 +1,55 @@
+ Function to generate vertex-wise lookup tables, given a set of
+ FEMA-generated statistics
+ Inputs:
+ stats:            [n x v]     beta_hat, sig2mat, or sig2mat .* sig2tvec 
+                               output by FEMA having n number of 
+                               coefficients and v number of vertices
+
+ zValues:          [n x v]     Z scores output by FEMA (optional; used for
+                               generating p values); should be empty if 
+                               stats are variance components
+
+ seValues:         [n x v]     SE values output by FEMA (optional); should
+                               be empty if stats are variance components
+ 
+ coeff:            [1 x k]     vector of coefficients of interest (where k 
+                               is a subset of n)
+ 
+ pThresh:          [1 x 1]     number indicating the p value threshold 
+                               (only used when stats are beta values);
+                               can also be 'none'
+ 
+ dir_Freesurfer:               full path to a location where the atlas
+                               files i.e., 'lh.aparc.annot' and 
+                               'rh.aparc.annot' are saved
+
+ Output(s):
+ lookup:           [k x 1]     cell type having statistics and lookup
+                               information for the k coefficients; the 
+                               contents of the cell are table type
+
+ Notes:
+ It is critical that the input stats variable has the correct number of
+ vertices as this number is used to subset the vertices in the annotation
+ files - v/2 number of vertices are considered
+
+ Performs labeling using the DK40 atlas
+
+ If dir_Freesurfer is passed, then the Freesurfer function 
+ 'read_annotation' should be on the MATLAB path
+ 
+ p value threshold is applied using a less than operation; specifically, 
+ the two sided p-values (if Z values are provided) are calculated as:
+ pvals = normcdf(-abs(zValues(coeff,:)))*2;
+ and then all p values which are less than the p value threshold are
+ considered
+ 
+ If no threshold operation is applied and/or random effects are being
+ summarized, then it is possible that one or more vertices do not have a
+ valid lookup label
+
+ Defaults:
+ zValues:          []
+ coeff:            1:v
+ pThresh:          'none'
+ dir_Freesurfer:   automatically generated using $FREESURFER_HOME

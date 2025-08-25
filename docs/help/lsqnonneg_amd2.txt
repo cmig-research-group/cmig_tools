@@ -1,0 +1,1 @@
+  fprintf(1,'comboi=d of d (now=s)\n',comboi,ncombos,datestr(now));

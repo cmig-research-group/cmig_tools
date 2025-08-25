@@ -1,0 +1,75 @@
+ Compute a generic pivotal statistic G for inference when
+ testing a general linear hypothesis.
+
+ Usage:
+ G = pivotal(M,psi,res,C,VG,Y);
+
+ Inputs for a full model specification:
+ M       : A n by r design matrix.
+ psi     : A r by m matrix of regression coefficients
+           (already fitted). For the univariate case, m=1.
+ res     : A n by m matrix with the residuals from the
+           model fit.
+ C       : A r by s contrast matrix for the full model.
+ VG      : A n by 1 vector where each unique value indicate
+           a variance group.
+ Y       : (Optional) A n by m matrix of observations. If Y
+           is supplied, the variance weights will be those of
+           James (1951) and Welch (1951). Otherwise, the weights
+           are those of Horn et al (1975), which are superior.
+
+ Outputs:
+ G       : A 1 by m vector with the statistic for testing
+           the null hypothesis that C'*psi(:,c) = zeros(s,1)
+           for the c-th of the m columns of psi, or that
+           beta(:,c) is zero.
+ df2     : Degrees of freedom #2. Df1 is simply rank(C).
+
+ The partitioned model, using X and Z, can be provided as:
+ G = pivotal([X Z],[beta; gamm],res,...
+        [eye(size(X,2)); zeros(size(Z,2),size(C,2))],VG,Y);
+
+ The statistics that are computed by default depend on
+ rank(C) and on the number of unique elements of VG:
+ - If numel(unique(VG)) == 1, then a traditional F or
+   Student's t statistic is computed, with the error
+   variance being pooled.
+ - If numel(unique(VG)) > 1, then the James, Welch's v^2 or
+   v is computed, so that the variances for each variance
+   group are not pooled.
+ - If rank(C) == 1, the Student's t or Welch's v is returned.
+ - If rank(C) > 1, the F or v^2 statistic is returned.
+
+
+                  +------------------+----------------------+
+                  |  Pool variances  |  Not pool variances  |
+ +----------------+------------------+----------------------+
+ | rank(C) > 1    |     F-ratio      | Welch's v^2 or James |
+ +----------------+------------------+----------------------+
+ | rank(C) == 1   |   Student's t    |       Welch's v      |
+ +----------------+------------------+----------------------+
+
+ References:
+ - Winkler AM, Ridgway GR, Webster MG, Smith SM, Nichols TE.
+   Permutation inference for the general linear model.
+   Neuroimage. 2014;92:381-97.
+ - James G. The comparison of several groups of observations when
+   the ratios of the population variances are unknown.
+   Biometrika, 1951;38(3):324-329.
+ - Welch B. On the comparison of several mean values: an
+   alternative approach. Biometrika, 1951;38(3):330-336.
+ - Horn SD, Horn RA, Duncan DB. Estimating heteroscedastic
+   variances in linear models. Journal of the American
+   Statistical Association, 1975;70(350):380-385.
+ - MacKinnon JG, White H. Some heteroscedasticity-consistent
+   covariance matrix estimators with improved finite sample
+   properties. Journal of Econometrics, 1985;29(3):305-325.
+ - Christensen R. Plane Answers to Complex Questions: The
+   Theory of Linear Models. Springer, 2002.
+
+ _____________________________________
+ Anderson M. Winkler
+ FMRIB / University of Oxford
+ Jul/2013 (first version)
+ Aug/2014 (this version)
+ http://brainder.org

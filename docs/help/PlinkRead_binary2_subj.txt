@@ -1,0 +1,19 @@
+ Function to read PLINK bed file and return int8 type genotyping data,
+ given a list of SNPs and a list of subjects to parse
+ Inputs:
+ nsubj:        total number of subjects in the file
+ snps:         a sorted list of SNP locations to fetch
+ subjLoc:      a list of subject locations to fetch
+ fileprefix:   full path to a PLINK bed file (without extension)
+
+ Output(s):
+ genomat:      a subjLoc x snps matrix containing genotyping information,
+               such that -1 indicates missing data, 0 indicates homozygous 
+               recessive, 1 indicates heterozygous, and 2 indicates 
+               homozygous dominant
+
+ Notes:
+ Based on PlinkRead_binary2 written by Chun 2015
+ The code expects a sorted list of SNPs - this restriction could be
+ circumvented as all fseek calls are with reference to the beginning of
+ the file
