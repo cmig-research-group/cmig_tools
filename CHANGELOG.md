@@ -41,10 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 * `‎showSurf/showSurfPlot`: allow controlling for subplot number and dimension
 * renamed `ABCD_DEMOS` to `recipes`
+* `FEMA/FEMA_classify.m`: fixed missing dependencies (plot_ROC, cmig_tools_cohensd, nancorr functions)
 
 ### Added
 * recipe `makeGRM`
 * recipe `doGWAS_Long_splines`
+* `FEMA/FEMA_classify_enhanced.m`: enhanced classification function with multiple algorithms, feature selection, and improved CV
+* `FEMA/FEMA_classify_enhanced_README.md`: comprehensive documentation for enhanced classification
+* `recipes/FEMA_classify_enhanced_demo.m`: demonstration script for enhanced classification features
 
 ## [Unreleased - 2025-07-11]
 ### Changed
