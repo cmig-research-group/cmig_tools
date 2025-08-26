@@ -5,6 +5,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
 ## [Unreleased - 2025-08-25]
+### Changed
+* `FEMA/caller_FEMA.m`:
+    - passing unmatched arguments to `caller_FEMA_fit_GWAS`
+    - additional name possibility for the GWAS module
+* `FEMA/caller_FEMA_fit.m`:
+    - fixed incorrect specification for binary file for GRM
+    - updated requirement to have `uqObservations` available as part of GRM
+    - if input is a binary file, allow same basename `.mat` file to be present which specifies the ID list
+* `FEMA/caller_FEMA_fit_GWAS.m`:
+    - fixed typo in accessing basis function variable
+    - initializing `contrasts` and `hypValues` to empty when `file_contrast` is not passed
+    - fixed checking correct variables for design matrix
+* Removed unnecessary files from `docs/help`
+
+## [Unreleased - 2025-08-25]
 ### Added
 * `FEMA/FEMA_exportDoc.m`: function that exports headers as text file
 * `FEMA/caller_FEMA.m`: main caller function for compiled version of FEMA

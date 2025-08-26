@@ -1,1 +1,1 @@
-
+ Calculate min and max

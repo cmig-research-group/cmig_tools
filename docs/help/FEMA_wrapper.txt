@@ -26,8 +26,8 @@
                                    family relatedness (F)
                                    subject - required for longitudinal analyses (S)
                                    error (E) - always required
-                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (pihat) for this option
-   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (GRM) for this option
+   GRM_file <char>            :  path to genetic relatedness data (GRM) - default [] - only required if A random effect specified
    preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
    address_file <char>        :  path to address data - default [] - only required if H random effect specified
    nperms <num>               :  default 0 --> if >0 will run and output permuted effects

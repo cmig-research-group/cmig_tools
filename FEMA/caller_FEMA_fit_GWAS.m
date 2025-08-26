@@ -157,7 +157,7 @@ else
     if ~ismember(GWASType, chkGWAS)
         error(['Unknown GWASType specified: ', GWASType]);
     else
-        if strcmpi(GWASType, 'cross_interact') | strcmpi(GWASType, 'long_interact')
+        if strcmpi(GWASType, 'cross_interact') || strcmpi(GWASType, 'long_interact')
             doInteraction = true;
         else
             doInteraction = false;
@@ -256,7 +256,7 @@ if doInteraction
                            file_basisFunc, ': ', missMsg(1:end-2)]);
                 else
                     bfSNP                  = temp_bf.basisFunction;
-                    varNames_basisFunction = temp.varNames_basisFunction;
+                    varNames_basisFunction = temp_bf.varNames_basisFunction;
                     clear temp_bf;
                 end
             else
@@ -289,6 +289,9 @@ if exist('file_contrast', 'var') && ~isempty(file_contrast)
     else
         [contrasts, hypValues] = FEMA_parse_contrastFile(file_contrast, varNames_basisFunction);
     end
+else
+    contrasts = [];
+    hypValues = [];
 end
 
 updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: finished input parsing'];
@@ -328,7 +331,7 @@ else
 end
 
 toChk_design = {'FamilyStruct', 'iid', 'X'};
-chk_design   = ismember(toChk_estimates, fieldnames(temp_designvars));
+chk_design   = ismember(toChk_design, fieldnames(temp_designvars));
 if sum(chk_design) ~= length(toChk_design)
     missMsg = sprintf('%s, ', toChk_design{~chk_design});
     error(['The following required variables are missing from ', ...

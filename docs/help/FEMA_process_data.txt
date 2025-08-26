@@ -11,7 +11,7 @@
 	 ico <num>					:	ico-number for vertexwise analyses (0-based, default 5)
 	 ranknorm <boolean>			:	rank normalise imaging data (default 0)
 	 varnorm <boolean>			:	variance normalise imaging data (default 0)
-	 pihat_file <char>			:	path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+	 GRM_file <char>			:	path to genetic relatedness data (GRM) - default [] - only required if A random effect specified
 	 preg_file <char>			:	path to pregnancy data - default [] - only required if T random effect specified
 	 address_file <char>		:	path to address data - default [] - only required if H random effect specified
 
@@ -22,5 +22,5 @@
 	 ivec_mask					:	vector mask for voxelwise data (155179x1) --> not yet available for vertexwise
 	 mask						:	volume mask mask for voxelwise data (100x100x130) --> not yet available for vertexwise
 	 colnames_imaging			:	imaging column labels for external data inputs
-	 pihat						:	intersected genetic relatedness matrix
+	 GRM						:	intersected genetic relatedness matrix
 

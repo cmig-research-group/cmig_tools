@@ -85,17 +85,19 @@ function caller_FEMA_fit(file_X, file_ymat, dirOutput, outPrefix, varargin)
 %                   estimated random effects in this range will be binned
 %                   together for GLS estimation
 % 
-% GRMfile:          full path to a .mat or .bin file that specifies how
+% GRMfile:          full path to a .mat or .dat file that specifies how
 %                   genetically related are the individuals in the study
 %                   (default: [], i.e., no GRM file is specified)
 %                     - if .mat, it should have the following variables:
-%                           * GRM:      matrix of genetic relatedness
-%                           * iid_list: ordering of individuals in the GRM
+%                           * GRM:            matrix of genetic relatedness
+%                           * uqObservations: ordering of individuals in the GRM
 % 
-%                     - if .bin, it should have a a corresponding .csv file
-%                       with the same basename in the same location; this
-%                       additional file should be a single column (no
-%                       column name) which contains the iid_list
+%                     - if .dat, it should have a a corresponding .csv or
+%                       .mat file with the same basename in the same
+%                       location; if .csv, this file should be a single
+%                       column (no column name) which contains the
+%                       iid_list; if .mat, this file should contain a
+%                       variable 'uqObservations'
 %
 % RandomEffects:    list of random effects to estimate (default: {'F', 'S', 'E'}); 
 %                   the following random effects are supported:
@@ -520,7 +522,7 @@ if ismember({'A'}, RandomEffects)
                     temp_GRM = load(GRMFile);
 
                     % Check to make sure necessary variables are present
-                    toCheck_GRM = {'GRM', 'iid_list'};
+                    toCheck_GRM = {'GRM', 'uqObservations'};
                     chk_GRM     = ismember(fieldnames(temp_GRM), toCheck_GRM);
                     if sum(chk_GRM) ~= length(toCheck_GRM)
                         missMsg = sprintf('%s, ', toCheck_GRM{~chk_GRM});
@@ -528,7 +530,7 @@ if ismember({'A'}, RandomEffects)
                     else
                         % Assign the right variables
                         GRM      = temp_GRM.GRM;
-                        iid_list = temp_GRM.iid_list;
+                        iid_list = temp_GRM.uqObservations;
                         clear temp_GRM
 
                         % Does GRM need re-ordering?
@@ -550,46 +552,59 @@ if ismember({'A'}, RandomEffects)
                         end
                     end
                 else
-                    if strcmpi(ext, '.bin')
-                        % Make sure that the corresponding csv file is
-                        % present in the same location
-                        if ~exist(strrep(GRMFile, '.bin', '.csv'), 'file')
-                            error(['Corresponding csv file missing for: ', GRMFile]);
-                        else
+                    if strcmpi(ext, '.dat')
+                        basename = strrep(GRMFile, '.dat', '');
+                        % Check if there is a corresponding csv file
+                        if exist([basename, '.csv'], 'file')
                             iid_list = readtable(GRMFile, 'ReadVariableNames', false);
+                        else
+                            % Check if a .mat file exists
+                            if exist([basename, '.mat'], 'file')
+                                temp_GRM = load([basename, '.mat']);
 
-                            % Read binary file
-                            fid = fopen(GRMFile, 'r');
-                            GRM = fread(fid, [length(iid_list) length(iid_list)], 'double');
-                            fclose(fid);
+                                % Make sure uqObservations exists
+                                if isfield(temp_GRM, 'uqObservations')
+                                    iid_list = temp_GRM.uqObservations;
+                                    clear temp_GRM
+                                else
+                                    error(['Unable to find field uqObservations in: ', basename, '.mat']);
+                                end
+                            else
+                                error(['Corresponding csv/mat file missing for: ', GRMFile]);
+                            end
+                        end
 
-                            % Make GRM full matrix
-                            GRM = GRM + GRM.';
+                        % Now read binary file
+                        f   = fopen(GRMFile, 'r');
+                        GRM = fread(f, [length(iid_list) length(iid_list)], 'double');
+                        fclose(f);
 
-                            % Make diagonal equal to 1
-                            tmp = size(GRM,1);
-                            GRM(1:1+tmp:tmp*tmp) = 1;
+                        % Make GRM full matrix
+                        GRM = GRM + GRM.';
 
-                            % Convert to single
-                            GRM = single(GRM);
+                        % Make diagonal equal to 1
+                        tmp = size(GRM,1);
+                        GRM(1:1+tmp:tmp*tmp) = 1;
 
-                            % Does GRM need re-ordering?
-                            [a, ~, ~] = unique(iid, 'stable');
-                            if length(a) ~= length(iid_list)
+                        % Convert to single
+                        GRM = single(GRM);
+
+                        % Does GRM need re-ordering?
+                        [a, ~, ~] = unique(iid, 'stable');
+                        if length(a) ~= length(iid_list)
+                            reorderGRM = true;
+                        else
+                            if sum(strcmpi(iid_list, a)) ~= length(a)
                                 reorderGRM = true;
                             else
-                                if sum(strcmpi(iid_list, a)) ~= length(a)
-                                    reorderGRM = true;
-                                else
-                                    reorderGRM = false;
-                                end
+                                reorderGRM = false;
                             end
+                        end
 
-                            % Perform reordering, if required
-                            if reorderGRM
-                                [~, wch] = ismember(a, iid_list);
-                                GRM      = GRM(wch, wch);
-                            end
+                        % Perform reordering, if required
+                        if reorderGRM
+                            [~, wch] = ismember(a, iid_list);
+                            GRM      = GRM(wch, wch);
                         end
                     else
                         error(['Unknown file format specified for GRMFile: ', ext]);

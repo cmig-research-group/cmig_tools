@@ -19,8 +19,8 @@ if ~exist('moduleName', 'var') || isempty(moduleName)
 else
     validModules = {'help', 'h', ...
                     'FEMA_fit', 'fit', ...
-                    'createBasisFunctions', 'createBF', 'makeBF', ...
-                    'FEMA_fit_GWAS', 'GWAS', 'fitGWAS', ...
+                    'createBasisFunctions', 'createBF', 'makeBF',   ...
+                    'FEMA_fit_GWAS', 'GWAS', 'fitGWAS', 'fit_GWAS', ...
                     'makeContrasts', 'parseContrasts', ...
                     'evaluateContrasts'};
 
@@ -51,7 +51,7 @@ else
                             case {'createbasisfunctions', 'createbf', 'makebf'}
                                 system(['cat ', fullfile(dirHelp, 'caller_createBasisFunctions.txt')]);
 
-                            case {'fema_fit_gwas', 'gwas', 'fitgwas'}
+                            case {'fema_fit_gwas', 'gwas', 'fitgwas', 'fit_gwas'}
                                 system(['cat ', fullfile(dirHelp, 'caller_FEMA_fit_GWAS.txt')]);
 
                             otherwise
@@ -99,7 +99,7 @@ else
                 caller_createBasisFunctions(p.Results.file_valvec, p.Results.dirOutput, ...
                                             p.Results.outType, p.Results.outPrefix, p.Unmatched);
 
-            case {'fema_fit_gwas', 'gwas', 'fitgwas'}
+            case {'fema_fit_gwas', 'gwas', 'fitgwas', 'fit_gwas'}
                 def_outPrefix = '';
 
                 % Add positional and optional required arguments
@@ -114,7 +114,8 @@ else
 
                 % Call FEMA_fit_GWAS
                 caller_FEMA_fit_GWAS(p.Results.file_PLINK, p.Results.file_FEMA_fit, ...
-                                     p.Results.GWASType, p.Results.dirOutput, p.Results.outPrefix);
+                                     p.Results.GWASType,   p.Results.dirOutput,     ...
+                                     p.Results.outPrefix,  p.Unmatched);
         end
     end
 end

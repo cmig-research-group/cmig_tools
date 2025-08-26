@@ -84,17 +84,19 @@
                    estimated random effects in this range will be binned
                    together for GLS estimation
  
- GRMfile:          full path to a .mat or .bin file that specifies how
+ GRMfile:          full path to a .mat or .dat file that specifies how
                    genetically related are the individuals in the study
                    (default: [], i.e., no GRM file is specified)
                      - if .mat, it should have the following variables:
-                           * GRM:      matrix of genetic relatedness
-                           * iid_list: ordering of individuals in the GRM
+                           * GRM:            matrix of genetic relatedness
+                           * uqObservations: ordering of individuals in the GRM
  
-                     - if .bin, it should have a a corresponding .csv file
-                       with the same basename in the same location; this
-                       additional file should be a single column (no
-                       column name) which contains the iid_list
+                     - if .dat, it should have a a corresponding .csv or
+                       .mat file with the same basename in the same
+                       location; if .csv, this file should be a single
+                       column (no column name) which contains the
+                       iid_list; if .mat, this file should contain a
+                       variable 'uqObservations'
 
  RandomEffects:    list of random effects to estimate (default: {'F', 'S', 'E'}); 
                    the following random effects are supported:
