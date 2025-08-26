@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `FEMA/FEMA_WaldTest.m`: additionally returns `LB_hat` and `LB_SE`
 * `FEMA/FEMA_fit.m`: additionally record time taken to create and delete a parallel pool
 * `cmig_tools_utils/matlab/divideSNPs.m`: added option to pass in an output prefix
+* `FEMA/FEMA_gatherGWAS.m`: bug fix #34 via PR#37
 
 ## [Unreleased - 2025-08-13]
 ### Added
