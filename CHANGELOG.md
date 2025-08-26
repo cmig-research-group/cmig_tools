@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `cmig_tools_utils/matlab/divideSNPs.m`: added option to pass in an output prefix
 * `FEMA/FEMA_gatherGWAS.m`: bug fix #34 via PR#37
 * replaced occurrence of pihat (and related words) in several functions to GRM
+* `cmig_tools_utils/matlab/PlinkRead_binary2_subj.m`: added functionality to read SNPs in chunks
 
 ## [Unreleased - 2025-08-13]
 ### Added

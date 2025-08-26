@@ -328,22 +328,43 @@ n_bytes = ceil(nsubj/4);
 genomat = zeros(length(subjLoc), nsnp, 'int8');
 % genmat = zeros(nsubj, nsnp, 'int8');
 
-% Go over every SNP location
-for i = 1:nsnp
-
-    % Skip the first three bytes; move from beginning of file to the start
-    % of the SNP specific line which contains data for all subjects stored
-    % as two bytes
-    fseek(bedid, 3 + (snps(i) - 1) * n_bytes, 'bof');
-    genobin = uint16(fread(bedid, n_bytes));
-    if length(genobin) ~= n_bytes
-        error('-- Invalid number of entries from the bed \r\n'); 
+% Check if it is possible to read the entire chunk together?
+tmp = (snps(1):snps(end))';
+if length(tmp) == nsnp
+    temp = find(tmp - snps, 1);
+    if isempty(temp)
+        readChunk = true;
+    else
+        readChunk = false;
     end
-    tmp_values   = geno_values(genobin + 1, :)';
-    tmp_values   = tmp_values(:);
+else
+    readChunk = false;
+end
 
-    genomat(:,i) = tmp_values(subjLoc);
-    % genmat(:,i) = tmp_values(1:nsubj);
+if readChunk
+    % Can read in one go as SNPs are continuous
+    fseek(bedid, 3 + (snps(1) - 1) * n_bytes, 'bof');
+    genobin = uint16(fread(bedid, [n_bytes, length(snps)]));
+    temp    = reshape(geno_values(genobin + 1, :)', 4*n_bytes, length(snps));
+    genomat = temp(subjLoc,:);
+else
+    % Go over every SNP location
+    for i = 1:nsnp
+    
+        % Skip the first three bytes; move from beginning of file to the start
+        % of the SNP specific line which contains data for all subjects stored
+        % as two bytes
+        fseek(bedid, 3 + (snps(i) - 1) * n_bytes, 'bof');
+        genobin = uint16(fread(bedid, n_bytes));
+        if length(genobin) ~= n_bytes
+            error('-- Invalid number of entries from the bed \r\n'); 
+        end
+        tmp_values   = geno_values(genobin + 1, :)';
+        tmp_values   = tmp_values(:);
+    
+        genomat(:,i) = tmp_values(subjLoc);
+        % genmat(:,i) = tmp_values(1:nsubj);
+    end
 end
 fclose(bedid);
 
