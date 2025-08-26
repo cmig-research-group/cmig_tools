@@ -1,4 +1,4 @@
-function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
+function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
 %
 % ABCD specific function to load and process imaging data from abcd-sync
 %
@@ -12,7 +12,7 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat
 %	 ico <num>					:	ico-number for vertexwise analyses (0-based, default 5)
 %	 ranknorm <boolean>			:	rank normalise imaging data (default 0)
 %	 varnorm <boolean>			:	variance normalise imaging data (default 0)
-%	 pihat_file <char>			:	path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+%	 GRM_file <char>			:	path to genetic relatedness data (GRM) - default [] - only required if A random effect specified
 %	 preg_file <char>			:	path to pregnancy data - default [] - only required if T random effect specified
 %	 address_file <char>		:	path to address data - default [] - only required if H random effect specified
 %
@@ -23,7 +23,7 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat
 %	 ivec_mask					:	vector mask for voxelwise data (155179x1) --> not yet available for vertexwise
 %	 mask						:	volume mask mask for voxelwise data (100x100x130) --> not yet available for vertexwise
 %	 colnames_imaging			:	imaging column labels for external data inputs
-%	 pihat						:	intersected genetic relatedness matrix
+%	 GRM						:	intersected genetic relatedness matrix
 %
 
 %
@@ -35,7 +35,7 @@ p = inputParser;
 addParamValue(p,'ranknorm',0);
 addParamValue(p,'varnorm',0);
 addParamValue(p,'ico',5);
-addParamValue(p,'pihat_file',[]);
+addParamValue(p,'GRM_file',[]);
 addParamValue(p,'preg_file',[]);
 addParamValue(p,'address_file',[]);
 addParamValue(p,'corrvec_thresh',0.8);
@@ -45,7 +45,7 @@ ico = str2num_amd(p.Results.ico);
 icnum = ico + 1;
 ranknorm = str2num_amd(p.Results.ranknorm);
 varnorm = str2num_amd(p.Results.varnorm);
-fname_pihat = p.Results.pihat_file;
+fname_GRM = p.Results.GRM_file;
 fname_preg = p.Results.preg_file;
 fname_address = p.Results.address_file;
 corrvec_thresh = p.Results.corrvec_thresh;
@@ -272,11 +272,11 @@ elseif strcmpi(datatype,'external') %does not need to be intersected with abcd m
 end
 
 
-if ~isempty(fname_pihat)
-	logging('Reading PI HAT');
-	pihat = load(fname_pihat);
+if ~isempty(fname_GRM)
+	logging('Reading GRM');
+	GRM = load(fname_GRM);
 else
-	pihat=[];
+	GRM=[];
 end
 
 if ~isempty(fname_preg)

@@ -1,4 +1,4 @@
-function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, pihatmat, PregID, HomeID] = FEMA_intersect_design(fname_design, ymat, iid_concat, eid_concat, varargin)
+function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID, HomeID] = FEMA_intersect_design(fname_design, ymat, iid_concat, eid_concat, varargin)
     %
     % FEMA_intersect_design intersect imaging data and design matrix - used internally by FEMA_wrapper
     %
@@ -10,7 +10,7 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, pihatmat, P
     %
     % Optional inputs:
     %   contrasts <path>           :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
-    %   pihat                      :  pihat structure (output from FEMA_process_data)
+    %   GRM                        :  GRM structure (output from FEMA_process_data)
     %   preg                       :  pregnancy IDs
     %   address                    :  address IDs
     %
@@ -22,7 +22,7 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, pihatmat, P
     %   agevec <num>               :  participants age
     %   ymat <num>                 :  matrix of imaging data (n x v)
     %   contrasts <num>            :  contrast vector
-    %   pihatmat <num>             :  matrix of genetic relatedness --> already intersected to match X and Y sample (empty if no matrix given)
+    %   GRM <num>                  :  matrix of genetic relatedness --> already intersected to match X and Y sample (empty if no matrix given)
     %
 
     %
@@ -35,14 +35,14 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, pihatmat, P
 
     p = inputParser;
     addParamValue(p, 'contrasts', []);
-    addParamValue(p, 'pihat', []);
+    addParamValue(p, 'GRM', []);
     addParamValue(p, 'preg', []);
     addParamValue(p, 'address', []);
 	addParamValue(p, 'demean', 0);
 
     parse(p, varargin{:})
     contrasts = str2num_amd(p.Results.contrasts);
-    pihat = p.Results.pihat;
+    GRM = p.Results.GRM;
     preg = p.Results.preg;
     address = p.Results.address;
 	demean = p.Results.demean;
@@ -141,13 +141,13 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, pihatmat, P
     if length(agevec) > sum(defvec), agevec = agevec(defvec); end
     if length(eid) > sum(defvec), eid = eid(defvec); end
 
-    if ~isempty(pihat)
+    if ~isempty(GRM)
         [iid_list, IA, IC_subj] = unique(iid, 'stable'); nsubj = length(iid_list);
         %[fid_list IA IC_fam] = unique(fids,'stable'); nfam = length(fid_list);
-        [~, IA, IB_acs] = intersect(iid_list, pihat.iid_list, 'stable'); % Why is setdiff(iid_list,tmp_pihat.iid_list) not empty?
-        pihatmat = NaN(nsubj, nsubj); pihatmat(IA, IA) = pihat.GRM(IB_acs, IB_acs); % Make genetic relatedness matrix consistent with iid_list
-    elseif isempty(pihat)
-        pihatmat = [];
+        [~, IA, IB_acs] = intersect(iid_list, GRM.iid_list, 'stable'); % Why is setdiff(iid_list,tmp_pihat.iid_list) not empty?
+        GRM = NaN(nsubj, nsubj); GRM(IA, IA) = GRM.GRM(IB_acs, IB_acs); % Make genetic relatedness matrix consistent with iid_list
+    elseif isempty(GRM)
+        GRM = [];
     end
 
     % get final list of pregnancy and address IDs

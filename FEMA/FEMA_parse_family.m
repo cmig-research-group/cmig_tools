@@ -1,4 +1,4 @@
-function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_parse_family(iid, eid, fid, agevec, pihatmat, varargin)
+function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_parse_family(iid, eid, fid, agevec, GRM, varargin)
 
 % Function called from within FEMA_fit
 %
@@ -18,7 +18,7 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
 %   niter <num>                :  number of iterations (default 1)
 %   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   nbins <num>                :  number of bins across Y for estimating random effects (default 20)
-%   pihatmat <num>             :  matrix of genetic relatedness --> already intersected to match X and Y sample
+%   GRM <num>                  :  matrix of genetic relatedness --> already intersected to match X and Y sample
 %   PregID <num>               :  pregnancy ID (births from the same pregnancy have same value)
 %   HomeID <num>               :  home address ID (individuals with the same address have same value)
 %   outputEB <boolean>         :  default 0 --> will output exchangeability blocks for permutation testing
@@ -35,17 +35,17 @@ function [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec]=FEMA_p
 % V_T - twins effect (same pregnancy ID)
 % V_E - environment
 
-if ~exist('pihatmat','var')
-    pihatmat = [];
+if ~exist('GRM','var')
+    GRM = [];
 end
 
 p = inputParser;
 addParamValue(p,'SingleOrDouble','single'); %#ok<*NVREPLA>
 addParamValue(p,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
-addParamValue(p,'FatherID',{}); % Father ID, ordered same as pihatmat
-addParamValue(p,'MotherID',{}); % Mother ID, ordered same as pihatmat
-addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
-addParamValue(p,'HomeID',{}); % Home effect (defined as same address ID), ordered same as pihatmat
+addParamValue(p,'FatherID',{}); % Father ID, ordered same as GRM
+addParamValue(p,'MotherID',{}); % Mother ID, ordered same as GRM
+addParamValue(p,'PregID',{}); % Pregnancy effect (same ID means twins), ordered same as GRM
+addParamValue(p,'HomeID',{}); % Home effect (defined as same address ID), ordered same as GRM
 parse(p,varargin{:})
 SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
@@ -131,8 +131,8 @@ for fi = 1:nfam
     V_E = eye(length(jvec_fam),  length(jvec_fam), SingleOrDouble);
     V_F = true(length(jvec_fam), length(jvec_fam));
     V_S = false(length(jvec_fam),length(jvec_fam));
-    if ~isempty(pihatmat)
-        V_A = pihatmat(subj_fam(si),subj_fam(si)); % Reorder to canonical form
+    if ~isempty(GRM)
+        V_A = GRM(subj_fam(si),subj_fam(si)); % Reorder to canonical form
         if any(~isfinite(V_A(:))) % Impute missing values within families (assume all proper siblings => phat = 0.5)
             V_A(find(~isfinite(V_A))) = 0.5;
         end

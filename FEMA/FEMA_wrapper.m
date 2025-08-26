@@ -27,8 +27,8 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %                                   family relatedness (F)
 %                                   subject - required for longitudinal analyses (S)
 %                                   error (E) - always required
-%                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (pihat) for this option
-%   pihat_file <char>          :  path to genetic relatedness data (pihat) - default [] - only required if A random effect specified
+%                                   additive genetic relatedness (A) - must include file path to genetic relatedness data (GRM) for this option
+%   GRM_file <char>            :  path to genetic relatedness data (GRM) - default [] - only required if A random effect specified
 %   preg_file <char>           :  path to pregnancy data - default [] - only required if T random effect specified
 %   address_file <char>        :  path to address data - default [] - only required if H random effect specified
 %   nperms <num>               :  default 0 --> if >0 will run and output permuted effects
@@ -82,7 +82,7 @@ addParamValue(inputs,'output',[]);
 addParamValue(inputs,'synth',0); % AMD - put back synth option
 addParamValue(inputs,'ivnames','');
 addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
-addParamValue(inputs,'pihat_file',[]);
+addParamValue(inputs,'GRM_file',[]);
 addParamValue(inputs,'preg_file',[]);
 addParamValue(inputs,'address_file',[]);
 addParamValue(inputs,'nperms',0);
@@ -140,7 +140,7 @@ end
 
 RandomEffects = rowvec(split(strrep(strrep(inputs.Results.RandomEffects,'{',''),'}','')));
 disp(RandomEffects)
-fname_pihat = inputs.Results.pihat_file;
+fname_GRM = inputs.Results.GRM_file;
 fname_address = inputs.Results.address_file;
 fname_pregnancy = inputs.Results.preg_file;
 CovType = inputs.Results.CovType;
@@ -182,7 +182,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'GRM_file',fname_GRM,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -190,7 +190,7 @@ end
 
 %Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
 
-pihat_bak=pihat;
+GRM_bak=GRM;
 ymat_bak=ymat;
 cont_bak=contrasts;
 
@@ -225,11 +225,11 @@ end
 fpaths_out = {};
 for des=1:length(fname_design)
 
-  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,pihatmat,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',pihat_bak,'preg',preg,'address',address,'demean', demean);
+  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',GRM_bak,'preg',preg,'address',address,'demean', demean);
   if synth==1 % Make synthesized data
-    [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'nbins',nbins,'RandomEffects',RandomEffects); % Make pihatmat and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
+    [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,GRM,'nbins',nbins,'RandomEffects',RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
-    %            sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
+    % sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
   else
     sig2tvec_true = []; sig2mat_true = [];
   end
@@ -262,7 +262,7 @@ for des=1:length(fname_design)
 
 
 % FIT MODEL
-  [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, pihatmat,'RandomEffects',RandomEffects,...
+  [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, GRM,'RandomEffects',RandomEffects,...
     'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
     'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
 

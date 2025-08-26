@@ -4,7 +4,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
           sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,            ...
           tvec_bins,     FamilyStruct,   coeffCovar,  reusableVars] =       ...
           FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, ...
-                   pihatmat, varargin)
+                   GRM, varargin)
 % Function to fit fast and efficient linear mixed effects model
 %
 %% Notation:
@@ -32,7 +32,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 % contrasts       <num> OR <path>  [c x p]    contrast matrix, where c is number of contrasts to compute,
 %                                             OR path to file containing contrast matrix (readable by readtable)
 % nbins           <num>            [1 x 1]    number of bins across Y for estimating random effects (default 20); set to 0 to disable binning
-% pihatmat        <num>            [n x n]    matrix of genetic relatedness --> already intersected to match X and Y sample (i.e., entries should be in the order of unique(iid, 'stable');
+% GRM             <num>            [n x n]    matrix of genetic relatedness --> already intersected to match X and Y sample (i.e., entries should be in the order of unique(iid, 'stable');
 %
 %% Optional input arguments:
 % RandomEffects   <cell>           list of random effects to estimate (default {'F','S','E'}):
@@ -133,8 +133,8 @@ if ~exist('nbins','var') || isempty(nbins)
     nbins = 20;
 end
 
-if ~exist('pihatmat','var')
-    pihatmat = [];
+if ~exist('GRM','var')
+    GRM = [];
 end
 
 % Should change to allow p to be passed in, so as to avoid having to
@@ -152,10 +152,10 @@ addParamValue(p,'logLikflag', false);
 addParamValue(p,'Hessflag', false);
 addParamValue(p,'ciflag', false);
 addParamValue(p,'nperms', 0);
-addParamValue(p,'FatherID', {}); % Father ID, ordered same as pihatmat
-addParamValue(p,'MotherID', {}); % Mother ID, ordered same as pihatmat
-addParamValue(p,'PregID', {}); % Pregnancy effect (same ID means twins), ordered same as pihatmat
-addParamValue(p,'HomeID', {}); % Home effect (defined as same address ID), ordered same as pihatmat
+addParamValue(p,'FatherID', {}); % Father ID, ordered same as GRM
+addParamValue(p,'MotherID', {}); % Mother ID, ordered same as GRM
+addParamValue(p,'PregID', {}); % Pregnancy effect (same ID means twins), ordered same as GRM
+addParamValue(p,'HomeID', {}); % Home effect (defined as same address ID), ordered same as GRM
 addParamValue(p,'FamilyStruct',{}); % Avoids recomputing family strucutre et al
 addParamValue(p,'returnReusable',false); % Additionally returns a few useful variables
 addParamValue(p,'synthstruct',''); % True / synthesized random effects
@@ -267,7 +267,7 @@ t0 = now;
 if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
     tic
     [clusterinfo, Ss, iid, famtypevec, famtypelist, subj_famtypevec] =                  ...
-     FEMA_parse_family(iid, eid, fid, agevec, pihatmat, 'RandomEffects', RandomEffects, ...
+     FEMA_parse_family(iid, eid, fid, agevec, GRM, 'RandomEffects', RandomEffects,      ...
                        'FatherID', p.Results.FatherID,  'MotherID', p.Results.MotherID, ...
                        'PregID',   p.Results.PregID,    'HomeID',   p.Results.HomeID); %#ok<*ASGLU>
     
