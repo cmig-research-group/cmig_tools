@@ -1,4 +1,4 @@
-function FEMA_DEAP_init(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,dirname_cache,nfrac,varargin)
+function FEMA_DEAP_init(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,dirname_cache,nfrac,varargin)
 %
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
@@ -6,13 +6,12 @@ function FEMA_DEAP_init(fstem_imaging,fname_design,dirname_out,dirname_tabulated
 %     3) To run linear mixed effects models (FEMA_fit)
 %     4) To save outputs in specified format
 %
-% USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,varargin)
+% USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
 %
 % INPUTS
 %   fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
 %   fname_design <cell>        :  cell array with path to file with design matrix saved (readable by readtable) --> if want to batch can add multiple filepaths as separate rows within fname_design as a cell array
 %   dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include separate output directory as rows within dirname_out as a cell array
-%   dirname_tabulated <char>   :  path to tabulated data directory with NDA downloaded txt files
 %   dirname_imaging <char>     :  path to imaging data directory
 %   datatype <char>            :  'voxel','vertex','external', 'corrmat'
 %                                   NB: Other than 'external' all code is written to expect ABCD data
@@ -66,7 +65,7 @@ rng shuffle %Set random number generator so different every time
 %PARSING INPUTS
 
 if nargin < 6
-      logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,varargin)');
+      logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,varargin)');
       error('Incorrect number of input arguments')
 end
 
@@ -183,7 +182,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_tabulated,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -8,6 +8,9 @@ function FEMA_DEAP_worker(fstem_imaging,datatype,fraci,nfrac,dirname_cache,dirna
     end
   end
 
+  % Print build/compile information
+  print_compile_stats();
+
   % nested function makes this code static and therefore I need to explicetly access the variables from the loaded mat file
   fname_cache = sprintf('%s/%s_%s.mat',dirname_cache,datatype,fstem_imaging);
   fprintf("Loading cache %s\n", fname_cache);

@@ -1,4 +1,4 @@
-function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,dirname_cache,dirname_jobs,designid,nfrac,varargin)
+function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,dirname_cache,dirname_jobs,designid,nfrac,varargin)
 
   if isdeployed
     nfrac = str2num(nfrac);
@@ -8,7 +8,7 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
   end
 
   if nargin < 9
-    logging('Usage: FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabulated,dirname_imaging,datatype,dirname_jobs,designid,nfrac)');
+    logging('Usage: FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,dirname_jobs,designid,nfrac)');
     error('Incorrect number of input arguments')
   end
 
@@ -104,6 +104,9 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
 
   logging('***Start');
 
+  % Print build/compile information
+  print_compile_stats();
+
   starttime = now();
 
   rng shuffle % Set random number generator so different every time -- should allow for option to control this
@@ -116,12 +119,12 @@ function FEMA_DEAP_wrapper(fstem_imaging,fname_design,dirname_out,dirname_tabula
   end
 
   % Create analysis job
-  [colnames_model X] = FEMA_DEAP_wrapper_submit(fstem_imaging,fname_design,dirname_tabulated,dirname_imaging,'voxel',designid,dirname_jobs);
+  [colnames_model X] = FEMA_DEAP_wrapper_submit(fstem_imaging,fname_design,dirname_imaging,'voxel',designid,dirname_jobs);
   % dispatch work to workers now that job files exists
 
   % Load design
   dirname_volmats = dirname_imaging;
-  fname_volinfo = sprintf('%s/volinfo.mat',dirname_volmats);
+  fname_volinfo = sprintf('%s/vol_info.mat',dirname_volmats);
   mask = getfield(load(fname_volinfo,'vol_mask_sub'),'vol_mask_sub'); 
   ivec_mask = find(mask>0.5); % Should save and read ivec_mask instead
   zmat = zeros(size(X,2),length(ivec_mask));
