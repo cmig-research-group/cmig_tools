@@ -179,9 +179,9 @@ end
 
 %% Assign default optional inputs
 p = inputParser;
-addParameter(p, 'file_basisFunc', []);
+addParameter(p, 'file_basisFunc', '');
 addParameter(p, 'appendMainEffect', true);
-addParameter(p, 'file_contrast', []);
+addParameter(p, 'file_contrast', '');
 addParameter(p, 'splitBy', 'snp');
 addParameter(p, 'chunkSize', 1000);
 addParameter(p, 'meanImpute', true);
@@ -193,8 +193,8 @@ addParameter(p, 'df', []);
 addParameter(p, 'OLSflag', false);
 addParameter(p, 'doF', false);
 addParameter(p, 'doCoeffCovar', false);
-addParameter(p, 'SingleOrDouble', '');
-addParameter(p, 'doPar',false);
+addParameter(p, 'SingleOrDouble', 'double');
+addParameter(p, 'doPar', false);
 addParameter(p, 'numWorkers', 2);
 addParameter(p, 'numThreads', 2);
 
@@ -233,6 +233,55 @@ if ~isnumeric(p.Results.numThreads)
 else
     numThreads = p.Results.numThreads;
 end
+
+% Not quite sure why the logical values need to be converted from character
+% here but not in caller_FEMA_fit
+if isdeployed
+    chkFun = @(x) (ischar(x) | isstring(x)) && ismember(lower(x), {'true'});
+
+    if chkFun(appendMainEffect)
+        appendMainEffect = true;
+    else
+        appendMainEffect = false;
+    end
+
+    if chkFun(meanImpute)
+        meanImpute = true;
+    else
+        meanImpute = false;
+    end
+    
+    if chkFun(roundOff)
+        roundOff = true;
+    else
+        roundOff = false;
+    end
+
+    if chkFun(OLSflag)
+        OLSflag = true;
+    else
+        OLSflag = false;
+    end
+
+    if chkFun(doF)
+        doF = true;
+    else
+        doF = false;
+    end
+
+    if chkFun(doCoeffCovar)
+        doCoeffCovar = true;
+    else
+        doCoeffCovar = false;
+    end
+
+    if chkFun(doPar)
+        doPar = true;
+    else
+        doPar = false;
+    end
+end
+disp(p.Results);
 
 %% Make some decisions based on optional input
 % If interaction is true, is the basis function file provided?
@@ -353,7 +402,7 @@ else
     RandomEffects = temp_settings.RandomEffects;
     CovType       = temp_settings.CovType;
     if isempty(SingleOrDouble)
-        SingleOrDouble = temp_settings.SigleOrDouble;
+        SingleOrDouble = temp_settings.SingleOrDouble;
     else
         if ~strcmpi(temp_settings.SingleOrDouble, SingleOrDouble)
             warning(['Different settings of SingleOrDouble between ', ...
