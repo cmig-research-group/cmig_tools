@@ -124,6 +124,7 @@ function caller_FEMA_fit_GWAS(file_PLINK, file_FEMA_fit, GWASType, dirOutput, ou
 %% Start
 updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: job started'];
 disp(updateString);
+disp(FEMA_info);
 
 %% Check mandatory inputs
 if ~exist('file_PLINK', 'var') || isempty(file_PLINK)

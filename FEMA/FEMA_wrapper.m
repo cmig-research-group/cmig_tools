@@ -58,7 +58,9 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 % See LICENSE.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-logging('***Start FEMA v2.3, 11/15/2023)');
+% logging('***Start FEMA v2.3, 11/15/2023)');
+logging('***Start***');
+disp(FEMA_info);
 starttime = now();
 rng shuffle %Set random number generator so different every time
 
@@ -69,9 +71,9 @@ if nargin < 5
   error('Incorrect number of input arguments')
 end
 
-if isdeployed
-  logging('***FEMA_wrapper_app Compiled 11/8/2021, FEMA v2.0***\n\n'); %TODO: remember to change this before compiling
-end
+% if isdeployed
+%   logging('***FEMA_wrapper_app Compiled 11/8/2021, FEMA v2.0***\n\n'); %TODO: remember to change this before compiling
+% end
 
 inputs = inputParser;
 addParamValue(inputs,'ranknorm',0);

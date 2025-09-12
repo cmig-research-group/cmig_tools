@@ -58,7 +58,10 @@ function FEMA_classify(fstem_imaging,fname_design,dirname_out,dirname_imaging,da
 % See LICENSE.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-logging('***Start FEMA v2.0, 4/5/2022)');
+% logging('***Start FEMA v2.0, 4/5/2022)');
+logging('***Start***');
+disp(FEMA_info);
+
 starttime = now();
 rng shuffle %Set random number generator so different every time
 

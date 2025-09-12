@@ -5,6 +5,8 @@ function caller_FEMA(moduleName, varargin)
 % moduleName:       should be one of the following (case in-sensitive):
 %                   values separated by OR (|) are equivalent
 %                       * help
+%                       * version | ver | v
+%                       * citation | cite
 %                       * FEMA_fit | fit
 %                       * createBasisFunctions | createBF | makeBF
 %                       * FEMA_fit_GWAS | GWAS | fitGWAS
@@ -12,12 +14,15 @@ function caller_FEMA(moduleName, varargin)
 %% Modules to be added/worked on
 % * makeContrasts | parseContrasts
 % * evaluateContrasts
+% * postGWAS
 
 %% Make decisions based on moduleName
 if ~exist('moduleName', 'var') || isempty(moduleName)
     error('No FEMA module specified');
 else
     validModules = {'help', 'h', ...
+                    'version', 'ver', 'v', ...
+                    'citation', 'cite', ...
                     'FEMA_fit', 'fit', ...
                     'createBasisFunctions', 'createBF', 'makeBF',   ...
                     'FEMA_fit_GWAS', 'GWAS', 'fitGWAS', 'fit_GWAS', ...
@@ -65,6 +70,12 @@ else
                         end
                     end
                 end
+
+            case {'version', 'ver', 'v'}
+                disp(FEMA_info);
+
+            case {'citation', 'cite'}
+                disp(FEMA_info('cite'));
 
             case {'fema_fit', 'fit'}
                 def_outPrefix = ['FEMA_fit-', char(datetime('now', 'Format', 'yyyyMMMdd-HHmmSS'))];
