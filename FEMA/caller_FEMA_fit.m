@@ -191,6 +191,7 @@ function caller_FEMA_fit(file_X, file_ymat, dirOutput, outPrefix, varargin)
 %% Start
 updateString = [char(datetime('now')), ': caller_FEMA_fit: job started'];
 disp(updateString);
+disp(FEMA_info);
 
 %% Check mandatory inputs
 if ~exist('file_X', 'var') || isempty(file_X)

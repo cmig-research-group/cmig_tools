@@ -98,6 +98,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,              ...
 
 starttime = now(); %#ok<*TNOW1>
 logging('***Start***');
+disp(FEMA_info);
 
 % Extremely quick sanity check on X and y variables
 if logical(sum(any(isnan(X)))) || logical(sum(any(isnan(ymat)))) || ...

@@ -4,8 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
-## [Unreleased - 2025-09-11]
+## [3.0.0 - 2025-09-11]
+### Added
+* `FEMA/FEMA_info.m`: function that returns FEMA version and citation information
+* `docs/citationInfo.txt`: FEMA citation information
+* `docs/help/FEMA_info.txt`: help for `FEMA_info`
+* Included a Linux and MacOS compiled version of the FEMA app
+
+### Changed
 * `FEMA/caller_FEMA_fit_GWAS.m`: handling logical values which are input as character type
+* Included displaying version information for:
+    - `caller_FEMA_fit`
+    - `caller_FEMA_fit_GWAS`
+    - `FEMA_classify`
+    - `FEMA_fit`
+    - `FEMA_wrapper`
+* Included version and citation calls in `caller_FEMA`
+* Labeling version as 3.0.0
 
 ## [Unreleased - 2025-08-25]
 ### Changed
