@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Included version and citation calls in `caller_FEMA`
 * Labeling version as 3.0.0
 
+## Deleted
+* Linux and MacOS compiled version of the FEMA app (release binaries now)
+
 ## [Unreleased - 2025-08-25]
 ### Changed
 * `FEMA/caller_FEMA.m`:
