@@ -9,6 +9,9 @@ dirGenetics = '';
 dirOutput   = '';
 dirData     = '';
 
+% Prefix for GWAS output
+outPrefix   = '';
+
 % The name of the PLINK bed/bim/fam format file, extension not required
 filePLINK   = '';
 
@@ -177,7 +180,7 @@ end
 
 %% Divide chromosome into chunks
 [splitInfo, timing] = divideSNPs(fullfile(dirGenetics, filePLINK), splitBy, ...
-                                 chunkSize, SNPID, Chr, BP, genInfo);
+                                 chunkSize, outPrefix, SNPID, Chr, BP, genInfo);
 
 %% Clear up some memory
 clear GRM data genInfo

@@ -227,7 +227,7 @@ end
 fpaths_out = {};
 for des=1:length(fname_design)
 
-  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'pihat',GRM_bak,'preg',preg,'address',address,'demean', demean);
+  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'GRM',GRM_bak,'preg',preg,'address',address,'demean', demean);
   if synth==1 % Make synthesized data
     [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,GRM,'nbins',nbins,'RandomEffects',RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 

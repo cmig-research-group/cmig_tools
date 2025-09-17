@@ -11,7 +11,7 @@ else
 end
 
 dirDocs = fullfile(fileparts(fileparts(which('caller_FEMA'))), 'docs');
-version = 'FEMA 3.0.0';
+version = 'FEMA 3.0.0 (2025.09.17)';
 
 switch action
     case {'version', 'ver', 'v'}
