@@ -301,7 +301,11 @@ else
 end
 
 if isdeployed
-    RandomEffects = strrep(strsplit(p.Results.RandomEffects, ','), ' ', '');
+    if iscell(p.Results.RandomEffects)
+        RandomEffects = p.Results.RandomEffects;
+    else
+        RandomEffects = strrep(strsplit(p.Results.RandomEffects, ','), ' ', '');
+    end
 else
     RandomEffects = p.Results.RandomEffects;
 end
