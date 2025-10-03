@@ -12,6 +12,15 @@ ALL_PROGS = \
 
 all: $(ALL_PROGS)
 
+# Deploy target - builds only the artifacts that deploy.sh syncs
+DEPLOY_PROGS = \
+	FEMA_DEAP_gencache/FEMA_DEAP_gencache \
+	FEMA_DEAP_worker/FEMA_DEAP_worker \
+	FEMA_DEAP_wrapper/FEMA_DEAP_wrapper \
+	../FEMA/FEMA_wrapper/FEMA_wrapper
+
+deploy: $(DEPLOY_PROGS)
+
 FEMA_DEAP_worker/FEMA_DEAP_worker: FEMA_DEAP_worker.m GlobalConfig.m FEMA_DEAP_server.m Makefile
 	$(MCC) -m $< -d $(basename $<) $(MATFLAGS)
 	@./compile_stats.sh $(basename $<)
