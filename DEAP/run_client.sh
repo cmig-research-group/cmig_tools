@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MCRROOT="/usr/pubsw/packages/matlab/R2023a"
+MCRROOT="/usr/pubsw/packages/matlab/R2024b"
 
 designid="des000009"
 #fstem_imaging="JA"
