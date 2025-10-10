@@ -182,7 +182,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, pihat, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'pihat_file',fname_pihat,'preg_file',fname_pregnancy,'address_file',fname_address);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'ico',ico,'GRM_file',fname_GRM,'preg_file',fname_pregnancy,'address_file',fname_address);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
