@@ -3,7 +3,7 @@
 #abcd_root='/abcd/abcd-sync'
 abcd_root="/space/syn65/1/data/abcd-sync"
 
-MCRROOT="/usr/pubsw/packages/matlab/R2023a"
+MCRROOT="/usr/pubsw/packages/matlab/R2024b"
 
 #fname_design="$abcd_root/4.0/support_files/design_matrices/ABCD_rel4.0_cross_desmat_PCs_SES_motion_interview_age.txt"
 #dirname_tabulated="$abcd_root/4.0/tabulated/released"

@@ -1,4 +1,4 @@
-MATLAB = /usr/pubsw/packages/matlab/R2023a
+MATLAB = /usr/pubsw/packages/matlab/R2024b
 MCC = $(MATLAB)/bin/mcc
 MATFLAGS = -I ../cmig_tools_utils/matlab -I ../FEMA
 

@@ -18,14 +18,14 @@ jobs:
     - name: Setup build environment
       run: |
         # Ensure MATLAB is in PATH
-        export PATH="/usr/pubsw/packages/matlab/R2023a/bin:$PATH"
+        export PATH="/usr/pubsw/packages/matlab/R2024b/bin:$PATH"
         echo "MATLAB version:"
         matlab -batch "version"
     
     - name: Build MATLAB components
       working-directory: ./DEAP
       run: |
-        export PATH="/usr/pubsw/packages/matlab/R2023a/bin:$PATH"
+        export PATH="/usr/pubsw/packages/matlab/R2024b/bin:$PATH"
         make clean
         make deploy
     
@@ -70,7 +70,7 @@ jobs:
         cp -r FEMA/FEMA_wrapper build-artifacts/
         
         # Create build info file
-        export PATH="/usr/pubsw/packages/matlab/R2023a/bin:$PATH"
+        export PATH="/usr/pubsw/packages/matlab/R2024b/bin:$PATH"
         echo "Build Date: $(date)" > build-artifacts/build_info.txt
         echo "Git Commit: ${{ github.sha }}" >> build-artifacts/build_info.txt
         echo "Branch: ${{ github.ref_name }}" >> build-artifacts/build_info.txt

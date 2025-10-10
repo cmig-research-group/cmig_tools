@@ -2,7 +2,7 @@
 
 # Array to hold worker PIDs
 declare -a workerPIDs
-MCRROOT="/usr/pubsw/packages/matlab/R2023a"
+MCRROOT="/usr/pubsw/packages/matlab/R2024b"
 
 LD_LIBRARY_PATH=.:${MCRROOT}/runtime/glnxa64 ;
 LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/bin/glnxa64 ;
