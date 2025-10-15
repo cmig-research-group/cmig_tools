@@ -1,146 +1,90 @@
-name: Build CMIG Tools
+name: Continuous CMIG Tools Build
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  # MATLAB build job that requires your self-hosted runner
-  matlab-build:
-    runs-on: self-hosted  # This will run on your MATLAB-licensed machine
-    
+  matlab-ci:
+    runs-on: self-hosted
+
+    env:
+      MATLAB_BIN: /usr/pubsw/packages/matlab/R2024b/bin
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup build environment
-      run: |
-        # Ensure MATLAB is in PATH
-        export PATH="/usr/pubsw/packages/matlab/R2024b/bin:$PATH"
-        echo "MATLAB version:"
-        matlab -batch "version"
-    
-    - name: Build MATLAB components
-      working-directory: ./DEAP
-      run: |
-        export PATH="/usr/pubsw/packages/matlab/R2024b/bin:$PATH"
-        make clean
-        make deploy
-    
-    - name: Verify build outputs
-      working-directory: ./DEAP
-      run: |
-        # Verify only the deployment artifacts (matching deploy.sh ARTIFACT_DIRS)
-        echo "=== Verifying Deployment Artifacts ==="
-        echo "Checking the 4 directories that deploy.sh syncs..."
-        
-        # Check the main executables for deployment
-        for prog in FEMA_DEAP_worker/FEMA_DEAP_worker FEMA_DEAP_wrapper/FEMA_DEAP_wrapper FEMA_DEAP_gencache/FEMA_DEAP_gencache; do
-          if [ -f "$prog" ]; then
-            echo "✓ $prog"
+      - uses: actions/checkout@v4
+
+      - name: Compute CI tag & filenames
+        id: meta
+        run: |
+          TAG=ci-$(date -u +%Y%m%d-%H%M)
+          echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
+          echo "TARBALL=cmig-tools-$TAG.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Show MATLAB version
+        run: |
+          export PATH="${MATLAB_BIN}:$PATH"
+          matlab -batch "version"
+
+      - name: Build MATLAB components
+        working-directory: ./DEAP
+        run: |
+          export PATH="${MATLAB_BIN}:$PATH"
+          make clean
+          make deploy
+
+      - name: Verify build outputs
+        working-directory: ./DEAP
+        run: |
+          echo "=== Verifying Deployment Artifacts ==="
+          for prog in FEMA_DEAP_worker/FEMA_DEAP_worker FEMA_DEAP_wrapper/FEMA_DEAP_wrapper FEMA_DEAP_gencache/FEMA_DEAP_gencache; do
+            [ -f "$prog" ] && echo "✓ $prog" || { echo "✗ $prog - BUILD FAILED"; exit 1; }
+          done
+          if [ -f "../FEMA/FEMA_wrapper/FEMA_wrapper" ]; then
+            echo "✓ FEMA/FEMA_wrapper/FEMA_wrapper"
           else
-            echo "✗ $prog - BUILD FAILED"
+            echo "✗ FEMA/FEMA_wrapper/FEMA_wrapper - BUILD FAILED"
             exit 1
           fi
-        done
-        
-        # Check FEMA wrapper
-        if [ -f "../FEMA/FEMA_wrapper/FEMA_wrapper" ]; then
-          echo "✓ FEMA/FEMA_wrapper/FEMA_wrapper"
-        else
-          echo "✗ FEMA/FEMA_wrapper/FEMA_wrapper - BUILD FAILED"
-          exit 1
-        fi
-        
-        echo ""
-        echo "✅ All deployment artifacts verified successfully!"
-    
-    - name: Package artifacts
-      run: |
-        # Create build artifacts directory
-        mkdir -p build-artifacts
-        
-        # Package exactly what deploy.sh syncs (ARTIFACT_DIRS from deploy.sh)
-        echo "Packaging artifacts (matching deploy.sh ARTIFACT_DIRS)..."
-        cp -r DEAP/FEMA_DEAP_gencache build-artifacts/
-        cp -r DEAP/FEMA_DEAP_worker build-artifacts/
-        cp -r DEAP/FEMA_DEAP_wrapper build-artifacts/
-        cp -r FEMA/FEMA_wrapper build-artifacts/
-        
-        # Create build info file
-        export PATH="/usr/pubsw/packages/matlab/R2024b/bin:$PATH"
-        echo "Build Date: $(date)" > build-artifacts/build_info.txt
-        echo "Git Commit: ${{ github.sha }}" >> build-artifacts/build_info.txt
-        echo "Branch: ${{ github.ref_name }}" >> build-artifacts/build_info.txt
-        echo "MATLAB Version: $(matlab -batch 'version' 2>/dev/null | head -1)" >> build-artifacts/build_info.txt
-        
-        echo "Packaged artifacts:"
-        ls -la build-artifacts/
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: cmig-tools-build-${{ github.sha }}
-        path: build-artifacts/
-        retention-days: 30
+          echo "✅ All deployment artifacts verified successfully!"
 
-  # Create release on tags
-  release:
-    runs-on: ubuntu-latest
-    needs: matlab-build
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Generate GitHub App token
-      id: generate_token
-      uses: tibdex/github-app-token@v2
-      with:
-        app_id: ${{ secrets.FEMA_BUILD_BOT_APP_ID }}
-        private_key: ${{ secrets.FEMA_BUILD_BOT_APP_PRIVATE_KEY }}
-        installation_retrieval_mode: organization
-        installation_retrieval_payload: deap-science
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: cmig-tools-build-${{ github.sha }}
-        path: build-artifacts/
-    
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-    
-    - name: Upload Release Assets
-      run: |
-        # Create a tarball of build artifacts
-        tar -czf cmig-tools-${{ github.ref_name }}.tar.gz -C build-artifacts .
-        # You would upload this using gh cli or release API
-    
-    - name: Notify Consumer (microservices)
-      run: |
-        # Trigger repository dispatch event in deap-science/microservices
-        curl -X POST \
-          -H "Accept: application/vnd.github.v3+json" \
-          -H "Authorization: Bearer ${{ steps.generate_token.outputs.token }}" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          https://api.github.com/repos/deap-science/microservices/dispatches \
-          -d '{
-            "event_type": "cmig-tools-release",
-            "client_payload": {
-              "release_tag": "${{ github.ref_name }}",
-              "release_url": "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}",
-              "artifacts_url": "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/cmig-tools-${{ github.ref_name }}.tar.gz",
-              "producer_repo": "${{ github.repository }}",
-              "commit_sha": "${{ github.sha }}"
-            }
-          }'
+      - name: Package CI build artifacts
+        run: |
+          mkdir -p build-artifacts
+          cp -r DEAP/FEMA_DEAP_gencache build-artifacts/
+          cp -r DEAP/FEMA_DEAP_worker build-artifacts/
+          cp -r DEAP/FEMA_DEAP_wrapper build-artifacts/
+          cp -r FEMA/FEMA_wrapper build-artifacts/
+          export PATH="${MATLAB_BIN}:$PATH"
+          {
+            echo "Build Date (UTC): $(date -u)"
+            echo "Git Commit: ${{ github.sha }}"
+            echo "Branch: ${{ github.ref_name }}"
+            echo "MATLAB Version: $(matlab -batch 'version' 2>/dev/null | head -1)"
+          } > build-artifacts/build_info.txt
+
+      - name: Create tarball
+        run: |
+          tar -czf "${{ steps.meta.outputs.TARBALL }}" -C build-artifacts .
+
+      - name: Create/Update CI prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.TAG }}
+          name: Continuous Build ${{ steps.meta.outputs.TAG }}
+          prerelease: true
+          draft: false
+          generate_release_notes: false
+          files: |
+            ${{ steps.meta.outputs.TARBALL }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete older CI releases (keep last 10)
+        uses: dev-drprasad/delete-older-releases@v0.3.4
+        with:
+          keep_latest: 10
+          delete_tags: true
+          delete_tag_pattern: ci-
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
