@@ -28,9 +28,9 @@ function prepareAtlases__5060_ABCD3_cor10(atlas_dspace, atlasVersion, source, so
     addRequired(p, 'atlasVersion', '6.0_ABCD3_cor10', @(x) ischar(x) && ~isempty(x));
     addRequired(p, 'source', @(x) ischar(x) && ~isempty(x)); % abcd probabilistic rois directory 
     addRequired(p, 'sourceAnat', @(x) ischar(x) && ~isempty(x)); % abcd voxelwise smri directory 
-    addOptional(p, 'outdir', @(x) ischar(x) && ~isempty(x));
-    addOptional(p, 'adjustCenter', false);
-    addOptional(p, 'atlases', {'aseg','aparcaseg','fiber','thalamus','pauli'}, @(x) iscell(x) && all(cellfun(@ischar,x)));
+    addParamValue(p, 'outdir', @(x) ischar(x) && ~isempty(x));
+    addParamValue(p, 'adjustCenter', false);
+    addParamValue(p, 'atlases', {'aseg','aparcaseg','fiber','thalamus','pauli'}, @(x) iscell(x) && all(cellfun(@ischar,x)));
 
     parse(p,varargin{:});
     atlas_dspace = p.Results.atlas_dspace;
