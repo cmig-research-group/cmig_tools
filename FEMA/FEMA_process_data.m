@@ -1,21 +1,27 @@
-function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
+function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
 %
-% ABCD specific function to load and process imaging data from abcd-sync
+% ABCD specific function to load and process imaging data 
 %
 % INPUTS
-%	 fstem_imaging <char>		:	name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
-%	 dirname_imaging <char>		:	path to imaging data directory
-%	 datatype <char>			:	'voxel','vertex','external', 'corrmat'
-%									Other then 'external' all code is written to expect ABCD data in same format as abcd-sync
-%
+%	 fstem_imaging <char>		:	name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA') or 
+%                                   table name for tabulated ROI data, can be emtpy for datatype 'external'
+%	 dirname_imaging <char>		:	path to imaging data directory, if datatype is external than need the 
+%                                   full path to the file. 
+%	 datatype <char>			:	'voxel','vertex','corrmat', 'roi', 'external'
+%									Other then 'external' all code is written to expect ABCD data  
+%                                   
 % Optional input arguments:
 %	 ico <num>					:	ico-number for vertexwise analyses (0-based, default 5)
-%	 ranknorm <boolean>			:	rank normalise imaging data (default 0)
-%	 varnorm <boolean>			:	variance normalise imaging data (default 0)
+%	 ranknorm_wholeSample <boolean>			:	rank normalise imaging data (default 0)
+%	 standardize_wholeSample <boolean>			:	variance normalise imaging data (default 0)
 %	 GRM_file <char>			:	path to genetic relatedness data (GRM) - default [] - only required if A random effect specified
 %	 preg_file <char>			:	path to pregnancy data - default [] - only required if T random effect specified
 %	 address_file <char>		:	path to address data - default [] - only required if H random effect specified
-%
+%   fname_qc <char>			    :	path to QC file - default [] - only supplied if want to filter on some QC measure
+%                                   must include participant_id and session_id columns 
+%                                   file format can be csv, tsv, parquet 
+%   qc_var <char>			    :	name of ONLY ONE variable in QC - default [] - only required if QC random effect specified
+% 
 % OUTPUTS
 %	 ymat						:	matrix of imaging data (n x v)
 %	 iid_concat					:	src_subject_id
@@ -29,40 +35,58 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, 
 %
 % This software is Copyright (c) 2021 The Regents of the University of California. All Rights Reserved.
 % See LICENSE.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TO DOs: 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 p = inputParser;
-addParamValue(p,'ranknorm',0);
-addParamValue(p,'varnorm',0);
-addParamValue(p,'ico',5);
-addParamValue(p,'GRM_file',[]);
-addParamValue(p,'preg_file',[]);
-addParamValue(p,'address_file',[]);
-addParamValue(p,'corrvec_thresh',0.8);
+addRequired(p, 'fstem_imaging', @(x) ischar(x) && ~isempty(x));
+addRequired(p, 'dirname_imaging', @(x) ischar(x) && ~isempty(x));
+addRequired(p, 'datatype', @(x) ischar(x) && ~isempty(x));
+addParamValue(p, 'iid', [], @(x) iscell(x) || ischar(x));
+addParamValue(p, 'eid', [], @(x) iscell(x) || ischar(x));
+addParamValue(p, 'fname_qc', [], @(x) ischar(x));
+addParamValue(p, 'qc_var', [], @(x) ischar(x));
+addParamValue(p,'ranknorm_wholeSample', false);
+addParamValue(p,'standardize_wholeSample', false);
+addParamValue(p, 'wholeSampleTransform', false);
+addParamValue(p,'ico', 5);
+addParamValue(p,'GRM_file', []);
+addParamValue(p,'preg_file', []);
+addParamValue(p,'address_file', []);
+addParamValue(p,'corrvec_thresh', 0.8);
 
-parse(p,varargin{:})
+parse(p, varargin{:})
+iid = p.Results.iid;
+eid = p.Results.eid;
+fname_qc = p.Results.fname_qc;
+qc_var = p.Results.qc_var;
 ico = str2num_amd(p.Results.ico);
 icnum = ico + 1;
-ranknorm = str2num_amd(p.Results.ranknorm);
-varnorm = str2num_amd(p.Results.varnorm);
+ranknorm_wholeSample = str2num_amd(p.Results.ranknorm_wholeSample);
+standardize_wholeSample = str2num_amd(p.Results.standardize_wholeSample);
+wholeSampleTransform = p.Results.wholeSampleTransform;
 fname_GRM = p.Results.GRM_file;
 fname_preg = p.Results.preg_file;
 fname_address = p.Results.address_file;
 corrvec_thresh = p.Results.corrvec_thresh;
 
-readvolumesflag = true;
-if fstem_imaging(1)=='-'
-	readvolumesflag = false;
-	fstem_imaging = fstem_imaging(2:end);
+% check if QC file and variable are both provided
+if ~isempty(fname_qc)
+    if isempty(qc_var)
+        error('QC variable must be specified if QC file is provided');
+    end
 end
 
-if ~strcmpi(datatype,'external') %differences between releases not relevant for external data
+colnames_imaging=[];
+missingness = [];
 
-	colnames_imaging=[];
-
-	if strcmpi(datatype, 'voxel')
-		%Load voxelwise imaging data
-		logging('Reading VOXELWISE %s imaging data',fstem_imaging);
+%%%%% load data %%%%%
+switch datatype
+    case 'voxel'
+        %Load voxelwise imaging data
+		logging('Reading voxelwise %s imaging data',fstem_imaging);
 		tic
 		measname = fstem_imaging;
 		dirname_volmats = dirname_imaging;
@@ -74,21 +98,14 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 		end
 		tmp_volinfo = load(fname_volinfo);
 
-		if readvolumesflag
-			fname_volmat = sprintf('%s/%s.mat',dirname_volmats,lower(measname));
-			if ~exist(fname_volmat,'file') % if older release version 
-				fname_volmat = sprintf('%s/volmat_%s.mat',dirname_volmats,measname);
-			end	
-			ymat = getfield(load(fname_volmat),'volmat');
-			mask = tmp_volinfo.vol_mask_sub;
-			ivec_mask = find(mask>0.5);
-		else
-			ymat = NaN([length(tmp_volinfo.dirlist) 0]);
-			mask = [];
-			ivec_mask =	[];
-		end
-		ymat_bak = ymat; 
-
+		fname_volmat = sprintf('%s/%s.mat',dirname_volmats,lower(measname));
+		if ~exist(fname_volmat,'file') % if older release version 
+			fname_volmat = sprintf('%s/volmat_%s.mat',dirname_volmats,measname);
+		end	
+		ymat = getfield(load(fname_volmat),'volmat');
+		mask = tmp_volinfo.vol_mask_sub;
+		ivec_mask = find(mask>0.5);
+		
 		dirlist = tmp_volinfo.dirlist;
         subjidvec = cell(size(dirlist)); 
 		sitevec = cell(size(dirlist)); 
@@ -111,20 +128,11 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
         end 
         idevent = strcat(iid_concat(:),'_',eid_concat(:));
         corrmat_concat = tmp_volinfo.corrmat;
+        toc 
 
-		%QC FOR VOXELWISE DATA
-		corrvec=mean(corrmat_concat,2);
-        thresh = corrvec_thresh;
-		defvec=find(corrvec>=thresh); 
-		ymat=ymat(defvec,:);
-		idevent=idevent(defvec,:);
-		iid_concat=iid_concat(defvec,:);
-		eid_concat=eid_concat(defvec,:);
-		toc
-
-	elseif strcmpi(datatype, 'vertex')
+	case 'vertex'
 		% Read in vertexwise imaging data
-		logging('Reading VERTEXWISE %s imaging data',fstem_imaging);
+		logging('Reading vertexwise %s imaging data',fstem_imaging);
 		tic
 		%	SurfView_loadsurfs; % Shouldn't be neccessary, if data saved out pre-truncated
 		% load('SurfView_surfs.mat'); %this matfile is included in the executable when compiling using -a
@@ -202,8 +210,8 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 		idevent = strcat(iid_concat(:),'_',eid_concat(:));
 		toc
 
-	elseif strcmpi(datatype, 'corrmat')
-		logging('Processing CORRMAT');
+	case 'corrmat'
+		logging('Processing corrmat %s data', fstem_imaging);
 		if isstruct(dirname_imaging)
 			tmp = dirname_imaging;
 		else
@@ -246,41 +254,109 @@ if ~strcmpi(datatype,'external') %differences between releases not relevant for 
 		ivec_mask=[];
 		mask=[];
 
-	end
+    case 'roi'
+        logging('Reading ROI tabulated data from %s', fstem_imaging);
+        fname_roi = fullfile(dirname_imaging, fstem_imaging);
+        [dirname_roi, fstem_roi, ext_roi] = fileparts(fname_roi);
+        switch ext_roi 
+            case '.parquet'
+                roidat = parquetread(fname_roi);
+            case {'.csv' '.tsv' '.txt'}
+                opts = detectImportOptions(fname_roi, 'FileType', 'text');
+                roidat = readtable(fname_roi, opts, 'FileType', 'text', 'ReadVariableNames', false);
+        end 
+        % Check which ID + event columns are present for the different releases
+	    if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
+        	iid_concat = roidat.src_subject_id;
+        	eid_concat = roidat.eventname;
+	    elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
+        	iid_concat = roidat.participant_id;
+        	eid_concat = roidat.session_id;
+	    else
+        	error('No recognized ID/event columns found in the external file.');
+	    end
+	    ymat=table2array(roidat(:,3:end));
+	    colnames_imaging=roidat.Properties.VariableNames(3:end);
+	    idevent = strcat(iid_concat(:),'_',eid_concat(:));
 
-elseif strcmpi(datatype,'external') %does not need to be intersected with abcd mri info - extract info then go straight to intersecting with design matrix
+	    ivec_mask=[];
+	    mask=[];
 
-	logging('Reading EXTERNAL imaging data');
-	roidat = readtable(dirname_imaging);
-	% Check which ID + event columns are present for the different releases
-	if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
-    	iid_concat = roidat.src_subject_id;
-    	eid_concat = roidat.eventname;
-	elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
-    	iid_concat = roidat.participant_id;
-    	eid_concat = roidat.session_id;
-	else
-    	error('No recognized ID/event columns found in the external file.');
-	end
-	ymat=table2array(roidat(:,3:end));
-	colnames_imaging=roidat.Properties.VariableNames(3:end);
-	idevent = strcat(iid_concat(:),'_',eid_concat(:));
+    case 'external'
+	    logging('Reading tabulated imaging data from %s/%s', dirname_imaging, fstem_imaging);
+        [~ ~ ext_dirname_imaging] = fileparts(dirname_imaging);
+        if ~isempty(fstem_imaging)
+            switch ext_dirname_imaging
+                case '.parquet'
+                    opts = parquetinfo(dirname_imaging);
+                    varInc = fstem_imaging;
+                    varPresent = ismember(varInc, opts.VariableNames);
+                    if any(~varPresent)
+                        missingVars = varInc(~varPresent);
+                        error(['Could not find variables in table ', fname_qc, ': ', strjoin(missingVars, ', ')]);
+                    else
+                        opts.SelectedVariableNames = fstem_imaging;  % choose specific columns
+                        try 
+                            roidat = parquetread(dirname_imaging);
+                        catch ME
+                            error(sprintf('Cannot load tabulated data from %s', dirname_imaging));
+                            sprintf('Error: %s', rethrow(ME));
+                        end
+                    end 
+                case {'.csv' '.tsv' '.txt'}
+                    opts = detectImportOptions(dirname_imaging, 'FileType', 'text');
+                    varInc = fstem_imaging;
+                    varPresent = ismember(varInc, opts.VariableNames);
+                    if any(~varPresent)
+                        missingVars = varInc(~varPresent);
+                        error(['Could not find variables in file ', dirname_imaging, ': ', strjoin(missingVars, ', ')]);
+                    else
+                        opts.SelectedVariableNames = fstem_imaging;  % choose specific columns
+                        try
+                            roidat = readtable(dirname_imaging, opts);
+                        catch ME
+                            error(sprintf('Cannot load tabulated data from %s', dirname_imaging));
+                            sprintf('Error: %s', rethrow(ME));
+                        end 
+                    end 
+            end
+        else 
+            switch ext_dirname_imaging
+                case '.parquet'
+                    roidat = readtable(dirname_imaging);
+                case {'.csv' '.tsv' '.txt'}
+                    opts = detectImportOptions(dirname_imaging, 'FileType', 'text');
+                    roidat = readtable(dirname_imaging, opts);
+            end 
+        end 
+	    % Check which ID + event columns are present for the different releases
+	    if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
+        	iid_concat = roidat.src_subject_id;
+        	eid_concat = roidat.eventname;
+	    elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
+        	iid_concat = roidat.participant_id;
+        	eid_concat = roidat.session_id;
+	    else
+        	error('No recognized ID/event columns found in the external file.');
+	    end
+	    ymat=table2array(roidat(:,3:end));
+	    colnames_imaging=roidat.Properties.VariableNames(3:end);
+	    idevent = strcat(iid_concat(:),'_',eid_concat(:));
+	    ivec_mask=[];
+	    mask=[];
+    end 
 
-	ivec_mask=[];
-	mask=[];
+    %%%%% load GRM %%%%%
+    if ~isempty(fname_GRM)
+    	logging('Reading GRM');
+    	GRM = load(fname_GRM);
+    else
+    	GRM=[];
+    end
 
-end
-
-
-if ~isempty(fname_GRM)
-	logging('Reading GRM');
-	GRM = load(fname_GRM);
-else
-	GRM=[];
-end
-
-if ~isempty(fname_preg)
-	logging('Reading PREGNANCY ID');
+    %%%%% load pregnancy data %%%%%
+    if ~isempty(fname_preg)
+	logging('Reading pregnancy data');
 	fid = fopen(fname_preg);
 	varNames = strsplit(fgetl(fid), {' ' '"'});
 	fclose(fid);
@@ -288,23 +364,177 @@ if ~isempty(fname_preg)
 	opts.SelectedVariableNames = [2:5];
 	preg = readtable(fname_preg, opts);
 	preg = renamevars(preg,1:width(preg),varNames(2:5));
-else
-	preg=[];
-end
+    else
+    	preg=[];
+    end
 
-if ~isempty(fname_address)
-	logging('Reading HOME ID');
-	address = readtable(fname_address);
-else
-	address=[];
-end
+    %%%%% load home address data %%%%%
+    if ~isempty(fname_address)
+    	logging('Reading home address data');
+    	address = readtable(fname_address);
+    else
+    	address=[];
+    end
 
-if ranknorm==1
-	logging('Rank-norming Y');
-	ymat=rank_based_INT(ymat);
-end
+    %%%%% missingness %%%%%
+    % number of nans in ymat  
+    defvecNaN = isfinite(sum(ymat, 2)); 
+    numNaN = length(find(defvecNaN == 0));
+    idNaN = strcat(iid_concat(~defvecNaN), '_', eid_concat(~defvecNaN));
+    missingness.numNaN = numNaN;
+    missingness.idNaN = idNaN; 
 
-if varnorm==1
-	logging('Variance-norming Y');
-	ymat=normalize(ymat);
-end
+    %  how many don't pass threshold on correlation 
+    if strcmp(datatype, 'voxel')
+    	corrvec = mean(corrmat_concat,2);
+        thresh = corrvec_thresh;
+    	defvec_corrvec = find(corrvec>=thresh);
+        numFailCorr = length(find(defvec_corrvec == 0));
+        idFailCorr = strcat(iid_concat(~defvec_corrvec), '_', eid_concat(~defvec_corrvec));
+        missingness.numCorr = numFailCorr; % number removed dur to poor registration
+        missingness.idCorr = idFailCorr;
+    end 
+
+    % filter on qc if qc file is given 
+    if ~isempty(fname_qc)
+        % check file type of fname_qc
+        [dirname_qc, fstem_fname_qc, ext_fname_qc] = fileparts(fname_qc);
+        switch ext_fname_qc
+            case '.parquet'
+                opts = parquetinfo(fname_qc);
+                varInc = {'participant_id', 'session_id', qc_var};
+                varPresent = ismember(varInc, opts.VariableNames);
+                if any(~varPresent)
+                    missingVars = varInc(~varPresent);
+                    error(['Could not find variables in table ', fname_qc, ': ', strjoin(missingVars, ', ')]);
+                else
+                    opts.SelectedVariableNames = {'participant_id', 'session_id', qc_var};  % choose specific columns
+                    try 
+                        qc_tbl = parquetread(fname_qc);
+                    catch ME
+                        error(sprintf('Cannot load QC file %s with QC variable %s', fname_qc, qc_var));
+                        sprintf('Error: %s', rethrow(ME));
+                    end
+                end 
+            case {'.csv' '.tsv' '.txt'}
+                opts = detectImportOptions(fname_qc, 'FileType', 'text');
+                varInc = {'participant_id', 'session_id', qc_var};
+                varPresent = ismember(varInc, opts.VariableNames);
+                if any(~varPresent)
+                    missingVars = varInc(~varPresent);
+                    error(['Could not find variables in table ', fname_qc, ': ', strjoin(missingVars, ', ')]);
+                else
+                    opts.SelectedVariableNames = {'participant_id', 'session_id', qc_var};  % choose specific columns
+                    try
+                        qc_tbl = readtable(fname_qc, opts);
+                    catch ME
+                        error(sprintf('Cannot load QC file %s with QC variable %s', fname_qc, qc_var));
+                        sprintf('Error: %s', rethrow(ME));
+                    end 
+                end 
+        end
+        passQC_idevent = strcat(qc_tbl.participant_id, '_', string(qc_tbl.session_id));
+        passQC_idevent = passQC_idevent((qc_tbl.(qc_var) == '1'));
+        defvecQC = ismember(idevent, passQC_idevent);
+        idFailQC = idevent(~defvecQC);
+        missingness.numFailQC = sum(~defvecQC);    
+        missingness.idFailQC = idFailQC;
+    else 
+        defvecQC = true(size(ymat, 1), 1);
+    end 
+
+    % remove nans, fail corrvec, fail qc 
+    defvec =  defvecNaN & defvec_corrvec & defvecQC; 
+    iid_concat = iid_concat(defvec);
+    eid_concat = eid_concat(defvec);
+    idevent = idevent(defvec);
+    ymat = ymat(defvec, :);
+    missingness.numFailAny = sum(~defvec);
+    missingness.idFailAny = idevent(~defvec);
+
+    % inverse ranknorm or standardize on qc'd data 
+    if ranknorm_wholeSample
+    	logging('Rank-norming Y');
+    	%ymat=rank_based_INT(ymat);
+        [ymat settingsTransform] = doTransformation(ymat, 'ranknorm');
+    end
+
+    if standardize_wholeSample
+    	logging('Standardizing Y');
+    	%ymat=normalize(ymat);
+        [ymat settingsTransform] = doTransformation(ymat, 'standardize');
+    end
+
+    % filter on iid and eid if given 
+    % iid 
+    if ~isempty(iid)
+        if ischar(iid)  
+            if isfile(iid) % check if it's a file 
+                [~ ~ ext_iid] = fileparts(iid);
+                switch ext_iid % load file 
+                    case '.parquet'
+                        iid = parquetread(iid);
+                        
+                    case {'.csv', '.tsv', '.txt'}
+                        iid = readtable(iid, 'FileType', 'text', 'ReadVariableNames', false);
+                end 
+                iid = table2cell(iid); % convert to cell 
+            else
+                iid = cellstr(iid); % if not a file, convert to cell array
+            end
+        end
+        defvec_iid = ismember(iid_concat, iid); 
+    else 
+        defvec_iid = true(size(iid_concat));
+    end
+    % eid 
+    if ~isempty(eid)
+        if ischar(eid)  
+            if isfile(eid) % check if it's a file 
+                [~ ~ ext_eid] = fileparts(eid);
+                switch ext_eid % load file 
+                    case '.parquet'
+                        eid = parquetread(eid);
+                        
+                    case {'.csv', '.tsv', '.txt'}
+                        eid = readtable(eid, 'FileType', 'text', 'ReadVariableNames', false);
+                end 
+                eid = table2cell(eid); % convert to cell 
+            else
+                eid = cellstr(eid); % if not a file, convert to cell array
+            end
+        end
+        defvec_eid = ismember(eid_concat, eid); 
+    else 
+        defvec_eid = true(size(eid_concat));
+    end
+
+    % filter on iid and eid if supplied
+    defvec = defvec_iid & defvec_eid;
+    iid_concat = iid_concat(defvec);
+    eid_concat = eid_concat(defvec);
+    idevent = idevent(defvec);
+    ymat = ymat(defvec, :);
+
+    % how many nans in iid- and eid- filtered data
+    % nans in filtered data
+    defvecNaN_filtered = defvecNaN & defvec_iid & defvec_eid;
+    missingness.numNaN_filtered = sum(~defvecNaN_filtered);
+    missingness.idNaN_filtered = idevent(~defvecNaN_filtered);
+    % fail corrvec in filtered data
+    defvec_corrvec_filtered = defvec_corrvec & defvec_iid & defvec_eid;
+    missingness.numFailCorrvec_filtered = sum(~defvec_corrvec_filtered);
+    missingness.idFailCorrvec_filtered = idevent(~defvec_corrvec_filtered);
+    % fail qc in filtered data
+    defvecQC_filtered = defvecQC & defvec_iid & defvec_eid;
+    missingness.numFailQC_filtered = sum(~defvecQC_filtered);
+    missingness.idFailQC_filtered = idevent(~defvecQC_filtered);
+    %  fail any in filtered data
+    defvecAny_filtered = defvecNaN & defvec_corrvec & defvecQC & defvec_iid & defvec_eid;
+    missingness.numFailAny_filtered = sum(~defvecAny_filtered);
+    missingness.idFailAny_filtered = idevent(~defvecAny_filtered);
+
+end 
+
+
+
