@@ -1,4 +1,4 @@
-function [output, settings] = doTransformation(inputVars, transformType)
+function [output, settings] = doTransformation(inputVars, transformType, varargin)
 % Function that applies a specified transformation to input variable(s)
 %% Inputs:
 % inputVars:        [n x p]     vector or matrix of n observations and p
@@ -14,7 +14,12 @@ function [output, settings] = doTransformation(inputVars, transformType)
 %                                   * 'logn'
 %                                   * 'log10'
 %                                   * 'inverseranknorm' | 'ranknorm' | 'int'
+%                                   * 'winsorize' | 'winsorise' | 'winsor'
 %
+% Optional inputs:
+%   - 'percentile':   [1 x 2]     vector specifying the lower and upper
+%                                   percentiles for winsorization (default:
+%                                   [1, 99])
 %% Outputs:
 % output:           [n x p]     vector or matrix of transformed p variables
 %                               (returned in the same order as in inputVars)
@@ -47,6 +52,15 @@ function [output, settings] = doTransformation(inputVars, transformType)
 % transformType:    'inverseranknorm' | 'ranknorm' | 'int'
 % inverse normal rank transformation of every column of the input; uses the
 % function rank_based_INT
+%
+%
+% transformType:    'winsorize' | 'winsorise' | 'winsor'
+% winsorization of every column of the input
+
+p = inputParser;
+addParameter(p, 'percentile', [1, 99], @(x) validateattributes(x, {'numeric'}, {'vector', 'numel', 2}));
+parse(p, varargin{:});
+percentile = p.Results.percentile;
 
 %% Check inputs
 tInit = tic;
@@ -119,5 +133,10 @@ switch transformType
         
     case {'inverseranknorm', 'ranknorm', 'int'}
         output = rank_based_INT(inputVars);
+        settings.timeTaken = toc(tInit);
+
+    case {'winsorize', 'winsorise', 'winsor'}
+        output = winsorize(inputVars, 'percentile', percentile);
+        settings.percentile = percentile;
         settings.timeTaken = toc(tInit);
 end
