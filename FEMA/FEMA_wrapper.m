@@ -1,5 +1,8 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
+function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(varargin)
 %
+% FEMA_wrapper can be called either as:
+%   FEMA_wrapper(fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, ...)
+%   FEMA_wrapper(fname_json)
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
 %     2) To intersect with design matrices (FEMA_intersect_design)
@@ -19,8 +22,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 % Optional input arguments:
 %   contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
 %   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
-%   ranknorm <boolean>         :  rank normalise imaging data (default 0)
-%   varnorm <boolean>          :  variance normalise imaging data (default 0)
+%   transformY <string>        :  transformation to apply to Y (default 'none')
 %   output <string>            :  'mat' (default) or 'nifti' or 'deap' or concatenations to write multiple formats.
 %   ivnames <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
 %   RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
@@ -56,7 +58,22 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 
 % This software is Copyright (c) 2021 The Regents of the University of California. All Rights Reserved.
 % See LICENSE.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TO DOs
+% - do we want to add "isfile" check at inputParser stage for everything that should be a file path?
+% - contrasts
+% - add study and release variable for non-DEAP mode. is there a way to get this from the data rather than user input?
+% - DEAP mode: do we need to create the makeDEsign config file? 
+% - DEAP mode: how do we set dfirname_out? 
+%
+%
+%
+%
+%
+%
+%
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % logging('***Start FEMA v2.3, 11/15/2023)');
 logging('***Start***');
@@ -65,83 +82,109 @@ starttime = now();
 rng shuffle %Set random number generator so different every time
 
 %PARSING INPUTS
-
-if nargin < 5
-  logging('Usage: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,varargin)');
-  error('Incorrect number of input arguments')
+if nargin == 1
+    % check that it's a json file and it exists
+    if ischar(varargin{1}) || isstring(varargin{1})
+        if endsWith(varargin{1}, '.json') && isfile(varargin{1})
+            % get FEMA_wrapper inputd from json 
+            [fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, extraArgs] = ...
+                parseInputs(varargin{1});
+            varargin = extraArgs;
+        else
+            error('Invalid input. Please provide a valid JSON file path.');
+        end
+    else
+        error('Invalid input. Please provide a valid JSON file path.');
+    end
 end
+
 
 % if isdeployed
 %   logging('***FEMA_wrapper_app Compiled 11/8/2021, FEMA v2.0***\n\n'); %TODO: remember to change this before compiling
 % end
 
 inputs = inputParser;
-addParamValue(inputs,'ranknorm',0);
-addParamValue(inputs,'varnorm',0);
-addParamValue(inputs,'ico',5);
-addParamValue(inputs,'contrasts',[]);
-addParamValue(inputs,'output',[]);
-addParamValue(inputs,'synth',0); % AMD - put back synth option
-addParamValue(inputs,'ivnames','');
-addParamValue(inputs,'RandomEffects',{'F' 'S' 'E'}); % Default to Family, Subject, and eps
-addParamValue(inputs,'GRM_file',[]);
-addParamValue(inputs,'preg_file',[]);
-addParamValue(inputs,'address_file',[]);
-addParamValue(inputs,'nperms',0);
-addParamValue(inputs,'mediation',0);
-addParamValue(inputs,'tfce',0);
-addParamValue(inputs,'colsinterest',1);
-addParamValue(inputs,'demean',0);
-addParamValue(inputs,'corrvec_thresh',0.8); 
-
+% required inputs
+addRequired(inputs, 'fstem_imaging', @ischar);
+addRequired(inputs, 'fname_design', @ischar);
+addRequired(inputs, 'dirname_out', @ischar);
+addRequired(inputs, 'dirname_imaging', @ischar);
+addRequired(inputs, 'datatype', @(x) ischar(x) && ...
+                     ismember(x, {'voxel', 'vertex', 'corrmat', ...
+                                  'roi', 'external'}));
+% optional inputs
+addParameter(inputs, 'iid', [], @(x) iscell(x) || ischar(x));
+addParameter(inputs, 'eid', [], @(x) iscell(x) || ischar(x));
+addParameter(inputs, 'fname_qc', [], @(x) ischar(x));
+addParameter(inputs, 'qc_var', [], @(x) ischar(x));
+addParameter(inputs, 'transformY', 'none', ...
+                      @(x) ischar(x) && ...
+                      ismember(x, {'center' 'centre' 'demean' ...
+                                   'std' 'standardize' 'normalize' ...
+                                   'logn' 'log10' 'inverseranknorm' ...
+                                   'ranknorm' 'int'}));
+addParameter(inputs, 'ico', 5, @(x) isscalar(x) && isnumeric(x));
+addParameter(inputs, 'contrasts', [], @(x) isnumeric(x) || ischar(x));
+addParameter(inputs, 'outputType', '.mat', @(x) ischar(x) && ...
+                     ismember(x, {'.mat' '.nii' '.nii.gz' ... 
+                                  'nifti' 'voxel' '.gii' ...
+                                  'gifti' 'vertex' 'tables' ...
+                                  'summary'}));
+addParameter(inputs, 'synth',  false, @(x) isscalar(x) && islogical(x) || isnumeric(x)); % AMD - put back synth option
+addParameter(inputs, 'ivnames', '', @(x) ischar(x) || iscell(x));
+addParameter(inputs, 'RandomEffects', {'F' 'S' 'E'}, @(x) iscell(x) || ischar(x)); % Default to Family, Subject, and eps
+addParameter(inputs, 'GRM_file', [], @(x) ischar(x));
+addParameter(inputs, 'preg_file', [], @(x) ischar(x));
+addParameter(inputs, 'address_file', [], @(x) ischar(x));
+addParameter(inputs, 'nperms', 0, @(x) isscalar(x) && isnumeric(x));
+addParameter(inputs, 'mediation', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'tfce', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'colsinterest', 1, @(x) isnumeric(x));
+addParameter(inputs, 'corrvec_thresh', 0.8, @(x) isscalar(x) && isnumeric(x));
 %FEMA_fit variable inputs
-addParamValue(inputs,'niter',1);
-addParamValue(inputs,'nbins',20);
-addParamValue(inputs,'CovType','analytic');
-addParamValue(inputs,'FixedEstType','GLS');
-addParamValue(inputs,'RandomEstType','MoM');
-addParamValue(inputs,'GroupByFamType',true);
-addParamValue(inputs,'NonnegFlag',true); % Perform lsqnonneg on random effects estimation
-addParamValue(inputs,'SingleOrDouble','double');
-addParamValue(inputs,'logLikflag',0);
-addParamValue(inputs,'Hessflag',false);
-addParamValue(inputs,'ciflag',false);
-addParamValue(inputs,'permtype','wildbootstrap');
+addParameter(inputs, 'niter', 1, @(x) isscalar(x) && isnumeric(x));
+addParameter(inputs, 'nbins', 20, @(x) isscalar(x) && isnumeric(x));
+addParameter(inputs, 'CovType', 'analytic', @(x) ischar(x) && ...
+                      ismember(x, {'analytic', 'unstructured'}));
+addParameter(inputs, 'FixedEstType', 'GLS', @(x) ischar(x) && ismember(x, {'OLS', 'GLS'}));
+addParameter(inputs, 'RandomEstType', 'MoM', @(x) ischar(x) && ismember(x, {'MoM', 'ML'}));
+addParameter(inputs, 'GroupByFamType', true, @(x) isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'NonnegFlag', true, @(x) isscalar(x) && islogical(x) || isnumeric(x)); % Perform lsqnonneg on random effects estimation
+addParameter(inputs, 'SingleOrDouble', 'double', @(x) ischar(x) && ...
+                      ismember(x, {'single', 'double'}));
+addParameter(inputs, 'logLikflag', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'Hessflag', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'ciflag', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'permtype', 'wildbootstrap', @(x) ischar(x) && ...
+                      ismember(x, {'wildbootstrap', 'wildbootstrap-nn', 'none'}));
 
-parse(inputs,varargin{:})
+
+parse(inputs, fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, varargin{:})
+
 % Display input arguments for log
-disp(inputs.Results)
-niter = str2num_amd(inputs.Results.niter);
-ico = str2num_amd(inputs.Results.ico);
-contrasts = str2num_amd(inputs.Results.contrasts);
-if ~isfinite(contrasts)
-  fname_contrasts = inputs.Results.contrasts;
-  logging('Reading contrast matrix from %s',fname_contrasts);
-  contrasts = readtable(fname_contrasts);
-end
-ranknorm = str2num_amd(inputs.Results.ranknorm);
-varnorm = str2num_amd(inputs.Results.varnorm);
-outputFormat = inputs.Results.output;
-if isempty(outputFormat)
-  if strcmp(datatype,'external') outputFormat = 'csv'; else outputFormat = 'mat'; end % external data defaults to csv output
-end
-nbins = str2num_amd(inputs.Results.nbins);
-if ~(contains(outputFormat,'mat') || contains(outputFormat,'nifti') || contains(outputFormat,'csv'))
-  error('Incorrect output format (%s)',outputFormat)
-end
+%disp(inputs.Results)
 
+niter = inputs.Results.niter;
+ico = inputs.Results.ico;
+contrasts = inputs.Results.contrasts;
+transformY = inputs.Results.transformY;
+outputType = inputs.Results.outputType;
+if strcmp(datatype,'external') 
+        outputType = 'tables'; 
+end 
+nbins = inputs.Results.nbiconfigns;
 if ~isempty(inputs.Results.ivnames)
-  ivnames = split(inputs.Results.ivnames,',');
+    ivnames = split(inputs.Results.ivnames,','); 
 else
-  ivnames = {};
+    ivnames = {};
 end
 
 if ~isempty(ivnames) || isdeployed
-  logging('%d IVs specified (%s)',length(ivnames), inputs.Results.ivnames);
+    logging('%d IVs specified (%s)',length(ivnames), inputs.Results.ivnames);
 end
 
-RandomEffects = rowvec(split(strrep(strrep(inputs.Results.RandomEffects,'{',''),'}','')));
-disp(RandomEffects)
+
+RandomEffects = inputs.Results.RandomEffects;
 fname_GRM = inputs.Results.GRM_file;
 fname_address = inputs.Results.address_file;
 fname_pregnancy = inputs.Results.preg_file;
@@ -162,403 +205,428 @@ mediation = str2num_amd(inputs.Results.mediation);
 synth = str2num_amd(inputs.Results.synth);
 tfce = str2num_amd(inputs.Results.tfce);
 colsinterest = str2num_amd(inputs.Results.colsinterest);
-demean = str2num_amd(inputs.Results.demean);
+demeanY = str2num_amd(inputs.Results.demeanY);
 corrvec_thresh = str2num_amd(inputs.Results.corrvec_thresh);
 
 if ~iscell(fname_design)
-  fname_design = {fname_design};
+    fname_design = {fname_design};
 end
 
 if ~iscell(dirname_out)
-  dirname_out = {dirname_out};
+    dirname_out = {dirname_out};
 end
 
 if length(fname_design)~=length(dirname_out)
-  error('if using cell array specifying multiple designs, fname_design and dirname_out must both have an equal number of items.')
+    error('if using cell array specifying multiple designs, fname_design and dirname_out must both have an equal number of items.')
 end
 
 if ~ismember(lower(datatype),{'voxel' 'vertex' 'external' 'corrmat'})
-  error('Input error: invalid datatype')
+    error('Input error: invalid datatype')
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ranknorm',ranknorm,'varnorm',varnorm,'ico',ico,'GRM_file',fname_GRM,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ico',ico,'GRM_file',fname_GRM,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% INTERSECT WITH DESIGN MATRIX
-
-%Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 GRM_bak=GRM;
 ymat_bak=ymat;
 cont_bak=contrasts;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% create design matrix
+
+%if fname_design 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % IF RUNNING MEDIATION ANALYSIS
 
 if mediation==1
 
-  seed=rng; % Save rng in order to ensure resampling is the same for both models
+    seed=rng; % Save rng in order to ensure resampling is the same for both models
 
-  if ~ismember(lower(permtype),{'wildbootstrap-nn'})
-    error('Change permtype input to wildboostrap-nn to perform non-null WB needed for mediation analysis OR set mediation=0.')
-  end
+    if ~ismember(lower(permtype),{'wildbootstrap-nn'})
+        error('Change permtype input to wildboostrap-nn to perform non-null WB needed for mediation analysis OR set mediation=0.')
+    end
 
-  if length(fname_design)~=2
-    error('fname_design must be a cell array containing 2 nested design matrices to test for mediation.')
-  end
+    if length(fname_design)~=2
+        error('fname_design must be a cell array containing 2 nested design matrices to test for mediation.')
+    end
 
-  if nperms==0
-    error('Change nperms>0 to run mediation analysis OR set mediation=0.')
-  end
+    if nperms==0
+        error('Change nperms>0 to run mediation analysis OR set mediation=0.')
+    end
 
-  if tfce==1
-    error('Cannot run mediation and TFCE as different resampling scheme required. Set tfce=0.')
-  end
+    if tfce==1
+        error('Cannot run mediation and TFCE as different resampling scheme required. Set tfce=0.')
+    end
 
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% contrasts 
+if ischar(contrasts)
+    [contrasts, hypValues] = FEMA_parse_contrastFile(inName, colnames); 
+end 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% INTERSECT WITH DESIGN MATRIX
+
+%Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
 
 fpaths_out = {};
 for des=1:length(fname_design)
 
-  [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'GRM',GRM_bak,'preg',preg,'address',address,'demean', demean);
-  if synth==1 % Make synthesized data
-    [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,GRM,'nbins',nbins,'RandomEffects',RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
+    [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'GRM',GRM_bak,'preg',preg,'address',address);
+    if synth==1 % Make synthesized data
+        [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,GRM,'nbins',nbins,'RandomEffects',RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
-    % sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
-  else
-    sig2tvec_true = []; sig2mat_true = [];
-  end
-
-  synthstruct = struct('sig2tvec_true',sig2tvec_true,'sig2mat_true',sig2mat_true);
-
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-  % IF RUNNING MODELS FOR MEDIATION ANALYSIS
-
-  if mediation==1
-
-    rng(seed); %set same seed for both runs of FEMA_fit
-
-    if des==1
-      X_bak=X;
-    end
-
-    if des==2
-      if size(X_bak,1)~=size(X,1)
-        error('Design matrices must have the same number of observations for mediation analysis.') % Check after intersection
-      end
-    end
-
-  end
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-
-% FIT MODEL
-  [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, GRM,'RandomEffects',RandomEffects,...
-    'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
-    'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
-
-  if sum(~mask)>0
-
-    z_tmp=zeros(size(zmat,1),size(mask,2));
-    p_tmp=zeros(size(logpmat,1),size(mask,2));
-    beta_tmp=zeros(size(beta_hat,1),size(mask,2));
-    betase_tmp=zeros(size(beta_se,1),size(mask,2));
-    sig2mat_tmp=zeros(size(sig2mat,1),size(mask,2));
-    sig2tvec_tmp=zeros(size(sig2tvec,1),size(mask,2));
-    coeffCovar_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2));
-
-    z_tmp(:,ivec_mask)=zmat;
-    p_tmp(:,ivec_mask)=logpmat;
-    beta_tmp(:,ivec_mask)=beta_hat;
-    betase_tmp(:,ivec_mask)=beta_se;
-    sig2mat_tmp(:,ivec_mask)=sig2mat;
-    sig2tvec_tmp(:,ivec_mask)=sig2tvec;
-    coeffCovar_tmp(:, :, ivec_mask)=coeffCovar;
-
-    zmat=z_tmp;
-    logpmat=p_tmp;
-    beta_hat=beta_tmp;
-    beta_se=betase_tmp;
-    sig2mat=sig2mat_tmp;
-    sig2tvec=sig2tvec_tmp;
-    coeffCovar=coeffCovar_tmp;
-
-    if nperms>0
-
-      zperm_tmp=zeros(size(zmat_perm,1),size(mask,2),size(zmat_perm,3));
-      betaperm_tmp=zeros(size(beta_hat_perm,1),size(mask,2),size(beta_hat_perm,3));
-      betaseperm_tmp=zeros(size(beta_se_perm,1),size(mask,2),size(beta_se_perm,3));
-      sig2matperm_tmp=zeros(size(sig2mat_perm,1),size(mask,2),size(sig2mat_perm,3));
-      sig2tvecperm_tmp=zeros(size(sig2tvec_perm,1),size(mask,2),size(sig2tvec_perm,3));
-      coeffCovar_perm_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2), size(coeffCovar, 4));
-
-      zperm_tmp(:,ivec_mask,:)=zmat_perm;
-      betaperm_tmp(:,ivec_mask,:)=beta_hat_perm;
-      betaseperm_tmp(:,ivec_mask,:)=beta_se_perm;
-      sig2matperm_tmp(:,ivec_mask,:)=sig2mat_perm;
-      sig2tvecperm_tmp(:,ivec_mask,:)=sig2tvec_perm;
-      coeffCovar_perm_tmp(:, :, ivec_mask, :)=coeffCovar_perm;
-
-      zmat_perm=zperm_tmp;
-      beta_hat_perm=betaperm_tmp;
-      beta_se_perm=betaseperm_tmp;
-      sig2mat_perm=sig2matperm_tmp;
-      sig2tvec_perm=sig2tvecperm_tmp;
-      coeffCovar_perm=coeffCovar_perm_tmp;
-
-    end
-
-  end
-
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-  % IF RUNNING TFCE
-
-  if tfce==1 && nperms>0
-    tfce_perm = FEMA_tfce(zmat_perm,colsinterest,datatype,mask);
-  elseif tfce==1 && nperms==0
-    error('Change nperms>0 to run TFCE OR set tfce=0.')
-  else
-    tfce_perm=[];
-  end
-
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-  % IF RUNNING RESAMPLING
-
-  % Only save permutations for IVs of interest to reduce size of output
-  % If wanting to save permutations for all columns of X make colsinterest=[1:size(X,2)]
-
-  if nperms>0
-    beta_hat_perm=beta_hat_perm(colsinterest,:,:);
-    beta_se_perm=beta_se_perm(colsinterest,:,:);
-    zmat_perm=zmat_perm(colsinterest,:,:);
-    colnames_interest=colnames_model(colsinterest);
-  elseif nperms==0
-    colnames_interest=colnames_model;
-  end
-
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  % SAVE OUTPUT
-
-  if nperms>0 && strcmp(permtype,'wildbootstrap')
-    dirname_out{des}=sprintf('%s/nullWB_%dperms',dirname_out{des},nperms);
-  elseif nperms>0 && strcmp(permtype,'wildbootstrap-nn')
-    dirname_out{des}=sprintf('%s/nonnullWB_%dperms',dirname_out{des},nperms);
-  end
-
-  save_params = struct('fstem_imaging',fstem_imaging,'datatype',datatype,'outdir',dirname_out{des},'synth',synth);
-  base_variables_to_save = {'X','iid','eid','colnames_model','contrasts','datatype','inputs','zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec', 'coeffCovar', 'save_params','mask'};
-
-  if ~exist(dirname_out{des},'dir'), mkdir(dirname_out{des}); end
-
-  if synth==0
-    fpath_out = sprintf('%s/FEMA_wrapper_output_%s_%s.mat',dirname_out{des},datatype,fstem_imaging);
-  elseif synth==1
-    fpath_out = sprintf('%s/FEMA_wrapper_output_%s_%s_synth.mat',dirname_out{des},datatype,fstem_imaging);
-  end
-
-  %write column names to json for DEAP
-  fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
-  out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
-  jsonStr = jsonencode(out);
-  fid = fopen(fname_col,'w');
-  fprintf(fid,'%s\n',jsonStr);
-  fclose(fid);
-
-  % =========================================================================
-  % Write VOXEL results (mat, nifti, or deap)
-  % =========================================================================
-  if strcmpi(datatype,'voxel')
-
-    vol_z = zeros([size(mask) size(zmat,1)]);
-    vol_logp = zeros([size(mask) size(zmat,1)]);
-    vol_beta_hat = zeros([size(mask) size(zmat,1)]);
-    vol_beta_se = zeros([size(mask) size(zmat,1)]);
-    for j = 1:size(zmat,1)
-      vol_z(:,:,:,j) = single(fullvol(zmat(j,:),mask));
-      vol_logp(:,:,:,j) = single(fullvol(logpmat(j,:),mask));
-      vol_beta_hat(:,:,:,j) = single(fullvol(beta_hat(j,:),mask));
-      vol_beta_se(:,:,:,j) = single(fullvol(beta_se(j,:),mask));
-    end
-
-    vol_sig2t = zeros([size(mask) 1]);
-    vol_sig2t(ivec_mask) = single(sig2tvec);
-    vol_sig2 = zeros([size(mask) size(sig2mat,1)]);
-    for j = 1:size(sig2mat,1)
-      vol_sig2(:,:,:,j) = single(fullvol(sig2mat(j,:),mask));
-    end
-
-
-    % ============================================================================================================================
-    % == MAT Output ==
-    if contains(outputFormat, 'mat')
-
-      if nperms>0 & tfce==0
-        save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
-      elseif nperms>0 & tfce==1
-        save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','zmat_perm','beta_hat_perm','tfce_perm','colnames_interest','colsinterest','-v7.3');
-      elseif nperms==0
-        save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','logpmat','vol_sig2','vol_sig2t','-v7.3');
-      end
-      logging('Results written to %s',fpath_out);
-
-    end
-
-    % ============================================================================================================================
-    % == NIFTI Output == FIXME: no longer used for DEAP
-    if contains(outputFormat, 'nifti')
-      results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
-      writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model);
-    end
-
-    % =========================================================================
-    % Write VERTEX results
-    % =========================================================================
-  elseif strcmpi(datatype, 'vertex')
-
-    if contains(outputFormat,'mat')
-
-      if nperms>0 & tfce==0
-        save(fpath_out,base_variables_to_save{:},'zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
-      elseif nperms>0 & tfce==1
-        save(fpath_out,base_variables_to_save{:},'zmat_perm','beta_hat_perm','tfce_perm','colnames_interest','colsinterest','-v7.3');
-      elseif nperms==0
-        save(fpath_out,base_variables_to_save{:},'-v7.3');
-      end
-
-      logging('Results written to %s',fpath_out);
-    end
-
-    if contains(outputFormat, 'nifti') %FIXME: these are much smaller, so haven't added the same optimization as for voxelwise
-
-    randomFields = {'sig2tvec', 'sig2mat'};
-
-      results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat);
-      % Write out in FreeSurfer curv format, with naming consistent with volumes
-      fieldnamelist = setdiff(fieldnames(results),randomFields);
-      icnum = ico+1;
-      load(fullfile(fileparts(fileparts(which('FEMA_wrapper'))), 'showSurf', 'SurfView_surfs.mat'), 'icsurfs');
-      % load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
-      S = struct;
-      S.nverts = 2*size(icsurfs{icnum}.vertices,1);
-      S.nfaces = 2*size(icsurfs{icnum}.faces,1);
-      S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
-      % parse IVs
-      if isempty(ivnames)
-        excludeCol = strmatch('mri_info_',colnames_model);
-        nCol = length(colnames_model);
-        ivCol = setdiff(1:nCol, excludeCol);
-      else
-        [~,ivCol,~] = intersect(colnames_model,ivnames);
-      end
-      if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
-      % write out the fixed effects
-      for fi = 1:length(fieldnamelist)
-        fieldname = fieldnamelist{fi};
-        vol_nifti = results.(fieldname);
-        for iv = ivCol(:)'
-          colname = sprintf('FE%02d',iv);
-          valvec = vol_nifti(iv,:);
-          fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
-          fs_write_curv(fname_out,valvec,S.nfaces);
-          fprintf(1,'file %s written\n',fname_out);
-        end
-      end
-      % write out the random effects
-      fieldnamelist = randomFields;
-      for fi = 1:length(fieldnamelist)
-        fieldname = fieldnamelist{fi};
-        vol_nifti = results.(fieldname);
-        for iv = 1:size(vol_nifti,4)
-          colname = sprintf('RE%02d',iv);
-          valvec = vol_nifti(iv,:);
-          fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
-          fs_write_curv(fname_out,valvec,S.nfaces);
-          fprintf(1,'file %s written\n',fname_out);
-        end
-      end
-
-    end
-
-    % =========================================================================
-    % Write EXTERNAL results (mat)
-    % =========================================================================
-  elseif strcmpi(datatype, 'external')
-
-    if contains(outputFormat, 'csv')
-      warning('Defaulting to output format "csv" for external csv data. Use output = "mat" for MATLAB output file.')
-      if nperms > 0
-        csv_vars_to_save = {base_variables_to_save{:}, 'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest'};
-      elseif nperms==0
-        csv_vars_to_save = {base_variables_to_save{:}, 'colnames_imaging'};
-      end
-      % save to fpath_out
-      for v =1:length(csv_vars_to_save)
-        % save
-        filename = strrep(fpath_out,'.mat',sprintf('_%s.csv',csv_vars_to_save{v}));
-        if strcmp(class(eval(csv_vars_to_save{v})),'cell')
-          writecell(eval(csv_vars_to_save{v}), filename);
-        elseif strcmp(class(eval(csv_vars_to_save{v})),'inputParser') || strcmp(class(eval(csv_vars_to_save{v})),'struct') 
-          continue; % consider saving inputs as well?
-        else 
-          writematrix(eval(csv_vars_to_save{v}), filename);
-        end
-      end
-    end
-
-    if contains(outputFormat, 'mat')
-      if nperms>0
-        save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
-      elseif nperms==0
-        save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
-      end
-    end
-
-    logging('Results written to %s',fpath_out);
-
-    % =========================================================================
-    % Write CORRMAT results FIXME: saving is not implemented
-    % =========================================================================
-  elseif strcmpi(datatype, 'corrmat')
-
-    if 0
-      figure; im = reshape(beta_hat(1,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
-      figure; im = reshape(beta_hat(2,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
-      figure; im = reshape(zmat(1,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
-      figure; im = reshape(zmat(2,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
-    end
-    %beta_hat = reshape(beta_hat,[size(beta_hat,1) dims(2:end)]);
-    %beta_se = reshape(beta_se,[size(beta_hat,1) dims(2:end)]);
-    %zmat = reshape(zmat,[size(beta_hat,1) dims(2:end)]);
-    %logpmat = reshape(logpmat,[size(beta_hat,1) dims(2:end)]);
-    %sig2tvec = reshape(sig2tvec,[size(sig2tvec,1) dims(2:end)]);
-    %sig2mat = reshape(sig2mat,[size(sig2mat,1) dims(2:end)]);
-
-    if nperms>0
-      save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
+        % sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
     else
-      save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
+        sig2tvec_true = []; sig2mat_true = [];
     end
-    logging('Results written to %s',fpath_out);
 
-  end
+    synthstruct = struct('sig2tvec_true',sig2tvec_true,'sig2mat_true',sig2mat_true);
 
-if ~isempty(fpath_out)
-  fpaths_out = cat(2,fpaths_out,fpath_out);
-end
-      
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % transform ymat
+    % always winsorize tfmri data
+    if contains(fstem_imaging, 'beta', 'IgnoreCase', true) && ...
+        strcmpi(study, 'abcd') && ...
+        strcmpi(release, '6.0')
+        [ymat settingsTransform] = doTransformation(ymat, 'winsorize');
+    end 
+    % transform according to user input 
+    if ~strcmpi(transformY, 'none')
+        [ymat settingsTransform] = doTransformation(ymat, transformY);
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % IF RUNNING MODELS FOR MEDIATION ANALYSIS
+
+    if mediation==1
+
+        rng(seed); %set same seed for both runs of FEMA_fit
+
+        if des==1
+            X_bak=X;
+        end
+
+        if des==2
+            if size(X_bak,1)~=size(X,1)
+                error('Design matrices must have the same number of observations for mediation analysis.') % Check after intersection
+            end
+        end
+
+    end
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+    % FIT MODEL
+    [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, GRM,'RandomEffects',RandomEffects,...
+        'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
+        'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
+
+    if sum(~mask)>0
+
+        z_tmp=zeros(size(zmat,1),size(mask,2));
+        p_tmp=zeros(size(logpmat,1),size(mask,2));
+        beta_tmp=zeros(size(beta_hat,1),size(mask,2));
+        betase_tmp=zeros(size(beta_se,1),size(mask,2));
+        sig2mat_tmp=zeros(size(sig2mat,1),size(mask,2));
+        sig2tvec_tmp=zeros(size(sig2tvec,1),size(mask,2));
+        coeffCovar_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2));
+
+        z_tmp(:,ivec_mask)=zmat;
+        p_tmp(:,ivec_mask)=logpmat;
+        beta_tmp(:,ivec_mask)=beta_hat;
+        betase_tmp(:,ivec_mask)=beta_se;
+        sig2mat_tmp(:,ivec_mask)=sig2mat;
+        sig2tvec_tmp(:,ivec_mask)=sig2tvec;
+        coeffCovar_tmp(:, :, ivec_mask)=coeffCovar;
+
+        zmat=z_tmp;
+        logpmat=p_tmp;
+        beta_hat=beta_tmp;
+        beta_se=betase_tmp;
+        sig2mat=sig2mat_tmp;
+        sig2tvec=sig2tvec_tmp;
+        coeffCovar=coeffCovar_tmp;
+
+        if nperms>0
+
+            zperm_tmp=zeros(size(zmat_perm,1),size(mask,2),size(zmat_perm,3));
+            betaperm_tmp=zeros(size(beta_hat_perm,1),size(mask,2),size(beta_hat_perm,3));
+            betaseperm_tmp=zeros(size(beta_se_perm,1),size(mask,2),size(beta_se_perm,3));
+            sig2matperm_tmp=zeros(size(sig2mat_perm,1),size(mask,2),size(sig2mat_perm,3));
+            sig2tvecperm_tmp=zeros(size(sig2tvec_perm,1),size(mask,2),size(sig2tvec_perm,3));
+            coeffCovar_perm_tmp=zeros(size(coeffCovar, 1), size(coeffCovar, 2), size(mask, 2), size(coeffCovar, 4));
+
+            zperm_tmp(:,ivec_mask,:)=zmat_perm;
+            betaperm_tmp(:,ivec_mask,:)=beta_hat_perm;
+            betaseperm_tmp(:,ivec_mask,:)=beta_se_perm;
+            sig2matperm_tmp(:,ivec_mask,:)=sig2mat_perm;
+            sig2tvecperm_tmp(:,ivec_mask,:)=sig2tvec_perm;
+            coeffCovar_perm_tmp(:, :, ivec_mask, :)=coeffCovar_perm;
+
+            zmat_perm=zperm_tmp;
+            beta_hat_perm=betaperm_tmp;
+            beta_se_perm=betaseperm_tmp;
+            sig2mat_perm=sig2matperm_tmp;
+            sig2tvec_perm=sig2tvecperm_tmp;
+            coeffCovar_perm=coeffCovar_perm_tmp;
+
+        end
+
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % IF RUNNING TFCE
+
+    if tfce==1 && nperms>0
+        tfce_perm = FEMA_tfce(zmat_perm,colsinterest,datatype,mask);
+    elseif tfce==1 && nperms==0
+        error('Change nperms>0 to run TFCE OR set tfce=0.')
+    else
+        tfce_perm=[];
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % IF RUNNING RESAMPLING
+
+    % Only save permutations for IVs of interest to reduce size of output
+    % If wanting to save permutations for all columns of X make colsinterest=[1:size(X,2)]
+
+    if nperms>0
+        beta_hat_perm=beta_hat_perm(colsinterest,:,:);
+        beta_se_perm=beta_se_perm(colsinterest,:,:);
+        zmat_perm=zmat_perm(colsinterest,:,:);
+        colnames_interest=colnames_model(colsinterest);
+    elseif nperms==0
+        colnames_interest=colnames_model;
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % SAVE OUTPUT
+
+    if nperms>0 && strcmp(permtype,'wildbootstrap')
+        dirname_out{des}=sprintf('%s/nullWB_%dperms',dirname_out{des},nperms);
+    elseif nperms>0 && strcmp(permtype,'wildbootstrap-nn')
+        dirname_out{des}=sprintf('%s/nonnullWB_%dperms',dirname_out{des},nperms);
+    end
+
+    save_params = struct('fstem_imaging',fstem_imaging,'datatype',datatype,'outdir',dirname_out{des},'synth',synth);
+    base_variables_to_save = {'X','iid','eid','colnames_model','contrasts','datatype','inputs','zmat','logpmat','beta_hat','beta_se','sig2mat','sig2tvec', 'coeffCovar', 'save_params','mask'};
+
+    if ~exist(dirname_out{des},'dir'), mkdir(dirname_out{des}); end
+
+    if synth==0
+        fpath_out = sprintf('%s/FEMA_wrapper_output_%s_%s.mat',dirname_out{des},datatype,fstem_imaging);
+    elseif synth==1
+        fpath_out = sprintf('%s/FEMA_wrapper_output_%s_%s_synth.mat',dirname_out{des},datatype,fstem_imaging);
+    end
+
+    %write column names to json for DEAP
+    fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
+    out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
+    jsonStr = jsonencode(out);
+    fid = fopen(fname_col,'w');
+    fprintf(fid,'%s\n',jsonStr);
+    fclose(fid);
+
+    % =========================================================================
+    % Write VOXEL results (mat, nifti, or deap)
+    % =========================================================================
+    if strcmpi(datatype,'voxel')
+
+        vol_z = zeros([size(mask) size(zmat,1)]);
+        vol_logp = zeros([size(mask) size(zmat,1)]);
+        vol_beta_hat = zeros([size(mask) size(zmat,1)]);
+        vol_beta_se = zeros([size(mask) size(zmat,1)]);
+        for j = 1:size(zmat,1)
+            vol_z(:,:,:,j) = single(fullvol(zmat(j,:),mask));
+            vol_logp(:,:,:,j) = single(fullvol(logpmat(j,:),mask));
+            vol_beta_hat(:,:,:,j) = single(fullvol(beta_hat(j,:),mask));
+            vol_beta_se(:,:,:,j) = single(fullvol(beta_se(j,:),mask));
+        end
+
+        vol_sig2t = zeros([size(mask) 1]);
+        vol_sig2t(ivec_mask) = single(sig2tvec);
+        vol_sig2 = zeros([size(mask) size(sig2mat,1)]);
+        for j = 1:size(sig2mat,1)
+            vol_sig2(:,:,:,j) = single(fullvol(sig2mat(j,:),mask));
+        end
+
+
+        % ============================================================================================================================
+        % == MAT Output ==
+        if contains(outputType, 'mat')
+
+            if nperms>0 & tfce==0
+                save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
+            elseif nperms>0 & tfce==1
+                save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','zmat_perm','beta_hat_perm','tfce_perm','colnames_interest','colsinterest','-v7.3');
+            elseif nperms==0
+                save(fpath_out,base_variables_to_save{:},'vol_z','vol_beta_hat','logpmat','vol_sig2','vol_sig2t','-v7.3');
+            end
+            logging('Results written to %s',fpath_out);
+
+        end
+
+        % ============================================================================================================================
+        % == NIFTI Output == FIXME: no longer used for DEAP
+        if contains(outputType, 'nifti')
+            results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
+            writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model);
+        end
+
+        % =========================================================================
+        % Write VERTEX results
+        % =========================================================================
+    elseif strcmpi(datatype, 'vertex')
+
+        if contains(outputType,'mat')
+
+            if nperms>0 & tfce==0
+                save(fpath_out,base_variables_to_save{:},'zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
+            elseif nperms>0 & tfce==1
+                save(fpath_out,base_variables_to_save{:},'zmat_perm','beta_hat_perm','tfce_perm','colnames_interest','colsinterest','-v7.3');
+            elseif nperms==0
+                save(fpath_out,base_variables_to_save{:},'-v7.3');
+            end
+
+            logging('Results written to %s',fpath_out);
+        end
+
+        if contains(outputType, 'nifti') %FIXME: these are much smaller, so haven't added the same optimization as for voxelwise
+
+            randomFields = {'sig2tvec', 'sig2mat'};
+
+            results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat);
+            % Write out in FreeSurfer curv format, with naming consistent with volumes
+            fieldnamelist = setdiff(fieldnames(results),randomFields);
+            icnum = ico+1;
+            load(fullfile(fileparts(fileparts(which('FEMA_wrapper'))), 'showSurf', 'SurfView_surfs.mat'), 'icsurfs');
+            % load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
+            S = struct;
+            S.nverts = 2*size(icsurfs{icnum}.vertices,1);
+            S.nfaces = 2*size(icsurfs{icnum}.faces,1);
+            S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
+            % parse IVs
+            if isempty(ivnames)
+                excludeCol = strmatch('mri_info_',colnames_model);
+                nCol = length(colnames_model);
+                ivCol = setdiff(1:nCol, excludeCol);
+            else
+                [~,ivCol,~] = intersect(colnames_model,ivnames);
+            end
+            if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
+            % write out the fixed effects
+            for fi = 1:length(fieldnamelist)
+                fieldname = fieldnamelist{fi};
+                vol_nifti = results.(fieldname);
+                for iv = ivCol(:)'
+                    colname = sprintf('FE%02d',iv);
+                    valvec = vol_nifti(iv,:);
+                    fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
+                    fs_write_curv(fname_out,valvec,S.nfaces);
+                    fprintf(1,'file %s written\n',fname_out);
+                end
+            end
+            % write out the random effects
+            fieldnamelist = randomFields;
+            for fi = 1:length(fieldnamelist)
+                fieldname = fieldnamelist{fi};
+                vol_nifti = results.(fieldname);
+                for iv = 1:size(vol_nifti,4)
+                    colname = sprintf('RE%02d',iv);
+                    valvec = vol_nifti(iv,:);
+                    fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,fieldname,colname);
+                    fs_write_curv(fname_out,valvec,S.nfaces);
+                    fprintf(1,'file %s written\n',fname_out);
+                end
+            end
+
+        end
+
+        % =========================================================================
+        % Write EXTERNAL results (mat)
+        % =========================================================================
+    elseif strcmpi(datatype, 'external')
+
+        if contains(outputType, 'csv')
+            warning('Defaulting to output format "csv" for external csv data. Use output = "mat" for MATLAB output file.')
+            if nperms > 0
+                csv_vars_to_save = {base_variables_to_save{:}, 'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest'};
+            elseif nperms==0
+                csv_vars_to_save = {base_variables_to_save{:}, 'colnames_imaging'};
+            end
+            % save to fpath_out
+            for v =1:length(csv_vars_to_save)
+                % save
+                filename = strrep(fpath_out,'.mat',sprintf('_%s.csv',csv_vars_to_save{v}));
+                if strcmp(class(eval(csv_vars_to_save{v})),'cell')
+                    writecell(eval(csv_vars_to_save{v}), filename);
+                elseif strcmp(class(eval(csv_vars_to_save{v})),'inputParser') || strcmp(class(eval(csv_vars_to_save{v})),'struct')
+                    continue; % consider saving inputs as well?
+                else
+                    writematrix(eval(csv_vars_to_save{v}), filename);
+                end
+            end
+        end
+
+        if contains(outputType, 'mat')
+            if nperms>0
+                save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
+            elseif nperms==0
+                save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
+            end
+        end
+
+        logging('Results written to %s',fpath_out);
+
+        % =========================================================================
+        % Write CORRMAT results FIXME: saving is not implemented
+        % =========================================================================
+    elseif strcmpi(datatype, 'corrmat')
+
+        if 0
+            figure; im = reshape(beta_hat(1,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
+            figure; im = reshape(beta_hat(2,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
+            figure; im = reshape(zmat(1,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
+            figure; im = reshape(zmat(2,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); axis equal tight;
+        end
+        %beta_hat = reshape(beta_hat,[size(beta_hat,1) dims(2:end)]);
+        %beta_se = reshape(beta_se,[size(beta_hat,1) dims(2:end)]);
+        %zmat = reshape(zmat,[size(beta_hat,1) dims(2:end)]);
+        %logpmat = reshape(logpmat,[size(beta_hat,1) dims(2:end)]);
+        %sig2tvec = reshape(sig2tvec,[size(sig2tvec,1) dims(2:end)]);
+        %sig2mat = reshape(sig2mat,[size(sig2mat,1) dims(2:end)]);
+
+        if nperms>0
+            save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest','colsinterest','-v7.3');
+        else
+            save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
+        end
+        logging('Results written to %s',fpath_out);
+
+    end
+
+    if ~isempty(fpath_out)
+        fpaths_out = cat(2,fpaths_out,fpath_out);
+    end
+
 end  % LOOP over design matrices
 
 endtime = now();
