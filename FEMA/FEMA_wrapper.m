@@ -13,7 +13,10 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %
 % INPUTS
 %   fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
-%   fname_design <cell>        :  cell array with path to file with design matrix saved (readable by readtable) --> if want to batch can add multiple filepaths as separate rows within fname_design as a cell array
+%   fname_design <cell>        :  cell array with path to file with design matrix file: 
+%                                 this can either be a csv, txt or parquet file of the complete design matrix
+%                                 created to the FEMA specifications or it can a JSON config file to be passed to 
+%                                 FEMA_makeDesign to create a design matrix. 
 %   dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include separate output directory as rows within dirname_out as a cell array
 %   dirname_imaging <char>     :  path to imaging data directory
 %   datatype <char>            :  'voxel','vertex','external', 'corrmat'
@@ -84,18 +87,22 @@ rng shuffle %Set random number generator so different every time
 %PARSING INPUTS
 if nargin == 1
     % check that it's a json file and it exists
-    if ischar(varargin{1}) || isstring(varargin{1})
-        if endsWith(varargin{1}, '.json') && isfile(varargin{1})
-            % get FEMA_wrapper inputd from json 
+    fname_json = varargin{1};
+    if ischar(fname_json) || isstring(fname_json)
+        if isfile(fname_json)
+            % get FEMA_wrapper inputs from json 
             [fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, extraArgs] = ...
-                parseInputs(varargin{1});
+                FEMA_parseInputs(fname_json);
             varargin = extraArgs;
+            % create config file for FEMA_makeDesign
+            %some_out = FEMA_makeDesignConfig();
         else
             error('Invalid input. Please provide a valid JSON file path.');
         end
     else
         error('Invalid input. Please provide a valid JSON file path.');
     end
+
 end
 
 
@@ -106,7 +113,7 @@ end
 inputs = inputParser;
 % required inputs
 addRequired(inputs, 'fstem_imaging', @ischar);
-addRequired(inputs, 'fname_design', @ischar);
+addRequired(inputs, 'fname_design', @(x) iscell(x) || ischar(x));
 addRequired(inputs, 'dirname_out', @ischar);
 addRequired(inputs, 'dirname_imaging', @ischar);
 addRequired(inputs, 'datatype', @(x) ischar(x) && ...
@@ -130,9 +137,9 @@ addParameter(inputs, 'outputType', '.mat', @(x) ischar(x) && ...
                                   'nifti' 'voxel' '.gii' ...
                                   'gifti' 'vertex' 'tables' ...
                                   'summary'}));
-addParameter(inputs, 'synth',  false, @(x) isscalar(x) && islogical(x) || isnumeric(x)); % AMD - put back synth option
+addParameter(inputs, 'synth',  false, @(x) isscalar(x) && islogical(x) || isnumeric(x)); 
 addParameter(inputs, 'ivnames', '', @(x) ischar(x) || iscell(x));
-addParameter(inputs, 'RandomEffects', {'F' 'S' 'E'}, @(x) iscell(x) || ischar(x)); % Default to Family, Subject, and eps
+addParameter(inputs, 'RandomEffects', {'F' 'S' 'E'}, @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'GRM_file', [], @(x) ischar(x));
 addParameter(inputs, 'preg_file', [], @(x) ischar(x));
 addParameter(inputs, 'address_file', [], @(x) ischar(x));
@@ -172,7 +179,7 @@ outputType = inputs.Results.outputType;
 if strcmp(datatype,'external') 
         outputType = 'tables'; 
 end 
-nbins = inputs.Results.nbiconfigns;
+nbins = inputs.Results.nbins;
 if ~isempty(inputs.Results.ivnames)
     ivnames = split(inputs.Results.ivnames,','); 
 else
@@ -180,9 +187,8 @@ else
 end
 
 if ~isempty(ivnames) || isdeployed
-    logging('%d IVs specified (%s)',length(ivnames), inputs.Results.ivnames);
+    logging('%d IVs specified: %s',length(ivnames), strjoin(ivnames, ', '));
 end
-
 
 RandomEffects = inputs.Results.RandomEffects;
 fname_GRM = inputs.Results.GRM_file;
@@ -192,21 +198,18 @@ CovType = inputs.Results.CovType;
 FixedEstType = inputs.Results.FixedEstType;
 RandomEstType = inputs.Results.RandomEstType;
 GroupByFamType = inputs.Results.GroupByFamType;
-NonnegFlag = str2num_amd(inputs.Results.NonnegFlag);
+NonnegFlag = inputs.Results.NonnegFlag;
 SingleOrDouble = inputs.Results.SingleOrDouble;
-OLSflag = ismember(lower(FixedEstType),{'ols'});
-GLSflag = ismember(lower(FixedEstType),{'gls'});
-logLikflag = str2num_amd(inputs.Results.logLikflag);
-Hessflag = str2num_amd(inputs.Results.Hessflag);
-ciflag = str2num_amd(inputs.Results.ciflag);
-nperms = str2num_amd(inputs.Results.nperms);
+logLikflag = inputs.Results.logLikflag;
+Hessflag = inputs.Results.Hessflag;
+ciflag = inputs.Results.ciflag;
+nperms = inputs.Results.nperms;
 permtype = inputs.Results.permtype;
-mediation = str2num_amd(inputs.Results.mediation);
-synth = str2num_amd(inputs.Results.synth);
-tfce = str2num_amd(inputs.Results.tfce);
-colsinterest = str2num_amd(inputs.Results.colsinterest);
-demeanY = str2num_amd(inputs.Results.demeanY);
-corrvec_thresh = str2num_amd(inputs.Results.corrvec_thresh);
+mediation = inputs.Results.mediation;
+synth = inputs.Results.synth;
+tfce = inputs.Results.tfce;
+colsinterest = inputs.Results.colsinterest;
+corrvec_thresh = inputs.Results.corrvec_thresh;
 
 if ~iscell(fname_design)
     fname_design = {fname_design};
@@ -220,10 +223,6 @@ if length(fname_design)~=length(dirname_out)
     error('if using cell array specifying multiple designs, fname_design and dirname_out must both have an equal number of items.')
 end
 
-if ~ismember(lower(datatype),{'voxel' 'vertex' 'external' 'corrmat'})
-    error('Input error: invalid datatype')
-end
-
 fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -232,16 +231,38 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ico',ico,'GRM_file',fname_GRM,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% contrasts 
+if ischar(contrasts)
+    [contrasts, hypValues] = FEMA_parse_contrastFile(inName, colnames); 
+end 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% back up data 
 GRM_bak=GRM;
 ymat_bak=ymat;
 cont_bak=contrasts;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% create design matrix
+%  design matrix
 
-%if fname_design 
+% DEAP mode: 
+%   - we have a json spec with all the info 
+%   - need to convert json spec to makeDesign config 
+%   - pass makeDesign config to makeDesign and save, then workflow should be same as non-DEAP mode 
+% non-DEAP mode:
+%   - two options A) we have a design matrix file (csv, txt or parquet) -> pass directly to FEMA_intersect_design
+%                 B) we have a config json file which we pass to FEMA_makeDesign, save a design matrix as csv, txt
+%                    or parquet, pass the file path to FEMA_intersect_design 
 
-
+% check if fname_design is design matrix file or config file
+for ii=1:length(fname_design)
+    [~, ~, ext_design] = fileparts(fname_design{ii});
+    if nargin==1 || strcmpi(ext_design, '.json') || strcmpi(ext_design, '.config')
+        designMatrix = FEMA_makeDesign(fname_json, 'IID', iid_concat, 'EID', eid_concat);
+    end 
+end 
+ 
+            
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % IF RUNNING MEDIATION ANALYSIS
@@ -269,22 +290,17 @@ if mediation==1
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% contrasts 
-if ischar(contrasts)
-    [contrasts, hypValues] = FEMA_parse_contrastFile(inName, colnames); 
-end 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % INTERSECT WITH DESIGN MATRIX
 
 %Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
-
 fpaths_out = {};
 for des=1:length(fname_design)
 
-    [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, 'contrasts',cont_bak,'GRM',GRM_bak,'preg',preg,'address',address);
+    [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = ...
+        FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, ...
+                             'contrasts', contrasts, 'GRM', GRM_bak, 'preg', preg, 'address', address);
     if synth==1 % Make synthesized data
-        [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,GRM,'nbins',nbins,'RandomEffects',RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
+        [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X, iid, eid, fid, agevec, ymat, GRM, 'nbins', nbins, 'RandomEffects', RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
         % sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
     else

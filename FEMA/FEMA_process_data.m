@@ -62,7 +62,7 @@ addParameter(p, 'nframes_min', 375);
 addParameter(p, 'study', [], @(x) ischar(x));
 addParameter(p, 'release', [], @(x) ischar(x));
 
-parse(p, varargin{:})
+parse(p, fstem_imaging, dirname_imaging, datatype, varargin{:})
 iid = p.Results.iid;
 eid = p.Results.eid;
 fname_qc = p.Results.fname_qc;
@@ -291,7 +291,7 @@ switch datatype
 
     case 'external'
 	    logging('Reading tabulated imaging data from %s/%s', dirname_imaging, fstem_imaging);
-        [~ ~ ext_imaging] = fileparts(dirname_imaging);
+        [~, ~, ext_imaging] = fileparts(dirname_imaging);
         if ~isempty(fstem_imaging)
             switch ext_imaging
                 case '.parquet'
@@ -417,6 +417,8 @@ switch datatype
         idFailCorr = strcat(iid_concat(~defvec_corrvec), '_', eid_concat(~defvec_corrvec));
         missingness.numCorr = numFailCorr; % number removed dur to poor registration
         missingness.idCorr = idFailCorr;
+    else
+        defvec_corrvec = true(size(ymat, 1), 1);
     end 
 
     % filter on qc if qc file is given 
@@ -494,7 +496,7 @@ switch datatype
     if ~isempty(iid)
         if ischar(iid)  
             if isfile(iid) % check if it's a file 
-                [~ ~ ext_iid] = fileparts(iid);
+                [~, ~, ext_iid] = fileparts(iid);
                 switch ext_iid % load file 
                     case '.parquet'
                         iid = parquetread(iid);
@@ -515,7 +517,7 @@ switch datatype
     if ~isempty(eid)
         if ischar(eid)  
             if isfile(eid) % check if it's a file 
-                [~ ~ ext_eid] = fileparts(eid);
+                [~, ~, ext_eid] = fileparts(eid);
                 switch ext_eid % load file 
                     case '.parquet'
                         eid = parquetread(eid);
@@ -542,19 +544,20 @@ switch datatype
 
     % how many nans in iid- and eid- filtered data
     % nans in filtered data
-    defvecNaN_filtered = defvecNaN & defvec_iid & defvec_eid;
+    defvecNaN_filtered = defvecNaN(defvec) & defvec_iid & defvec_eid;
     missingness.numNaN_filtered = sum(~defvecNaN_filtered);
     missingness.idNaN_filtered = idevent(~defvecNaN_filtered);
     % fail corrvec in filtered data
-    defvec_corrvec_filtered = defvec_corrvec & defvec_iid & defvec_eid;
+    defvec_corrvec_filtered = defvec_corrvec(defvec) & defvec_iid & defvec_eid;
     missingness.numFailCorrvec_filtered = sum(~defvec_corrvec_filtered);
     missingness.idFailCorrvec_filtered = idevent(~defvec_corrvec_filtered);
     % fail qc in filtered data
-    defvecQC_filtered = defvecQC & defvec_iid & defvec_eid;
+    defvecQC_filtered = defvecQC(defvec) & defvec_iid & defvec_eid;
     missingness.numFailQC_filtered = sum(~defvecQC_filtered);
     missingness.idFailQC_filtered = idevent(~defvecQC_filtered);
     %  fail any in filtered data
-    defvecAny_filtered = defvecNaN & defvec_corrvec & defvecQC & defvec_iid & defvec_eid;
+    defvecAny_filtered = defvecNaN(defvec) & defvec_corrvec(defvec) & ...
+                         defvecQC(defvec) & defvec_iid & defvec_eid;
     missingness.numFailAny_filtered = sum(~defvecAny_filtered);
     missingness.idFailAny_filtered = idevent(~defvecAny_filtered);
 
