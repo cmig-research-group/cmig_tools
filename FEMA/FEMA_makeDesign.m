@@ -1,9 +1,10 @@
 function designMatrix = FEMA_makeDesign(configFile, varargin)
 % Function that makes FEMA-compatible design matrix for ABCD data
 %% Inputs:
-% configFile:       character       full path to a json configuration file
+% configFile:       character       full path to a configuration file
 %                                   (see example configuration file in the
-%                                   recipe folder)
+%                                   recipe folder), can either be a JSON or 
+%                                   text file saved with the extension '.config'
 %  
 %% Optional inputs (name-pair values):
 % FID:              cell / char     family IDs for all observations that
@@ -80,6 +81,15 @@ function designMatrix = FEMA_makeDesign(configFile, varargin)
 % generalisable solution as session_id may be incorrectly sorted (if
 % non-numeric); need to incorporate age-based sorting OR allow user to
 % specify another flag for sorting of events for delta computation
+% DP: 
+% i think we always should save an output file so writeDesignMat = true and 
+%     if no output directory is given either save to pwd or ~ 
+% are we assuming isJSON always means DEAP mode? atm i hardcoded basename_PC = 'pc'; 
+% because it's not a field in the json and thats what janosch has in the spec file 
+%
+
+
+
 
 %% Check mandatory inputs
 if ~exist('configFile', 'var') || isempty(configFile)
@@ -151,15 +161,8 @@ end
 
 %% ===== JSON fixed effects parsing ===== %%
 json_ffx = cfg.params.fixed.vars;
-loc_cont = cellfun(@(x) strcmpi(x.type, 'continuous'), json_ffx);
+loc_cont = cellfun(@(x) strcmpi(x.type_var, 'continuous'), json_ffx);
 loc_catg = ~loc_cont;
-
-% Standardized structure For categorical variable
-if intercept
-    global_refLevel = 'mode';
-else
-    global_refLevel = 'none';
-end
 
 
 
@@ -185,6 +188,10 @@ end
 
 %% Make a list of fixed effects
 if isJSON
+    % cant we just call FEMA_parse_JSON(configFile) directly?
+    [FFX_names, FFX_categorical, FFX_vectorTransforms, ...
+    FFX_deltaTransforms, FFX_splineTransforms] = FEMA_parse_JSON(configFile);
+
     cfg_FFXNames = {cfg.params.fixed.vars.name}';
 
     % Ensure names are unique
@@ -214,12 +221,12 @@ end
 %% Determine family ID
 if isJSON
     try
-        familyIDvar = cfg.familyIDvar;
+        familyIDvar = cfg.family_id;
     catch
         familyIDvar = '';
     end
 else
-    loc_FID = check_cfg_parameter('familyIDvar', cfg(:,1), true);
+    loc_FID = check_cfg_parameter('family_id', cfg(:,1), true);
     if isempty(loc_FID)
         familyIDvar = '';
     else
@@ -240,13 +247,14 @@ end
 %% Determine how many PCs do we need to retain?
 if isJSON
     try
-        tmp_PC      = cfg.params.fixed.gpc;
-        basename_PC = cfg.params.fixed.gpc_basename;
+        tmp_PC      = cfg.params.fixed.n_gpcs;
+        %basename_PC = cfg.params.fixed.gpc_basename;
+        basename_PC = 'pc'; 
     catch
         tmp_PC = [];
     end
 else
-    loc_geneticPC = check_cfg_parameter('gpc', cfg(:,1), true);
+    loc_geneticPC = check_cfg_parameter('n_gpcs', cfg(:,1), true);
     if isempty(loc_geneticPC)
         tmp_PC = [];
     else

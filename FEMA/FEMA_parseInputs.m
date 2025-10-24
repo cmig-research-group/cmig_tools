@@ -1,8 +1,8 @@
 function [fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, extraArgs] = ...
-            parseInputs(fname_json)
+            FEMA_parseInputs(fname_json)
 
     %% TO DOs %%
-    % - contrasts
+        % - contrasts
 
     if ~nargin == 1 || ~isfile(fname_json) % are we getting the json file path or the contents? 
         error('Invalid JSON file path.');
@@ -17,7 +17,7 @@ function [fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, e
         fstem_imaging = configFile.params.dependent.name;
         dirname_imaging = configFile.params.dependent.dir_data;
         datatype = strrep(configFile.params.dependent.type_data, 'wise', ''); 
-        fname_design = '';  % need to write out a config file for makeDesign??
+        fname_design = '~/';  % need to write out a config file for makeDesign??
         dirname_out = pwd();  % Use current directory as default
  
         extraArgs = {};
