@@ -1,4 +1,4 @@
-function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
+function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness, study, release] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
 %
 % ABCD specific function to load and process imaging data 
 %
@@ -38,24 +38,29 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TO DOs: 
+% - how can we get study and release for roi data? 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 p = inputParser;
 addRequired(p, 'fstem_imaging', @(x) ischar(x) && ~isempty(x));
 addRequired(p, 'dirname_imaging', @(x) ischar(x) && ~isempty(x));
 addRequired(p, 'datatype', @(x) ischar(x) && ~isempty(x));
-addParamValue(p, 'iid', [], @(x) iscell(x) || ischar(x));
-addParamValue(p, 'eid', [], @(x) iscell(x) || ischar(x));
-addParamValue(p, 'fname_qc', [], @(x) ischar(x));
-addParamValue(p, 'qc_var', [], @(x) ischar(x));
-addParamValue(p,'ranknorm_wholeSample', false);
-addParamValue(p,'standardize_wholeSample', false);
-addParamValue(p, 'wholeSampleTransform', false);
-addParamValue(p,'ico', 5);
-addParamValue(p,'GRM_file', []);
-addParamValue(p,'preg_file', []);
-addParamValue(p,'address_file', []);
-addParamValue(p,'corrvec_thresh', 0.8);
+addParameter(p, 'iid', [], @(x) iscell(x) || ischar(x));
+addParameter(p, 'eid', [], @(x) iscell(x) || ischar(x));
+addParameter(p, 'fname_qc', [], @(x) ischar(x));
+addParameter(p, 'qc_var', [], @(x) ischar(x));
+addParameter(p, 'ranknorm_wholeSample', false);
+addParameter(p, 'standardize_wholeSample', false);
+addParameter(p, 'wholeSampleTransform', false);
+addParameter(p, 'ico', 5);
+addParameter(p, 'GRM_file', []);
+addParameter(p, 'preg_file', []);
+addParameter(p, 'address_file', []);
+addParameter(p, 'corrvec_thresh', 0.8);
+addParameter(p, 'nframes_min', 375);
+addParameter(p, 'study', [], @(x) ischar(x));
+addParameter(p, 'release', [], @(x) ischar(x));
 
 parse(p, varargin{:})
 iid = p.Results.iid;
@@ -71,6 +76,9 @@ fname_GRM = p.Results.GRM_file;
 fname_preg = p.Results.preg_file;
 fname_address = p.Results.address_file;
 corrvec_thresh = p.Results.corrvec_thresh;
+nframes_min = p.Results.nframes_min;
+study = p.Results.study;
+release = p.Results.release;
 
 % check if QC file and variable are both provided
 if ~isempty(fname_qc)
@@ -143,17 +151,17 @@ switch datatype
 		measmat = [];
 		for hemii = 1:2
 			hemi = hemistrings{hemii};
-			fname = sprintf('%s/%s_%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to 
+			fname = sprintf('%s/%s_%s.mat',dirname_imaging,fstem_imaging,hemi); 
 			if ~exist(fname,'file') % if older release version
-				fname = sprintf('%s/%s-%s.mat',dirname_imaging,fstem_imaging,hemi); % Should save these pre-truncated to 
+				fname = sprintf('%s/%s-%s.mat',dirname_imaging,fstem_imaging,hemi);  
 			end
 			% specified icnum
 			logging('Reading vertexwise imaging data from %s',fname);
 			tmp = load(fname);
 
 			if ~isfield(tmp,'measmat') % Handle task fMRI
-				%									 tmp.measmat = cat(2,measmat,tmp.betamat(:,1:size(icsurfs{icnum}.vertices,1))); % This fails miserably -- must be something off with the beta values
-				%										tmp.measmat = cat(2,measmat,tmp.betamat(:,1:size(icsurfs{icnum}.vertices,1))./tmp.semat(:,1:size(icsurfs{icnum}.vertices,1))); % Use z-scores per subject / run
+				% tmp.measmat = cat(2,measmat,tmp.betamat(:,1:size(icsurfs{icnum}.vertices,1))); % This fails miserably -- must be something off with the beta values
+				% tmp.measmat = cat(2,measmat,tmp.betamat(:,1:size(icsurfs{icnum}.vertices,1))./tmp.semat(:,1:size(icsurfs{icnum}.vertices,1))); % Use z-scores per subject / run
 				tmp.measmat = tmp.betamat./tmp.semat; % Use z-scores per subject / run
 			end
 			measmat = cat(2,measmat,tmp.measmat(:,1:size(icsurfs{icnum}.vertices,1)));
@@ -218,7 +226,6 @@ switch datatype
 			fname_corrmat = sprintf('%s/%s.mat',dirname_imaging,fstem_imaging);
 			tmp = load(fname_corrmat);
 		end
-		nframes_min = 375; % This should be optional	input param
 		if isfield(tmp,'nsumvec')	%	Release 4.0
 			ivec_tmp = find(tmp.nsumvec>=nframes_min); 
 			measmat = tmp.measmat(ivec_tmp,:);
@@ -229,8 +236,8 @@ switch datatype
 			ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
 			measmat = tmp.corrmat(ivec_tmp,:);
 			fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
-			tmp2 = load(fname_volinfo);
-			tmp.dirlist = tmp2.dirlist;
+			tmp_volinfo = load(fname_volinfo);
+			tmp.dirlist = tmp_volinfo.dirlist;
 		end
 		dirlist = tmp.dirlist(ivec_tmp);
 		dims = size(measmat); measmat = reshape(measmat,[dims(1) prod(dims(2:end))]);
@@ -284,9 +291,9 @@ switch datatype
 
     case 'external'
 	    logging('Reading tabulated imaging data from %s/%s', dirname_imaging, fstem_imaging);
-        [~ ~ ext_dirname_imaging] = fileparts(dirname_imaging);
+        [~ ~ ext_imaging] = fileparts(dirname_imaging);
         if ~isempty(fstem_imaging)
-            switch ext_dirname_imaging
+            switch ext_imaging
                 case '.parquet'
                     opts = parquetinfo(dirname_imaging);
                     varInc = fstem_imaging;
@@ -321,7 +328,7 @@ switch datatype
                     end 
             end
         else 
-            switch ext_dirname_imaging
+            switch ext_imaging
                 case '.parquet'
                     roidat = readtable(dirname_imaging);
                 case {'.csv' '.tsv' '.txt'}
@@ -344,6 +351,23 @@ switch datatype
 	    idevent = strcat(iid_concat(:),'_',eid_concat(:));
 	    ivec_mask=[];
 	    mask=[];
+
+    end
+
+    %%%%% study and release %%%%%
+    % for voxel, vertex and corrmat 
+    if ismember(datatype, {'voxel', 'vertex', 'corrmat'})
+        if isfield(tmp_volinfo, 'study')
+            study = tmp_volinfo.study;
+        else
+            study = 'abcd';
+        end
+        if isfield(tmp_volinfo, 'release')
+            release = tmp_volinfo.release;
+        else
+            release = '6.0';
+        end
+    % for roi and external? user input?  
     end 
 
     %%%%% load GRM %%%%%
@@ -398,8 +422,8 @@ switch datatype
     % filter on qc if qc file is given 
     if ~isempty(fname_qc)
         % check file type of fname_qc
-        [dirname_qc, fstem_fname_qc, ext_fname_qc] = fileparts(fname_qc);
-        switch ext_fname_qc
+        [dirname_qc, fstem_fname_qc, ext_qc] = fileparts(fname_qc);
+        switch ext_qc
             case '.parquet'
                 opts = parquetinfo(fname_qc);
                 varInc = {'participant_id', 'session_id', qc_var};

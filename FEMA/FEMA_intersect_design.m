@@ -29,6 +29,11 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     % This software is Copyright (c) 2021 The Regents of the University of California. All Rights Reserved.
     % See LICENSE.
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % TO DOs
+    % - need to check how desing matrix will be stored in .mat type from new makeDesign     
+    %
+    %
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     starttime = now();
     logging('***Start***');
@@ -38,19 +43,25 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     addParamValue(p, 'GRM', []);
     addParamValue(p, 'preg', []);
     addParamValue(p, 'address', []);
-	addParamValue(p, 'demean', 0);
 
     parse(p, varargin{:})
     contrasts = str2num_amd(p.Results.contrasts);
     GRM = p.Results.GRM;
     preg = p.Results.preg;
     address = p.Results.address;
-	demean = p.Results.demean;
 
     % Read in design matrix
     logging('Reading design matrix from %s', fname_design);
+    [~ ~ ext_design] = fileparts(fname_design);
+
     tic
-    design_mat = readtable(fname_design);
+    switch ext_design
+        case '.csv'
+            design_mat = readtable(fname_design);
+        case '.mat'
+            design_mat = load(fname_design);
+            design_mat = design_mat.designMatrix;
+    end 
 
     %design matrix must have first four columns: src_subject_id, eventname, rel_family_id, age
     % these are NOT used as IVs, which are in columns 5 onwards
@@ -173,11 +184,11 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     logging('Final sample for analysis: %d observations', sum(defvec));
 
 	% demean the design matrix 
-	X_bak = X;
-	if demean == 1
-		cat_cols = find(all(ismember(X, [0, 1]), 1));
-		X(:, ~cat_cols) = X(:, ~cat_cols) - mean(X(:,~cat_cols));
-	end
+	%X_bak = X;
+	%if demean == 1
+	%	cat_cols = find(all(ismember(X, [0, 1]), 1));
+	%	X(:, ~cat_cols) = X(:, ~cat_cols) - mean(X(:,~cat_cols));
+	%end
 
 	logging('***End***');
 	logging('Elapsed time: %s', datestr(now() - starttime, 'HH:MM:SS'));
