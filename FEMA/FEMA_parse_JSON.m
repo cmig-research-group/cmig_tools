@@ -1,7 +1,44 @@
 function [FFX_names, FFX_categorical, FFX_vectorTransforms, ...
           FFX_deltaTransforms, FFX_splineTransforms] = FEMA_parse_JSON(configFile)
+% Function that reads a DEAP-created JSON specification files and parses
+% the fixed effects information out of it
+%% Input(s):
+% configFile:               full path to a JSON specification file
+%
+%% Output(s):
+% FFX_names:                cell type having the names of all fixed effects
+% 
+% FFX_categorical:          structure type with three fields: 
+%                               * name:             name of the fixed effect(s)
+%                               * of_interest:      true/false
+%                               * reference:        name of the level which
+%                                                   serves as the reference 
+% 
+% FFX_vectorTransforms:     structure type with three fields:
+%                               * name:             name of the fixed effect(s)
+%                               * of_interest:      true/false
+%                               * transformation:   which transform to apply
+% 
+% FFX_deltaTransforms:      structure type with three fields:
+%                               * name:             name of the fixed effect(s)
+%                               * of_interest:      true/false
+%                               * transformation:   'delta'
+% 
+% FFX_splineTransforms:     structure with following fields:
+%                               * name:             name of the fixed effect(s)
+%                               * of_interest:      true/false
+%                               * knots:            knot placement information
+%                               * splineType:       type of splines to create
+%                               * Xpowers:          number of powers to regress
+%                               * method:           'svd' or 'raw'
+%                               * minMax:           custom range for spline span
+%                               * interecpt:        true/false
+%                               * optCommand:       if additional command is to be run
+%                               * optAppend:        if additional command is to be added
+%                               * cleanUp:          true/false
+%                               * instance:         1
 
-% is configFile going to be the path to the json or the json content itself?
+% Decrpy JSON file
 if ~isstruct(configFile)
     configFile = jsondecode(fileread(configFile));
 end 
