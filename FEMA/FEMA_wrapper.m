@@ -63,7 +63,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 % See LICENSE.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TO DOs
-% - do we want to add "isfile" check at inputParser stage for everything that should be a file path?
+% - FEMA_get_defaults 
 % - contrasts
 % - add study and release variable for non-DEAP mode. is there a way to get this from the data rather than user input?
 % - DEAP mode: do we need to create the makeDEsign config file? 
@@ -85,26 +85,25 @@ starttime = now();
 rng shuffle %Set random number generator so different every time
 
 %PARSING INPUTS
-if nargin == 1
-    % check that it's a json file and it exists
-    fname_json = varargin{1};
-    if ischar(fname_json) || isstring(fname_json)
-        if isfile(fname_json)
-            % get FEMA_wrapper inputs from json 
-            [fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, extraArgs] = ...
-                FEMA_parseInputs(fname_json);
-            varargin = extraArgs;
-            % create config file for FEMA_makeDesign
-            %some_out = FEMA_makeDesignConfig();
-        else
-            error('Invalid input. Please provide a valid JSON file path.');
-        end
-    else
-        error('Invalid input. Please provide a valid JSON file path.');
-    end
+% check for required params
+requiredSet1 = {'config', 'data', 'output'};
+requiredSet2 = {{'fstem_imaging', 'fname_design', 'dirname_out', 'dirname_imaging', 'datatype'}, ...
+                {'fstem_imaging', 'config_design', 'dirname_out', 'dirname_imaging', 'datatype'}};
 
+existSet1 = all(ismember(requiredSet1, varargin));
+existSet2 = any(cellfun(@(x) all(ismember(x, varargin)), requiredSet2));
+
+if ~existSet1 & ~existSet2
+    error('Missing required parameters.\nMust provide %s or %s.', ...
+    strjoin(requiredSet1, ', '), strjoin(requiredSet2, ', '));
 end
 
+if existSet1
+    % check that it's a json file and it exists
+    [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, extraArgs] = ...
+        FEMA_parseInputs(varargin{:});
+    varargin = extraArgs;
+end
 
 % if isdeployed
 %   logging('***FEMA_wrapper_app Compiled 11/8/2021, FEMA v2.0***\n\n'); %TODO: remember to change this before compiling
@@ -113,13 +112,14 @@ end
 inputs = inputParser;
 % required inputs
 addRequired(inputs, 'fstem_imaging', @ischar);
-addRequired(inputs, 'fname_design', @(x) iscell(x) || ischar(x));
 addRequired(inputs, 'dirname_out', @ischar);
 addRequired(inputs, 'dirname_imaging', @ischar);
 addRequired(inputs, 'datatype', @(x) ischar(x) && ...
                      ismember(x, {'voxel', 'vertex', 'corrmat', ...
                                   'roi', 'external'}));
 % optional inputs
+addParameter(inputs, 'fname_design', @(x) iscell(x) || ischar(x));
+addParameter(inputs, 'config_design', @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'iid', [], @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'eid', [], @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'fname_qc', [], @(x) ischar(x));
@@ -166,7 +166,7 @@ addParameter(inputs, 'permtype', 'wildbootstrap', @(x) ischar(x) && ...
                       ismember(x, {'wildbootstrap', 'wildbootstrap-nn', 'none'}));
 
 
-parse(inputs, fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, varargin{:})
+parse(inputs, fstem_imaging, dirname_out, dirname_imaging, datatype, varargin{:})
 
 % Display input arguments for log
 %disp(inputs.Results)
@@ -211,15 +211,31 @@ tfce = inputs.Results.tfce;
 colsinterest = inputs.Results.colsinterest;
 corrvec_thresh = inputs.Results.corrvec_thresh;
 
-if ~iscell(fname_design)
-    fname_design = {fname_design};
+if ~exist('config_design', 'var') & ~ exist('fname_design', 'var')
+    error('Either config_design or fname_design must be specified.');
+end
+
+if exist('fname_design', 'var') && ~isempty(fname_design)
+    if ~iscell(fname_design)
+        fname_design = {fname_design};
+    end 
+    designExists = true;
+    n_desmat = length(fname_design);
+end
+
+if exist('config_design', 'var') && ~isempty(config_design)
+    if ~iscell(config_design)
+        config_design = {config_design};
+    end
+    designExists = false;
+    n_desmat = length(config_design);
 end
 
 if ~iscell(dirname_out)
     dirname_out = {dirname_out};
 end
 
-if length(fname_design)~=length(dirname_out)
+if n_desmat ~= length(dirname_out) 
     error('if using cell array specifying multiple designs, fname_design and dirname_out must both have an equal number of items.')
 end
 
@@ -228,7 +244,10 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,'ico',ico,'GRM_file',fname_GRM,'preg_file',fname_pregnancy,'address_file',fname_address,'corrvec_thresh', corrvec_thresh);
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness] = ...
+    FEMA_process_data(fstem_imaging, dirname_imaging, datatype, 'ico', ico, ...
+                      'GRM_file', fname_GRM, 'preg_file', fname_pregnancy, ...
+                      'address_file', fname_address, 'corrvec_thresh', corrvec_thresh);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % contrasts 
@@ -241,27 +260,6 @@ end
 GRM_bak=GRM;
 ymat_bak=ymat;
 cont_bak=contrasts;
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%  design matrix
-
-% DEAP mode: 
-%   - we have a json spec with all the info 
-%   - need to convert json spec to makeDesign config 
-%   - pass makeDesign config to makeDesign and save, then workflow should be same as non-DEAP mode 
-% non-DEAP mode:
-%   - two options A) we have a design matrix file (csv, txt or parquet) -> pass directly to FEMA_intersect_design
-%                 B) we have a config json file which we pass to FEMA_makeDesign, save a design matrix as csv, txt
-%                    or parquet, pass the file path to FEMA_intersect_design 
-
-% check if fname_design is design matrix file or config file
-for ii=1:length(fname_design)
-    [~, ~, ext_design] = fileparts(fname_design{ii});
-    if nargin==1 || strcmpi(ext_design, '.json') || strcmpi(ext_design, '.config')
-        designMatrix = FEMA_makeDesign(fname_json, 'IID', iid_concat, 'EID', eid_concat);
-    end 
-end 
- 
             
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -290,15 +288,21 @@ if mediation==1
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% INTERSECT WITH DESIGN MATRIX
+% CREATE DESIGN MATRIX and  INTERSECT YMAT
 
 %Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
 fpaths_out = {};
-for des=1:length(fname_design)
 
+for des=1:n_desmat
+    if designExists
+        designMatrix = readtable(fname_design{des});
+    else 
+        designMatrix = FEMA_makeDesign(config_design{des}, 'IID', iid_concat, 'EID', eid_concat); 
+    end 
+    
     [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = ...
-        FEMA_intersect_design(fname_design{des}, ymat_bak, iid_concat, eid_concat, ...
-                             'contrasts', contrasts, 'GRM', GRM_bak, 'preg', preg, 'address', address);
+        FEMA_intersect_design(designMatrix, ymat_bak, iid_concat, eid_concat, ...
+                             'GRM', GRM_bak, 'preg', preg, 'address', address);
     if synth==1 % Make synthesized data
         [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X, iid, eid, fid, agevec, ymat, GRM, 'nbins', nbins, 'RandomEffects', RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 

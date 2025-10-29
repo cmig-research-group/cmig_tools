@@ -1,9 +1,9 @@
-function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID, HomeID] = FEMA_intersect_design(fname_design, ymat, iid_concat, eid_concat, varargin)
+function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID, HomeID] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
     %
     % FEMA_intersect_design intersect imaging data and design matrix - used internally by FEMA_wrapper
     %
     % INPUTS
-    %   fname_design <cell>        :  cell array with path to file with design matrix saved (readable by readtable) --> if want to batch can add multiple filepaths as separate rows within fname_design as a cell array
+    %   designMatrix               :  design matrix (n x p)
     %   ymat                       :  matrix of imaging data (n x v)
     %   iid_concat                 :  src_subject_id
     %   eid_concat                 :  eventname
@@ -50,69 +50,58 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     preg = p.Results.preg;
     address = p.Results.address;
 
-    % Read in design matrix
-    logging('Reading design matrix from %s', fname_design);
-    [~ ~ ext_design] = fileparts(fname_design);
-
-    tic
-    switch ext_design
-        case '.csv'
-            design_mat = readtable(fname_design);
-        case '.mat'
-            design_mat = load(fname_design);
-            design_mat = design_mat.designMatrix;
-    end 
-
-    %design matrix must have first four columns: src_subject_id, eventname, rel_family_id, age
+    %design matrix must have first four columns: iid, eid, fid, agevec
     % these are NOT used as IVs, which are in columns 5 onwards
-    iid_design = design_mat{:, 1};
-    eid_design = design_mat{:, 2};
-    fid_design = design_mat{:, 3};
-    agevec_design = design_mat{:, 4};
+    try 
+        iid_design = designMatrix.iid;
+        eid_design = designMatrix.eid;
+        fid_design = designMatrix.fid;
+        agevec_design = designMatrix.agevec;
+    catch 
+        iid_design = designMatrix{:, 1};
+        eid_design = designMatrix{:, 2};
+        fid_design = designMatrix{:, 3};
+        agevec_design = designMatrix{:, 4};
+    end 
     cids = strcat(iid_design, '_', eid_design);
 
-    colnames_design = design_mat.Properties.VariableNames;
-    % if one of the modeled IVs is named 'age', that clashes with column 4 and thus will be renamed 'age_1' when loaded. Fix this
-    ageIdx = strmatch('age_1', colnames_design, 'exact');
-
-    if ~isempty(ageIdx)
-        colnames_design{ageIdx} = 'age';
-    end
-
-    colnums_design = [5:length(colnames_design)]; %remove first four, unmodeled ID columns
-    Cmat_design = design_mat{:, colnums_design};
-    colnames_Cmat = colnames_design(colnums_design);
-    toc
-
+    %% shouldn't be necessary anymore       
+        % if one of the modeled IVs is named 'age', that clashes with column 4 and thus will be renamed 'age_1' when loaded. Fix this
+        %ageIdx = strmatch('age_1', colnames_design, 'exact');
+        %
+        %if ~isempty(ageIdx)
+        %    colnames_design{ageIdx} = 'age';
+        %end    
+    %
+    
+    try 
+        tmp_designMatrix = removevars(designMatrix, {'iid', 'eid', 'fid', 'agevec'});
+    catch 
+        tmp_designMatrix = designMatrix(:,5:end);
+    end 
+    Cmat_design = table2array(tmp_designMatrix);
+    colnames_model = tmp_designMatrix.Properties.VariableNames;
+    
     % Merge design matrix with imaging data
 	eid_concat_bak = eid_concat; 
 	iid_concat_bak = iid_concat;
-	if any(contains(iid_concat, 'NDAR_INV')) & any(~contains(cids, 'NDAR_INV'))  % are we going to need this post 6.0? 
-		iid_concat = strrep(iid_concat, 'NDAR_INV', 'sub-');
-		idx_00A = find(contains(eid_concat, 'baseline_year_1_arm_1') | contains(eid_concat, 'baseline'));
-		idx_02A = find(contains(eid_concat, '2_year_follow_up_y_arm_1') | contains(eid_concat, '2year'));
-		idx_04A = find(contains(eid_concat, '4_year_follow_up_y_arm_1') | contains(eid_concat, '4year'));
-		idx_06A = find(contains(eid_concat, '6_year_follow_up_y_arm_1') | contains(eid_concat, '6year'));
-		[eid_concat{idx_00A}] = deal('ses-00A');
-		[eid_concat{idx_02A}] = deal('ses-02A');
-		[eid_concat{idx_04A}] = deal('ses-04A');
-		[eid_concat{idx_06A}] = deal('ses-06A');		
-	end
-	% this is for carolina's 5.1/6.0 frankenstien analysis, remove later 
 	eid_design_bak = eid_design;
-	if all(contains(eid_design, 'arm')) & all(~contains(eid_concat, 'arm'))
-		idx_baseline = find(contains(eid_design, 'baseline'));
-		idx_2year = find(contains(eid_design, '2_year_follow_up_y_arm_1'));
-		idx_4year = find(contains(eid_design, '4_year_follow_up_y_arm_1'));
-		idx_6year = find(contains(eid_design, '6_year_follow_up_y_arm_1'));
-		[eid_design{idx_baseline}] = deal('baseline');
-		[eid_design{idx_2year}] = deal('2year');
-		[eid_design{idx_4year}] = deal('4year');
-		[eid_design{idx_6year}] = deal('6year');
-		cids = strcat(iid_design, '_', eid_design);
-	end
-
-    [~, idi, idc] = intersect(strcat(iid_concat(:), '_', eid_concat(:)), cids, 'stable'); % IDS_match is loaded from the concatenated .mat
+    
+    %% shouldn't be needed anymore 
+        %if any(contains(iid_concat, 'NDAR_INV')) & any(~contains(cids, 'NDAR_INV'))  % are we going to need this post 6.0? 
+	    %	iid_concat = strrep(iid_concat, 'NDAR_INV', 'sub-');
+	    %	idx_00A = find(contains(eid_concat, 'baseline_year_1_arm_1') | contains(eid_concat, 'baseline'));
+	    %	idx_02A = find(contains(eid_concat, '2_year_follow_up_y_arm_1') | contains(eid_concat, '2year'));
+	    %	idx_04A = find(contains(eid_concat, '4_year_follow_up_y_arm_1') | contains(eid_concat, '4year'));
+	    %	idx_06A = find(contains(eid_concat, '6_year_follow_up_y_arm_1') | contains(eid_concat, '6year'));
+	    %	[eid_concat{idx_00A}] = deal('ses-00A');
+	    %	[eid_concat{idx_02A}] = deal('ses-02A');
+	    %	[eid_concat{idx_04A}] = deal('ses-04A');
+	    %	[eid_concat{idx_06A}] = deal('ses-06A');		
+	    %end
+	% 
+	
+    [~, idi, idc] = intersect(strcat(iid_concat(:), '_', eid_concat(:)), cids, 'stable'); 
     ymat = ymat(idi, :);
     Cmat = Cmat_design(idc, :);
     iid = iid_design(idc);
@@ -122,17 +111,13 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
 
     % Make design matrix, add contrasts
     X = double(Cmat);
-    colnames_model = colnames_Cmat;
-
-    if ~isempty(contrasts) && size(contrasts, 2) < size(X, 2)
-        contrasts = cat(2, contrasts, zeros(size(contrasts, 1), (size(X, 2) - size(contrasts, 2))));
-    end
 
     %add contrast names to colnames
     if ~isempty(contrasts)
-
-        for c = 1:size(contrasts, 1)
-            contrast_names{c} = sprintf('%s_%s', colnames_model{find(contrasts(c, :) > 0)}, colnames_model{find(contrasts(c, :) < 0)});
+        for c = 1:length(contrasts)
+            contrast = contrasts{c};
+            idx = find(contrast ~= 0);
+            contrast_names{c}
         end
 
         colnames_model = cat(2, contrast_names, colnames_model);
