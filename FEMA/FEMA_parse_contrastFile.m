@@ -1,4 +1,4 @@
-function [contrasts, hypValues] = FEMA_parse_contrastFile(inName, colnames)
+function [contrasts, hypValues, contrast_names] = FEMA_parse_contrastFile(inName, colnames)
 % Function to parse a minimally specified contrast csv file into different
 % univariate and multivariate contrasts with appropriate zero padding
 %% Inputs:

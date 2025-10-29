@@ -1,4 +1,4 @@
-function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness, study, release] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
+function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
 %
 % ABCD specific function to load and process imaging data 
 %
@@ -115,25 +115,29 @@ switch datatype
 		ivec_mask = find(mask>0.5);
 		
 		dirlist = tmp_volinfo.dirlist;
-        subjidvec = cell(size(dirlist)); 
-		sitevec = cell(size(dirlist)); 
-		datevec = cell(size(dirlist)); 
-		visitidvec = cell(size(dirlist));
-        if any(contains(dirlist, 'DTIREG_'))
-            for diri = 1:length(dirlist)
-            	tmp = regexp(dirlist{diri}, '^DTIREG_(?<site>\w+)_(?<SubjID>\w+)_(?<event>\w+)_(?<date>\d+).', 'names');
-            	subjidvec{diri} = tmp.SubjID;
-            	sitevec{diri} = tmp.site;
-            	eventvec{diri} = tmp.event;
-            	datevec{diri} = tmp.date;
-            	visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
-            end
-            iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
-            eid_concat = eventvec';
-        else 
-            iid_concat = tmp_volinfo.participant_id;
-            eid_concat = tmp_volinfo.session_id;
-        end 
+
+        %% old code 
+            %subjidvec = cell(size(dirlist)); 
+		    %sitevec = cell(size(dirlist)); 
+		    %datevec = cell(size(dirlist)); 
+		    %visitidvec = cell(size(dirlist));
+            %if any(contains(dirlist, 'DTIREG_'))
+            %    for diri = 1:length(dirlist)
+            %    	tmp = regexp(dirlist{diri}, '^DTIREG_(?<site>\w+)_(?<SubjID>\w+)_(?<event>\w+)_(?<date>\d+).', 'names');
+            %    	subjidvec{diri} = tmp.SubjID;
+            %    	sitevec{diri} = tmp.site;
+            %    	eventvec{diri} = tmp.event;
+            %    	datevec{diri} = tmp.date;
+            %    	visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
+            %    end
+            %    iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
+            %    eid_concat = eventvec';
+            %else 
+            %    iid_concat = tmp_volinfo.participant_id;
+            %    eid_concat = tmp_volinfo.session_id;
+            %end 
+        iid_concat = tmp_volinfo.participant_id;
+        eid_concat = tmp_volinfo.session_id;
         idevent = strcat(iid_concat(:),'_',eid_concat(:));
         corrmat_concat = tmp_volinfo.corrmat;
         toc 
@@ -165,7 +169,6 @@ switch datatype
 				tmp.measmat = tmp.betamat./tmp.semat; % Use z-scores per subject / run
 			end
 			measmat = cat(2,measmat,tmp.measmat(:,1:size(icsurfs{icnum}.vertices,1)));
-
 		end
 
 		if 1 % Deal with Don's masking (replace NaNs w. zeros for all subjects,but not for subjects/visits with all missing data) - should fix concatenation script
@@ -184,37 +187,41 @@ switch datatype
 		else
 			mask=[];
 		end
-
 		ymat = measmat;
+
+        % load vol_info 
 		fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
 		tmp_volinfo = load(fname_volinfo); 
-		try 
-			dirlist = tmp_volinfo.dirlist;
-		catch 
-			dirlist = tmp.dirlist;
-		end 
-		subjidvec = cell(size(dirlist)); 
-		sitevec = cell(size(dirlist)); 
-		datevec = cell(size(dirlist)); 
-		eventvec = cell(size(dirlist)); 
-		timevec = cell(size(dirlist)); 
-		visitidvec = cell(size(dirlist));
+		dirlist = tmp_volinfo.dirlist;
 
-		for diri = 1:length(dirlist)
-			tmp = regexp(dirlist{diri}, '^[^_]*_(?<site>\w+)_(?<SubjID>\w+)_(?<event>[^_]*)_(?<date>\d+).(?<time>[^_]+)_', 'names'); % AMD -- 3.0 fails for task fMRI data
-			sitevec{diri} = tmp.site;
-			subjidvec{diri} = tmp.SubjID;
-			datevec{diri} = tmp.date;
-			if isfield(tmp,'event')
-				eventvec{diri} =	tmp.event;
-			else
-				eventvec{diri} = '';
-			end
-			visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
-		end
+        %% old code 
+		    %subjidvec = cell(size(dirlist)); 
+		    %sitevec = cell(size(dirlist)); 
+		    %datevec = cell(size(dirlist)); 
+		    %eventvec = cell(size(dirlist)); 
+		    %timevec = cell(size(dirlist)); 
+		    %visitidvec = cell(size(dirlist));
+            %
+		    %for diri = 1:length(dirlist)
+		    %	tmp = regexp(dirlist{diri}, '^[^_]*_(?<site>\w+)_(?<SubjID>\w+)_(?<event>[^_]*)_(?<date>\d+).(?<time>[^_]+)_', 'names'); % AMD -- 3.0 fails for task fMRI data
+		    %	sitevec{diri} = tmp.site;
+		    %	subjidvec{diri} = tmp.SubjID;
+		    %	datevec{diri} = tmp.date;
+		    %	if isfield(tmp,'event')
+		    %		eventvec{diri} =	tmp.event;
+		    %	else
+		    %		eventvec{diri} = '';
+		    %	end
+		    %	visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
+		    %end
+            %
+            %iid_concat = colvec(strcat('NDAR_',subjidvec));
+		    %eid_concat = eventvec;
+		    %idevent = strcat(iid_concat(:),'_',eid_concat(:));
 
-		iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
-		eid_concat = eventvec;
+        % use new participant_id 
+        iid_concat = tmp_volinfo.participant_id;
+		eid_concat = tmp_volinfo.session_id;
 		idevent = strcat(iid_concat(:),'_',eid_concat(:));
 		toc
 
@@ -235,28 +242,37 @@ switch datatype
 		else 
 			ivec_tmp = find(tmp.ntpointvec>=nframes_min); 
 			measmat = tmp.corrmat(ivec_tmp,:);
-			fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
-			tmp_volinfo = load(fname_volinfo);
 			tmp.dirlist = tmp_volinfo.dirlist;
 		end
+        % vol info
+		fname_volinfo = sprintf('%s/vol_info.mat',dirname_imaging);
+		tmp_volinfo = load(fname_volinfo);
+
 		dirlist = tmp.dirlist(ivec_tmp);
-		dims = size(measmat); measmat = reshape(measmat,[dims(1) prod(dims(2:end))]);
+		dims = size(measmat); 
+        measmat = reshape(measmat,[dims(1) prod(dims(2:end))]);
 		ymat = measmat;
-		subjidvec = cell(size(dirlist)); 
-		sitevec = cell(size(dirlist));
-		datevec = cell(size(dirlist)); 
-		visitidvec = cell(size(dirlist));
-		for diri = 1:length(dirlist)
-			tmp = regexp(dirlist{diri}, '^BOLDPROC_(?<site>\w+)_(?<SubjID>\w+)_(?<event>[^_]*)_(?<date>[^_.]+).(?<time>[^_]+)_', 'names');
-			subjidvec{diri} = tmp.SubjID;
-			sitevec{diri} = tmp.site;
-			eventvec{diri} = tmp.event;
-			datevec{diri} = tmp.date;
-			visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
-		end
-		iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
-		eid_concat = eventvec;
-		idevent = strcat(iid_concat(:),'_',eid_concat(:));
+
+        %% old code 
+		    %subjidvec = cell(size(dirlist)); 
+		    %sitevec = cell(size(dirlist));
+		    %datevec = cell(size(dirlist)); 
+		    %visitidvec = cell(size(dirlist));
+		    %for diri = 1:length(dirlist)
+		    %	tmp = regexp(dirlist{diri}, '^BOLDPROC_(?<site>\w+)_(?<SubjID>\w+)_(?<event>[^_]*)_(?<date>[^_.]+).(?<time>[^_]+)_', 'names');
+		    %	subjidvec{diri} = tmp.SubjID;
+		    %	sitevec{diri} = tmp.site;
+		    %	eventvec{diri} = tmp.event;
+		    %	datevec{diri} = tmp.date;
+		    %	visitidvec{diri} = sprintf('%s_%s_%s',tmp.site,tmp.SubjID,tmp.event);
+		    %end
+            %
+		    %iid_concat = colvec(strcat('NDAR_',subjidvec)); % Not sure why imaging subject IDs are missing the NDAR_ part
+		    %eid_concat = eventvec;
+		
+        iid_concat = tmp_volinfo.participant_id;
+        eid_concat = tmp_volinfo.session_id;
+        idevent = strcat(iid_concat(:),'_',eid_concat(:));
 
 		ivec_mask=[];
 		mask=[];
@@ -273,17 +289,19 @@ switch datatype
                 roidat = readtable(fname_roi, opts, 'FileType', 'text', 'ReadVariableNames', false);
         end 
         % Check which ID + event columns are present for the different releases
-	    if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
-        	iid_concat = roidat.src_subject_id;
-        	eid_concat = roidat.eventname;
-	    elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
-        	iid_concat = roidat.participant_id;
-        	eid_concat = roidat.session_id;
-	    else
-        	error('No recognized ID/event columns found in the external file.');
-	    end
-	    ymat=table2array(roidat(:,3:end));
-	    colnames_imaging=roidat.Properties.VariableNames(3:end);
+	    %if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
+        %	iid_concat = roidat.src_subject_id;
+        %	eid_concat = roidat.eventname;
+	    %elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
+        %	iid_concat = roidat.participant_id;
+        %	eid_concat = roidat.session_id;
+	    %else
+        %	error('No recognized ID/event columns found in the external file.');
+	    %end
+        iid_concat = roidat.participant_id;
+        eid_concat = roidat.session_id;
+	    ymat = table2array(removevars(roidat, {'participant_id', 'session_id'}));
+	    colnames_imaging = removevars(roidat, {'participant_id', 'session_id'}).Properties.VariableNames;
 	    idevent = strcat(iid_concat(:),'_',eid_concat(:));
 
 	    ivec_mask=[];
@@ -337,17 +355,19 @@ switch datatype
             end 
         end 
 	    % Check which ID + event columns are present for the different releases
-	    if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
-        	iid_concat = roidat.src_subject_id;
-        	eid_concat = roidat.eventname;
-	    elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
-        	iid_concat = roidat.participant_id;
-        	eid_concat = roidat.session_id;
-	    else
-        	error('No recognized ID/event columns found in the external file.');
-	    end
-	    ymat=table2array(roidat(:,3:end));
-	    colnames_imaging=roidat.Properties.VariableNames(3:end);
+	    %if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
+        %	iid_concat = roidat.src_subject_id;
+        %	eid_concat = roidat.eventname;
+	    %elseif any(strcmp(roidat.Properties.VariableNames, 'participant_id'))
+        %	iid_concat = roidat.participant_id;
+        %	eid_concat = roidat.session_id;
+	    %else
+        %	error('No recognized ID/event columns found in the external file.');
+	    %end
+        iid_concat = roidat.participant_id;
+        eid_concat = roidat.session_id;
+        ymat = table2array(removevars(roidat, {'participant_id', 'session_id'}));
+	    colnames_imaging = removevars(roidat, {'participant_id', 'session_id'}).Properties.VariableNames;
 	    idevent = strcat(iid_concat(:),'_',eid_concat(:));
 	    ivec_mask=[];
 	    mask=[];
@@ -368,9 +388,7 @@ switch datatype
             release = '6.0';
         end
     % for roi and external? user input?  
-    end 
-
-    %%%%% load GRM %%%%%
+    end    %%%%% load GRM %%%%%
     if ~isempty(fname_GRM)
     	logging('Reading GRM');
     	GRM = load(fname_GRM);
@@ -380,14 +398,14 @@ switch datatype
 
     %%%%% load pregnancy data %%%%%
     if ~isempty(fname_preg)
-	logging('Reading pregnancy data');
-	fid = fopen(fname_preg);
-	varNames = strsplit(fgetl(fid), {' ' '"'});
-	fclose(fid);
-	opts=detectImportOptions(fname_preg);
-	opts.SelectedVariableNames = [2:5];
-	preg = readtable(fname_preg, opts);
-	preg = renamevars(preg,1:width(preg),varNames(2:5));
+	    logging('Reading pregnancy data');
+	    fid = fopen(fname_preg);
+	    varNames = strsplit(fgetl(fid), {' ' '"'});
+	    fclose(fid);
+	    opts=detectImportOptions(fname_preg);
+	    opts.SelectedVariableNames = [2:5];
+	    preg = readtable(fname_preg, opts);
+	    preg = renamevars(preg,1:width(preg),varNames(2:5));
     else
     	preg=[];
     end

@@ -1,0 +1,10 @@
+Type,Name,hypValue,gest_age,ab_g_dyn__visit_age,ab_g_stc__cohort_saab2,mr_y_smri__thk__dsk_mean
+u1,test1,0,1,-1,,
+u2,test3,0,,1,-1,
+m1,test4,,0,1,0,0
+m1,,-1,,,1,
+m1,,,,,,1
+m2,,1,1,,,
+m2,,0,,1,,
+m2,,0,,,,1
+,
