@@ -7,17 +7,17 @@ function designMatrix = FEMA_makeDesign(configFile, varargin)
 %                                   text file saved with the extension '.config'
 %  
 %% Optional inputs (name-pair values):
-% FID:              cell / char     family IDs for all observations that
+% fid:              cell / char     family IDs for all observations that
 %                                   need to be retained OR full path to a
 %                                   csv file with no header that has family
 %                                   IDs that need to be retained
 % 
-% IID:              cell / char     individual IDs for all observations
+% iid:              cell / char     individual IDs for all observations
 %                                   that need to be retained OR full path
 %                                   to a csv file with no header that has
 %                                   individual IDs that need to be retained
 % 
-% EID:              cell / char     event IDs for all observations that
+% eid:              cell / char     event IDs for all observations that
 %                                   need to be retained OR full path to a
 %                                   csv file with no header that has event
 %                                   IDs that need to be retained
@@ -51,11 +51,11 @@ function designMatrix = FEMA_makeDesign(configFile, varargin)
 % 
 % isFE:             logical         true or false indicating if the
 %                                   RandomEffects model type is F and E (in
-%                                   which case IID = FID)
+%                                   which case iid = fid)
 % 
 % isSE:             logical         true or false indicating if the
 %                                   RandomEffects model type is S and E (in
-%                                   which case FID = IID)
+%                                   which case fid = iid)
 % 
 % outDir:           character       full path to where the design matrix
 %                                   should be written out
@@ -97,9 +97,9 @@ end
 
 %% Parse optional inputs
 p = inputParser;
-addParameter(p, 'FID',          '');
-addParameter(p, 'IID',          '');
-addParameter(p, 'EID',          '');
+addParameter(p, 'fid',          '');
+addParameter(p, 'iid',          '');
+addParameter(p, 'eid',          '');
 addParameter(p, 'dataFile',     '');
 addParameter(p, 'dirTabulated', '');
 addParameter(p, 'isFE',         false);
@@ -110,9 +110,9 @@ addParameter(p, 'outName',      '');
 addParameter(p, 'outType',      '');
 
 parse(p, varargin{:})
-FID          = p.Results.FID;
-IID          = p.Results.IID;
-EID          = p.Results.EID;
+fid          = p.Results.fid;
+iid          = p.Results.iid;
+eid          = p.Results.eid;
 dataFile     = p.Results.dataFile;
 dirTabulated = p.Results.dirTabulated;
 isFE         = p.Results.isFE;
@@ -317,8 +317,8 @@ if readTabulated
     % end
 
     %% Put IDs together for merging
-    % Only use IID_EID so that it is easier to join with other tables
-    % Make sure to use participant_id for IID instead of subjectIDvar
+    % Only use iid_eid so that it is easier to join with other tables
+    % Make sure to use participant_id for iid instead of subjectIDvar
     data_demo.IDs_merge = strcat(data_demo.participant_id, {'_'}, data_demo.session_id);
 
     %% Are there variables that we need from these two tables?
@@ -374,38 +374,38 @@ if strcmpi('IDs_merge', data_work.Properties.VariableNames)
     removevars(data_work, 'IDs_merge');
 end
 
-%% If the user has provided FID/IID/EID, filter data_work
-if ~isempty(FID)
-    if isfile(FID)
-        FID = readtable(FID, 'FileType', 'text', 'ReadVariableNames', false);
+%% If the user has provided fid/iid/eid, filter data_work
+if ~isempty(fid)
+    if isfile(fid)
+        fid = readtable(fid, 'FileType', 'text', 'ReadVariableNames', false);
     else
-        if ~iscell(FID)
-            FID = cellstr(FID);
+        if ~iscell(fid)
+            fid = cellstr(fid);
         end
     end
-    data_work(~ismember(data_work.(familyIDvar), FID), :) = [];
+    data_work(~ismember(data_work.(familyIDvar), fid), :) = [];
 end
 
-if ~isempty(IID)
-    if isfile(IID)
-        IID = readtable(IID, 'FileType', 'text', 'ReadVariableNames', false);
+if ~isempty(iid)
+    if isfile(iid)
+        iid = readtable(iid, 'FileType', 'text', 'ReadVariableNames', false);
     else
-        if ~iscell(IID)
-            IID = cellstr(IID);
+        if ~iscell(iid)
+            iid = cellstr(iid);
         end
     end
-    data_work(~ismember(data_work.(subjectIDvar), IID), :) = [];
+    data_work(~ismember(data_work.(subjectIDvar), iid), :) = [];
 end
 
-if ~isempty(EID)
-    if isfile(EID)
-        EID = readtable(EID, 'FileType', 'text', 'ReadVariableNames', false);
+if ~isempty(eid)
+    if isfile(eid)
+        eid = readtable(eid, 'FileType', 'text', 'ReadVariableNames', false);
     else
-        if ~iscell(EID)
-            EID = cellstr(EID);
+        if ~iscell(eid)
+            eid = cellstr(eid);
         end
     end
-    data_work(~ismember(data_work.session_id, EID), :) = [];
+    data_work(~ismember(data_work.session_id, eid), :) = [];
 end
 
 %% Assign agevec if required
@@ -419,13 +419,13 @@ if ~exists_agevec
     end
 end
 
-%% Reorder so that the data is organised as FID, IID, EID, agevec
+%% Reorder so that the data is organised as fid, iid, eid, agevec
 vars_to_move  = {familyIDvar, subjectIDvar, 'session_id', 'agevec'};
 remainingVars = setdiff(data_work.Properties.VariableNames, vars_to_move);
 data_work     = data_work(:, [vars_to_move, remainingVars]);
 
-%% Renaming variables to FID, IID, and EID
-data_work = renamevars(data_work, {familyIDvar, subjectIDvar, 'session_id'}, {'FID', 'IID', 'EID'});
+%% Renaming variables to fid, iid, and eid
+data_work = renamevars(data_work, {familyIDvar, subjectIDvar, 'session_id'}, {'fid', 'iid', 'eid'});
 
 %% At this stage, remove any missing (if required)
 if dropMissing
@@ -689,11 +689,19 @@ if ~isempty(FFX_interactions)
         % Assign the first variable into tempData
         tempName = names_mapping{locs_look(1), 2};
         tempData = designMatrix{:, tempName};
+        
+        % Which variables remain?
+        remVariables = setdiff(toLook, names_mapping{locs_look(1), 1});
 
         % Go over all remaining variables
-        for vv = 2:length(toLook)
-            % Whatever interacts with tempData is temp
-            temp   = designMatrix{:, names_mapping{locs_look(vv), 2}};
+        for vv = 1:length(remVariables)
+
+            % Which transformed variable names in names_mapping do we need to look up
+            wch_vars = names_mapping{ismember(names_mapping(:,1), remVariables{vv}),2};
+
+            % Whatever variables we picked from names_mapping, interacts
+            % with tempData and is saved out in temp
+            temp = designMatrix{:, wch_vars};
 
             % Initialize where results will be temporarily saved
             tempSize    = size(tempData,2) * size(temp,2);
@@ -725,11 +733,10 @@ if ~isempty(FFX_interactions)
             tempName = tempResName;
             col_count = 1;
         end
+        % Interaction results are in tempData - extract
+        all_interact_variables{v,1} = tempData;
+        all_interact_variables{v,2} = tempName;
     end
-
-    % Interaction results are in tempData - extract
-    all_interact_variables{v,1} = tempData;
-    all_interact_variables{v,2} = tempName;
 
     % Put all interactions together
     X_data_interactions = horzcat(all_interact_variables{:,1});
@@ -1005,7 +1012,7 @@ end
 %     * participant_id: the individual ID for every observation
 %     * event_id:       the event ID for every observation
 %     * column 3 onwards should be the variables to include
-%     * if the `FID` specified in configFile exists as a column,
+%     * if the `fid` specified in configFile exists as a column,
 %         this is respected; otherwise, an attempt is made to read
 %         the family ID from the demographics table
 %         * if a column named `agevec` exists, it is not
