@@ -16,10 +16,13 @@ function [output, settings] = doTransformation(inputVars, transformType, varargi
 %                                   * 'inverseranknorm' | 'ranknorm' | 'int'
 %                                   * 'winsorize' | 'winsorise' | 'winsor'
 %
-% Optional inputs:
-%   - 'percentile':   [1 x 2]     vector specifying the lower and upper
-%                                   percentiles for winsorization (default:
-%                                   [1, 99])
+%% Optional inputs:
+% lower:    [1 x 1] OR [1 x p]  scalar or vector determining the lower
+%                               percentile range (default: 0)
+% 
+% upper:    [1 x 1] OR [1 x p]  scalar or vector determining the upper
+%                               percentile range (default: 100)
+% 
 %% Outputs:
 % output:           [n x p]     vector or matrix of transformed p variables
 %                               (returned in the same order as in inputVars)
@@ -53,14 +56,15 @@ function [output, settings] = doTransformation(inputVars, transformType, varargi
 % inverse normal rank transformation of every column of the input; uses the
 % function rank_based_INT
 %
-%
 % transformType:    'winsorize' | 'winsorise' | 'winsor'
-% winsorization of every column of the input
+% winsorization of every column of the input; uses the function winsorize
 
 p = inputParser;
-addParameter(p, 'percentile', [1, 99], @(x) validateattributes(x, {'numeric'}, {'vector', 'numel', 2}));
+addParameter(p, 'lower', 0);
+addParameter(p, 'upper', 100);
 parse(p, varargin{:});
-percentile = p.Results.percentile;
+lower_bound = p.Results.lower;
+upper_bound = p.Results.upper;
 
 %% Check inputs
 tInit = tic;
@@ -76,10 +80,11 @@ else
         error('transformType should be of character type');
     else
         transformType = lower(transformType);
-        supportedTransforms = {'center', 'centre', 'demean',        ...
-                               'std', 'standardize', 'normalize',   ...
-                               'logn', 'log10',                     ...
-                               'inverseranknorm', 'ranknorm', 'int'};
+        supportedTransforms = {'center', 'centre', 'demean',         ...
+                               'std', 'standardize', 'normalize',    ...
+                               'logn', 'log10',                      ...
+                               'inverseranknorm', 'ranknorm', 'int', ...
+                               'winsorize', 'winsorise', 'winsor'};
 
         if ~ismember(transformType, supportedTransforms)
             tmp = strcat(supportedTransforms, ',', {' '});
@@ -136,7 +141,6 @@ switch transformType
         settings.timeTaken = toc(tInit);
 
     case {'winsorize', 'winsorise', 'winsor'}
-        output = winsorize(inputVars, 'percentile', percentile);
-        settings.percentile = percentile;
+        [output, settings.lower, settings.upper] = winsorize(inputVars, 'lower_bound', lower_bound, 'upper_bound', upper_bound);
         settings.timeTaken = toc(tInit);
 end

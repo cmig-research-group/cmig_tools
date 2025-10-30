@@ -84,12 +84,7 @@ function designMatrix = FEMA_makeDesign(configFile, varargin)
 % DP: 
 % i think we always should save an output file so writeDesignMat = true and 
 %     if no output directory is given either save to pwd or ~ 
-% are we assuming isJSON always means DEAP mode? atm i hardcoded basename_PC = 'pc'; 
-% because it's not a field in the json and thats what janosch has in the spec file 
 %
-
-
-
 
 %% Check mandatory inputs
 if ~exist('configFile', 'var') || isempty(configFile)
@@ -110,7 +105,7 @@ addParameter(p, 'dirTabulated', '');
 addParameter(p, 'isFE',         false);
 addParameter(p, 'isSE',         false);
 addParameter(p, 'dropMissing',  true);
-addParameter(p, 'outDir',       '');
+addParameter(p, 'outDir',       pwd);
 addParameter(p, 'outName',      '');
 addParameter(p, 'outType',      '');
 
@@ -128,7 +123,7 @@ outName      = p.Results.outName;
 outType      = p.Results.outType;
 
 %% Make some decision based on inputs
-if isempty(outDir)
+if isempty(outName)
     writeDesignMat = false;
 else
     if ~exist(outDir, 'dir')
@@ -145,220 +140,124 @@ end
 
 %% Parse the configuration file
 [~, ~, tmp_ext] = fileparts(configFile);
-tmp_txt = fileread(configFile);
 if strcmpi(tmp_ext, '.json')
     isJSON = true;
-    cfg    = jsondecode(tmp_txt);
+    [FFX_names, FFX_categorical, FFX_vectorTransforms, FFX_winsorize, ...
+     FFX_deltaTransforms, FFX_splineTransforms, FFX_interactions,     ...
+     global_transform, global_intercept, loc_cont] = FEMA_parse_JSON(configFile);
 else
     isJSON = false;
-
-    % Split into lines and separate into name-value pairs
-    cfg = cellfun(@(x) strsplit(x, ':'), strsplit(tmp_txt, '\n')', 'UniformOutput', false);
-
-    % Concatenate name-value pairs, get rid of leading or trailing spaces
-    cfg = strtrim(vertcat(cfg{:}));
+    [FFX_names, FFX_categorical, FFX_vectorTransforms, FFX_winsorize, ...
+     FFX_deltaTransforms, FFX_splineTransforms, FFX_interactions,     ...
+     global_transform, global_intercept, loc_cont, family_id] = FEMA_parse_config(configFile);
 end
 
-%% ===== JSON fixed effects parsing ===== %%
-json_ffx = cfg.params.fixed.vars;
-loc_cont = cellfun(@(x) strcmpi(x.type_var, 'continuous'), json_ffx);
-loc_catg = ~loc_cont;
-
-
-
-%% Default reference level for categorical variables
-if isJSON
-    intercept = cfg.params.settings.intercept;
-else
-    loc_intercept = check_cfg_parameter('intercept', cfg(:,1), true);
-    if ~isempty(loc_intercept)
-        intercept = cfg{loc_intercept, 2};
-        if ischar(intercept)
-            intercept = logical(eval(intercept));
-        end
-    end
-end
-
-if intercept
-    global_refLevel = 'mode';
-else
-    global_refLevel = 'none';
-end
-
-
-%% Make a list of fixed effects
-if isJSON
-    % cant we just call FEMA_parse_JSON(configFile) directly?
-    [FFX_names, FFX_categorical, FFX_vectorTransforms, ...
-    FFX_deltaTransforms, FFX_splineTransforms] = FEMA_parse_JSON(configFile);
-
-    cfg_FFXNames = {cfg.params.fixed.vars.name}';
-
-    % Ensure names are unique
-    if length(unique(cfg_FFXNames)) ~= length(cfg_FFXNames)
-        error('One or more fixed effects is duplicated in the config file');
-    end
-
-    % Working copy of the fixed effects name in the config file
-    temp_FFXNames = cfg_FFXNames;
-else
-    loc_fixed = check_cfg_parameter('fixed', cfg(:,1), true);
-
-    if isempty(loc_fixed)
-        error('Could not find parameter: fixed in the config file');
-    end
-    cfg_FFXNames  = strsplit(cfg{loc_fixed, 2}, ',')';
-
-    % Working copy o the fixed effects name in the config file
-    temp_FFXNames = cfg_FFXNames;
-
-    % Ensure names are unique
-    if length(unique(temp_FFXNames)) ~= length(temp_FFXNames)
-        error('One or more fixed effects is duplicated in the config file');
-    end
-end
+% Make a copy of the fixed effects name
+temp_FFXNames = FFX_names;
 
 %% Determine family ID
 if isJSON
-    try
-        familyIDvar = cfg.family_id;
-    catch
-        familyIDvar = '';
-    end
-else
-    loc_FID = check_cfg_parameter('family_id', cfg(:,1), true);
-    if isempty(loc_FID)
-        familyIDvar = '';
-    else
-        familyIDvar = cfg{loc_FID, 2};
-    end
-end
-
-% Default family ID variable
-if isempty(familyIDvar)
     if isSE
         familyIDvar = 'participant_id';
     else
-        familyIDvar = 'ab_g_stc__design_id__fam';
-    end
-    warning(['familyIDvar not specified in the configFile; using: ', familyIDvar, ' as family ID']);
-end
-
-%% Determine how many PCs do we need to retain?
-if isJSON
-    try
-        tmp_PC      = cfg.params.fixed.n_gpcs;
-        %basename_PC = cfg.params.fixed.gpc_basename;
-        basename_PC = 'pc'; 
-    catch
-        tmp_PC = [];
+        familyIDvar = 'family_id';
     end
 else
-    loc_geneticPC = check_cfg_parameter('n_gpcs', cfg(:,1), true);
-    if isempty(loc_geneticPC)
-        tmp_PC = [];
-    else
-        tmp_PC = cfg{loc_geneticPC,  2};
-        loc_basenamePC = check_cfg_parameter('gpc_basename', cfg(:,1), true);
-        if isempty(loc_basenamePC)
-            basename_PC = 'ab_g_stc__gen_pc__';
+    if isempty(family_id)
+        if isSE
+            familyIDvar = 'participant_id';
         else
-            basename_PC = cfg{loc_basenamePC, 2};
+            familyIDvar = 'ab_g_stc__design_id__fam';
         end
+        warning(['familyIDvar not specified in the configFile; using: ', familyIDvar, ' as family ID']);
+    else
+        familyIDvar = family_id;
     end
 end
 
-% Ensure that the number of PCs is numeric
-if ~isnumeric(tmp_PC)
-    tmp_PC = str2double(tmp_PC);
+%% Determine subject ID
+if isFE
+    subjectIDvar = familyIDvar;
+else
+    subjectIDvar = 'participant_id';
 end
 
 %% Determine if tables need to be read
-if isempty(dataFile)
-    readTabulated = true;
-else
-    if ~exist(dataFile, 'file')
-        error(['Unable to find: ', dataFile]);
+% If the input configuration file was a JSON file, dataFile should exist
+if isJSON
+    readTabulated = false;
+    if isempty(dataFile)
+        error('dataFile is required if the configuration file is a JSON specification');
     else
-        % User has provided a full path to a dataFile: could be
-        % .csv/.tsv./.parquet/ file
-        [~, ~, ext] = fileparts(dataFile);
-        switch ext
-            case {'.csv', '.tsv'}
-                data = readtable(dataFile, 'FileType', 'text');
-
-            case '.parquet'
-                data = parquetread(dataFile);
-
-            otherwise
-                error(['Unsupported dataFile format: ', ext]);
-        end
-
-        % Check if the read in data follows the specification
-        toCheck    = {'participant_id', 'session_id'};
-        temp_names = data.Properties.VariableNames;
-        chk        = ismember(toCheck, temp_names);
-        if sum(chk) ~= length(toCheck)
-            missMsg = sprintf('%s, ', toCheck{~chk});
-            error(['The following required variables are missing from ', file_X, ': ', missMsg(1:end-2)]);
+        data = parquetread(dataFile);
+        exists_agevec = false;
+    end
+else
+    if isempty(dataFile)
+        readTabulated = true;
+    else
+        readTabulated = false;
+        if ~exist(dataFile, 'file')
+            error(['Unable to find: ', dataFile]);
         else
-            % Prepare an ID column to be used for merging
-            data.IDs_merge = strcat(data.participant_id, {'_'}, data.session_id);
-        end
-
-        % Check if familyIDvar exists in data
-        if any(strcmpi(data.Properties.VariableNames, familyIDvar))
-            readTabulated = false;
-        else
-            % Check if a standard familyIDvar is requested
-            if ~ismember(familyIDvar, {'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'participant_id'})
-                tmp = familyIDvar;
-                if isSE
-                    familyIDvar = 'participant_id';
-                else
-                    familyIDvar = 'ab_g_stc__design_id__fam';
-                end
-                warning(['Unknown value specified for familyIDvar: ', tmp, '; defaulting to: ', familyIDvar]);
-                readTabulated = true;
+            % User has provided a full path to a dataFile: could be
+            % .csv/.tsv./.parquet/ file
+            [~, ~, ext] = fileparts(dataFile);
+            switch ext
+                case {'.csv', '.tsv'}
+                    data = readtable(dataFile, 'FileType', 'text');
+    
+                case '.parquet'
+                    data = parquetread(dataFile);
+    
+                otherwise
+                    error(['Unsupported dataFile format: ', ext]);
             end
-        end
-
-        % Check if agevec exists in data
-        if any(strcmpi(data.Properties.VariableNames, 'agevec'))
-            exists_agevec = true;
-        else
-            exists_agevec = false;
-        end
-
-        % Check if all fixed effects already exist?
-        vars_toRead = setdiff(temp_FFXNames, data.Properties.VariableNames);
-        if isempty(vars_toRead)
-            % Empty out temp_FFXNames
-            temp_FFXNames = [];
-
-            % Check if all PCs exist in dataFile
-            if ~isempty(tmp_PC)
-                loc_PCs  = not(cellfun(@isempty, regexpi(data.Properties.VariableNames, basename_PC)));
-                if sum(loc_PCs) ~= tmp_PC
+    
+            % Check if the read in data follows the specification
+            toCheck    = {'participant_id', 'session_id'};
+            temp_names = data.Properties.VariableNames;
+            chk        = ismember(toCheck, temp_names);
+            if sum(chk) ~= length(toCheck)
+                missMsg = sprintf('%s, ', toCheck{~chk});
+                error(['The following required variables are missing from ', file_X, ': ', missMsg(1:end-2)]);
+            else
+                % Prepare an ID column to be used for merging
+                data.IDs_merge = strcat(data.participant_id, {'_'}, data.session_id);
+            end
+    
+            % Check if familyIDvar exists in data
+            if ~any(strcmpi(data.Properties.VariableNames, familyIDvar))
+                % Check if a standard familyIDvar is requested
+                if ~ismember(familyIDvar, {'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'participant_id'})
+                    tmp = familyIDvar;
+                    if isSE
+                        familyIDvar = 'participant_id';
+                    else
+                        familyIDvar = 'ab_g_stc__design_id__fam';
+                    end
+                    warning(['Unknown value specified for familyIDvar: ', tmp, '; defaulting to: ', familyIDvar]);
                     readTabulated = true;
-                    data_namesPCs = data.Properties.VariableNames(loc_PCs);
                 end
             end
-        else
-            readTabulated = true;
-
-            % Overwrite temp_FFXNames to remaining variables to read
-            temp_FFXNames = vars_toRead;
-
-            % Check if a standard familyIDvar is requested
-            if ~ismember(familyIDvar, {'ab_g_stc__design_id__fam', 'ab_g_stc__design_id__fam__gen', 'participant_id'})
-                tmp = familyIDvar;
-                if isSE
-                    familyIDvar = 'participant_id';
-                else
-                    familyIDvar = 'ab_g_stc__design_id__fam';
-                end
-                warning(['Unknown value specified for familyIDvar: ', tmp, '; defaulting to: ', familyIDvar]);
+    
+            % Check if agevec exists in data
+            if any(strcmpi(data.Properties.VariableNames, 'agevec'))
+                exists_agevec = true;
+            else
+                exists_agevec = false;
+            end
+    
+            % Check if all fixed effects already exist?
+            vars_toRead = setdiff(temp_FFXNames, data.Properties.VariableNames);
+            if isempty(vars_toRead)
+                % Empty out temp_FFXNames
+                temp_FFXNames = [];
+            else
+                readTabulated = true;
+    
+                % Overwrite temp_FFXNames to remaining variables to read
+                temp_FFXNames = vars_toRead;
             end
         end
     end
@@ -402,27 +301,20 @@ if readTabulated
     % Mandatory variables in data_demo to retain
     vars_always_retain = {'participant_id', 'session_id', 'ab_g_dyn__visit_age'};
 
-    %% Figure out which PCs to read
-    if ~isempty(tmp_PC)
-        loc_PCs  = not(cellfun(@isempty, regexpi(data_demo.Properties.VariableNames, basename_PC)));
-        vars_PCs = data_demo.Properties.VariableNames(loc_PCs);
-
-        % If some PCs were specified in dataFile, check
-        if exist('data_namesPCs', 'var') & ~isempty(data_namesPCs)
-            vars_PCs = vars_PCs(:, setdiff(vars_PCs, data_namesPCs));
-        else
-            vars_PCs = vars_PCs(:,1:tmp_PC);
-        end
-    else
-        vars_PCs = [];
-    end
-
-    %% Determine subject ID
-    if isFE
-        subjectIDvar = familyIDvar;
-    else
-        subjectIDvar = 'participant_id';
-    end
+    % %% Figure out which PCs to read
+    % if ~isempty(tmp_PC)
+    %     loc_PCs  = not(cellfun(@isempty, regexpi(data_demo.Properties.VariableNames, basename_PC)));
+    %     vars_PCs = data_demo.Properties.VariableNames(loc_PCs);
+    % 
+    %     % If some PCs were specified in dataFile, check
+    %     if exist('data_namesPCs', 'var') & ~isempty(data_namesPCs)
+    %         vars_PCs = vars_PCs(:, setdiff(vars_PCs, data_namesPCs));
+    %     else
+    %         vars_PCs = vars_PCs(:,1:tmp_PC);
+    %     end
+    % else
+    %     vars_PCs = [];
+    % end
 
     %% Put IDs together for merging
     % Only use IID_EID so that it is easier to join with other tables
@@ -434,7 +326,7 @@ if readTabulated
     vars_demographics = temp_FFXNames(tmp_demo_tab_locs);
 
     % Subset demo
-    data_demo = data_demo(:, [vars_always_retain, vars_demographics, vars_PCs]);
+    data_demo = data_demo(:, [vars_always_retain, vars_demographics]);
 
     % What are the remaining tables?
     temp_tabNames = temp_tabNames(~tmp_demo_tab_locs);
@@ -478,7 +370,9 @@ else
 end
 
 % If IDs_merge exists, remove the variable
-removevars(data_work, 'IDs_merge');
+if strcmpi('IDs_merge', data_work.Properties.VariableNames)
+    removevars(data_work, 'IDs_merge');
+end
 
 %% If the user has provided FID/IID/EID, filter data_work
 if ~isempty(FID)
@@ -518,7 +412,7 @@ end
 if ~exists_agevec
     if readTabulated
         % If we read the data, we have agevec from demographics
-        renamevars(data_work, 'ab_g_dyn__visit_age', 'agevec');
+        data_work.agevec = data_work.ab_g_dyn__visit_age;
     else
         % We do not have demographics table - assign zeros
         data_work.agevec = zeros(height(data_work), 1);
@@ -527,8 +421,11 @@ end
 
 %% Reorder so that the data is organised as FID, IID, EID, agevec
 vars_to_move  = {familyIDvar, subjectIDvar, 'session_id', 'agevec'};
-remainingVars = setdfiff(data_work.Properties.VariableNames, vars_to_move);
+remainingVars = setdiff(data_work.Properties.VariableNames, vars_to_move);
 data_work     = data_work(:, [vars_to_move, remainingVars]);
+
+%% Renaming variables to FID, IID, and EID
+data_work = renamevars(data_work, {familyIDvar, subjectIDvar, 'session_id'}, {'FID', 'IID', 'EID'});
 
 %% At this stage, remove any missing (if required)
 if dropMissing
@@ -537,95 +434,45 @@ if dropMissing
     data_work(loc_missing, :) = [];
 end
 
-%% Split into categorical and continuous covariates
-% Only floating point values are considered
-types_numeric     = {'double', 'single'};
-locs_continuous   = ismember(data_work.Properties.VariableTypes(4:end), types_numeric);
-names_continuous  = data_work.Properties.VariableNames(locs_continuous);
-names_categorical = data_work.Properties.VariableNames(~locs_continuous);
-names_mapping     = cell(length(cfg_FFXNames), 2);
-count_mapping     = 1;
+%% Initialize transformations
+all_catg_variables = cell(length(FFX_categorical), 2);
+all_cont_variables = cell(sum(loc_cont), 2);
+count              = 1;
+
+% Track mapping of original names and modified names
+% Original name, new name
+names_mapping = cell(length(FFX_names), 2);
+count_mapping = 1;
 
 %% Dummy code categorical variables and drop reference levels
-if ~isempty(names_categorical)
-    all_catg_variables = cell(length(names_categorical), 2);
-    if ~isJSON
-        loc_reference = check_cfg_parameter('reference', cfg(:,1), true);
-    
-        if isempty(loc_reference)
-            % No reference levels specified
-            if intercept
-                global_refLevel = 'mode';
-            else
-                global_refLevel = 'none';
-            end
-        end
-    
-        % Split the reference line
-        % Format: <varName>=<string> <varName>=<string> ...
-        cfg_ref_map = strsplit(cfg{loc_reference, 2}, ' ')';
-        cfg_ref_map = cellfun(@(x) strsplit(x, '='), cfg_ref_map, 'UniformOutput', false);
-        try
-            cfg_ref_map = vertcat(cfg_ref_map{:});
-        catch
-            error(['Please check the specification of reference level in the config file; ', ...
-                   'should be: <varName>=<string> <varName>=<string> ...']);
-        end
-    end
-    
-    for cc = 1:length(names_categorical)
-    
+if ~isempty(FFX_categorical)
+    for cc = 1:length(FFX_categorical)
         % Which variable are we looking at?
-        tmp_var_name = names_categorical{cc};
-    
-        % Parse reference level from configuration file (if specified)
-        if isJSON
-            % Does this variable exist?
-            tmp_loc = find(strcmpi(tmp_var_name, cfg_FFXNames));
-            if ~isempty(tmp_loc)
-                try
-                    tmp_ref_level = cfg.params.fixed.vars.dummy(tmp_loc);
-                catch
-                    % Reference not specified; use defaults
-                    tmp_ref_level = global_refLevel;
-                end
-            else
-                % Variable is not part of the config file - use defaults
-                tmp_ref_level = global_refLevel;
-            end
-        else
-            % Does this variable exist?
-            tmp_loc = find(strcmpi(tmp_var_name, cfg_ref_map));
-            if ~isempty(tmp_loc)
-                tmp_ref_level = cfg_ref_map{tmp_loc,2};
-            else
-                % Reference level not specified - use defaults
-                tmp_ref_level = global_refLevel;
-            end
-        end
-    
+        tmp_var_name = FFX_categorical(cc).name;
+
+        % What is the specified reference level
+        tmp_ref_level = FFX_categorical(cc).reference;
+
         % Create dummy coding
         [all_catg_variables{cc,1}, all_catg_variables{cc,2}] = ...
          expand_categorical(data_work.(tmp_var_name), tmp_ref_level, tmp_var_name);
 
         % Maintain mapping
         names_mapping{count_mapping, 1} = tmp_var_name;
-        names_mapping{count_mapping, 2} = all_catg_variables{cc,2};
+        names_mapping{count_mapping, 2} = all_catg_variables{cc,1};
         count_mapping = count_mapping + 1;
     end
-    
+
     % Put all categorical variables together
-    X_data_categorical = horzcat(all_catg_variables{:,1});
-    X_name_categorical = horzcat(all_catg_variables{:,2});
+    X_name_categorical = horzcat(all_catg_variables{:,1});
+    X_data_categorical = horzcat(all_catg_variables{:,2});
 else
     X_data_categorical = [];
     X_name_categorical = '';
 end
 
-%% Perform transformations on continuous variables
-if ~isempty(names_continuous)
-    all_cont_variables = cell(length(names_continuous), 2);
-
+%% Perform vector transformations on continuous variables
+if ~isempty(FFX_vectorTransforms)
     % First pass, handle transforms that generate a vector - these can be
     % handled together in a single iteration without a need for loop
     % Examples of these transforms are (all handled by doTransformation):
@@ -634,244 +481,164 @@ if ~isempty(names_continuous)
     %   * 'logn'
     %   * 'log10'
     %   * 'inverseranknorm' | 'ranknorm' | 'int'
-    
-    % Use a counter for accessing all_cont_variables: shrink later
-    count = 1;
-    
-    % List of possible transforms (including spelling variations and
-    % shortened forms)
-    allowed_transforms = {'center', 'centre', 'demean', 'std', 'standardize', ...
-                          'normalize', 'logn', 'log10', 'inverseranknorm',    ...
-                          'ranknorm', 'int', 'splines', 'delta', 'none'};
-    
-    % Make a list of all transformations to be done
-    if isJSON
-        all_transforms     = lower({cfg.params.fixed.vars.transformation});
-        all_uq_transforms  = unique(all_transforms, 'stable');
-        tmp_diff_transform = setdiff(all_uq_transforms, allowed_transforms);
-        if ~isempty(tmp_diff_transform)
-            tmp = strcat(tmp_diff_transform, {', '});
-            tmp = horzcat(tmp{:});
-            warning(['The following transforms are not currently handled: ', tmp(1:end-2)]);
-        end
-    end
-    
+
     % Handle centering
-    loc_center = check_cfg_parameter({'center', 'centre', 'demean'}, cfg, true);
+    loc_center = find(ismember({FFX_vectorTransforms(:).transformation}, {'center', 'centre', 'demean'}));
     if ~isempty(loc_center)
-        [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
-         applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'center');
+        ori_names  = {FFX_vectorTransforms(loc_center).name};
+        [all_cont_variables{count,1}, all_cont_variables{count,2}] = ...
+            applyTransforms(data_work, ori_names, 'center');
     
         % Maintain mapping
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
         count_mapping = count_mapping + 1;
         count = count + 1;
     end
-    
+
     % Handle standardization
-    loc_std = check_cfg_parameter({'std', 'standardize', 'normalize'}, cfg, true);
+    loc_std = find(ismember({FFX_vectorTransforms(:).transformation}, {'std', 'standardize', 'normalize'}));
     if ~isempty(loc_std)
-        [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
-         applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'std');
-
+        ori_names  = {FFX_vectorTransforms(loc_std).name};
+        [all_cont_variables{count,1}, all_cont_variables{count,2}] = ...
+            applyTransforms(data_work, ori_names, 'std');
+    
         % Maintain mapping
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
         count_mapping = count_mapping + 1;
         count = count + 1;
     end
-    
-    % Handle logn transformation
-    loc_logn = check_cfg_parameter('logn', cfg, true);
+
+    % Handle logn
+    loc_logn = find(ismember({FFX_vectorTransforms(:).transformation}, {'logn'}));
     if ~isempty(loc_logn)
-        [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
-         applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'logn');
-
+        ori_names  = {FFX_vectorTransforms(loc_logn).name};
+        [all_cont_variables{count,1}, all_cont_variables{count,2}] = ...
+            applyTransforms(data_work, ori_names, 'logn');
+    
         % Maintain mapping
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
         count_mapping = count_mapping + 1;
         count = count + 1;
     end
-    
-    % Handle log10 transformation
-    loc_log10 = check_cfg_parameter('log10', cfg, true);
+
+    % Handle log10
+    loc_log10 = find(ismember({FFX_vectorTransforms(:).transformation}, {'log10'}));
     if ~isempty(loc_log10)
-        [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
-         applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'log10');
-
+        ori_names  = {FFX_vectorTransforms(loc_log10).name};
+        [all_cont_variables{count,1}, all_cont_variables{count,2}] = ...
+            applyTransforms(data_work, ori_names, 'log10');
+    
         % Maintain mapping
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
         count_mapping = count_mapping + 1;
         count = count + 1;
     end
-    
-    % Handle INT
-    loc_INT = check_cfg_parameter({'inverseranknorm', 'ranknorm', 'int'}, cfg, true);
+
+    % Handle inverse rank norm
+    loc_INT = find(ismember({FFX_vectorTransforms(:).transformation}, {'inverseranknorm', 'ranknorm', 'int'}));
     if ~isempty(loc_INT)
-        [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
-         applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'ranknorm');
-
+        ori_names  = {FFX_vectorTransforms(loc_INT).name};
+        [all_cont_variables{count,1}, all_cont_variables{count,2}] = ...
+            applyTransforms(data_work, ori_names, 'ranknorm');
+    
         % Maintain mapping
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
-        names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+        names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
         count_mapping = count_mapping + 1;
         count = count + 1;
     end
-    
-    % Second pass, now we need to handle delta and splines
-    % For each of these transforms, need to loop over - they also produce
-    % different number of outcome than just a single column
-    
-    % Handle delta transform
-    loc_delta = check_cfg_parameter('delta', cfg, true);
-    if ~isempty(loc_delta)
-        if isJSON
-            loc_delta = ismember(names_continuous, cfg_FFXNames(loc_delta));
-        else
-            % Replace space and split by comma
-            tmp_delta = strsplit(strrep(cfg{loc_delta, 2}, ' ', ''), ',');
-            loc_delta = ismember(names_continuous, tmp_delta);
-        end
-    
-        if ~isempty(loc_delta)
-            for v = 1:length(loc_delta)
-                tmp_var_name = names_continuous{loc_delta(v)};
-                tmp_new_name = [{[tmp_var_name, '_baseline']}, {[tmp_var_name, '_delta']}];
-                all_cont_variables{count,1} = computeDelta(data_work{:,tmp_var_name}, ...
-                                                           data_work.participant_id, data_work.session_id);
-                all_cont_variables{count,2} = tmp_new_name;
+end
 
-                % Maintain mapping
-                names_mapping{count_mapping, 1} = tmp_var_name;
-                names_mapping{count_mapping, 2} = tmp_new_name;
-                count_mapping = count_mapping + 1;
-                count = count + 1;
-            end
-        end
-    end
-    
-    % Handle splines
-    loc_splines = check_cfg_parameter('splines', cfg, false);
-    
-    % Every value in loc_splines is a separate variable for which we need to
-    % make splines; loop over these and do what is necessary
-    if ~isempty(loc_splines)
-        % Initialize a variable for storing spline settings and other relevant
-        % variables that are not part of design matrix but are necessary
-        all_spline_settings = cell(length(loc_splines), 1);
-    
-        % Go over every spline index
-        for v = 1:length(loc_splines)
-            % Parse this line to extract parameters
-            tmp = cfg{loc_splines(v), 2};
-        
-            % Split by space to get name-pair values
-            tmp = strsplit(tmp, ' ');
-        
-            % First entry is the variable name
-            tmp_var_name = tmp{1};
-        
-            % For every remaining entry, need to split on "=" and determine what
-            % those parameters are; start by initializing every parameter with
-            % empty values so that parameters are never shared across variables
-            [tmp_knots, tmp_Xpowers, tmp_minMax, tmp_intercept, tmp_cleanUp, tmp_instance] = deal([]);
-            [tmp_splineType, tmp_method, tmp_outDir, tmp_optCommand, tmp_optAppend] = deal('');
-        
-            for p = 2:length(tmp)
-                % Split
-                tmp_param  = strsplit(tmp{p}, '=');
-                tmp_config = tmp_value{1, 1};
-                tmp_value  = tmp_param{1, 2};
-        
-                % Depending on which parameter we find, we assign the values
-                % Could probably do if-else
-                if strcmpi(tmp_config, 'knots')
-                    % str2double will make comma separated values into one number
-                    tmp_knots = str2num(tmp_value); %#ok<*ST2NM>
-                end
-        
-                if strcmpi(tmp_config, 'splineType')
-                    tmp_splineType = strtrim(tmp_value);
-                end
-        
-                if strcmpi(tmp_config, 'Xpowers')
-                    tmp_Xpowers = str2num(tmp_value);
-                end
-        
-                if strcmpi(tmp_config, 'method')
-                    tmp_method = strtrim(tmp_value);
-                end
-        
-                if strcmpi(tmp_config, 'minMax')
-                    tmp_minMax = sort(str2num(tmp_value));
-                end
-        
-                if strcmpi(tmp_config, 'intercept')
-                    tmp_intercept = eval(strtrim(tmp_value));
-                end
-        
-                if strcmpi(tmp_config, 'optCommand')
-                    tmp_optCommand = strtrim(tmp_value);
-                end
-        
-                if strcmpi(tmp_config, 'optAppend')
-                    tmp_optAppend = strtrim(tmp_value);
-                end
-        
-                if strcmpi(tmp_config, 'cleanUp')
-                    tmp_cleanUp = eval(strtrim(tmp_value));
-                end
-        
-                if strcmpi(tmp_config, 'instance')
-                    tmp_instance = str2double(tmp_value);
-                end
-            end
-        
-            % Create basis functions
-            [all_cont_variables{count,1}, all_spline_settings{v,1},   ...
-             all_spline_settings{v,2},    all_spline_settings{v,3},   ...
-             all_spline_settings{v,4},    all_spline_settings{v,5}] = ...
-             createBasisFunctions(data_work.(tmp_var_name), tmp_knots, tmp_splineType, ...
-                                  tmp_Xpowers, tmp_method, tmp_outDir, tmp_minMax,    ...
-                                  tmp_intercept, tmp_optCommand, tmp_optAppend,       ...
-                                  tmp_cleanUp, tmp_instance);
-    
-            % Append the name of the variable for which settings are saved
-            all_spline_settings{v,6} = tmp_var_name;
-    
-            % Name of basis functions
-            tmp_new_name = strcat({tmp_var_name}, {'_bf'}, num2str((1:size(all_cont_variables{count,1},2))'))';
-            all_cont_variables{count,2} = tmp_new_name;
+%% Perform winsorization
+if ~isempty(FFX_winsorize)
+    ori_names  = {FFX_winsorize(:).name};
+    [all_cont_variables{count,1}, all_cont_variables{count,2}] = ...
+        applyWinsorization(data_work, ori_names, [FFX_winsorize(:).lower], [FFX_winsorize(:).upper]);
 
-            % Maintain mapping
-            names_mapping{count_mapping, 1} = tmp_var_name;
-            names_mapping{count_mapping, 2} = tmp_new_name;
-            count_mapping = count_mapping + 1;
-            count = count + 1;
-        end
-    end
+    % Maintain mapping
+    names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+    names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
+    count_mapping = count_mapping + 1;
+    count = count + 1;
+end
 
-    % Now track what variables were not transformed
-    vars_none_transform = setdiff(names_continuous, names_mapping(:,1));
+%% Perform delta computation
+if ~isempty(FFX_deltaTransforms)
+    ori_names  = {FFX_deltaTransforms(:).name};
+    [all_cont_variables{count,1}, all_cont_variables{count,2}] = computeDelta(data_work{:,ori_names}, ori_names, data_work.participant_id, data_work.session_id);
 
-    % Stack variables that were not transformed
-    for v = 1:length(vars_none_transform)
-        tmp_var_name = vars_none_transform{v};
-        all_cont_variables{count,1} = data_work{:,tmp_var_name};
-        all_cont_variables{count,2} = tmp_new_name;
+    % Maintain mapping
+    names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
+    names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
+    count_mapping = count_mapping + 1;
+    count = count + 1;
+end
+
+%% Perform spline creation
+if ~isempty(FFX_splineTransforms)
+    % Initialize a variable for storing spline settings and other relevant
+    % variables that are not part of design matrix but are necessary
+    all_spline_settings = cell(size(FFX_splineTransforms,1), 1);
+
+    % Go over every spline index
+    for v = 1:size(FFX_splineTransforms,1)
+        % Variable name
+        tmp_var_name = FFX_splineTransforms(v).name;
+
+        % Create basis functions
+        [all_cont_variables{count,2}, all_spline_settings{v,1},   ...
+         all_spline_settings{v,2},    all_spline_settings{v,3},   ...
+         all_spline_settings{v,4},    all_spline_settings{v,5}] = ...
+         createBasisFunctions(data_work.(tmp_var_name), FFX_splineTransforms(v).knots, ...
+                              FFX_splineTransforms(v).splineType, ...
+                              FFX_splineTransforms(v).Xpowers, ...
+                              FFX_splineTransforms(v).method, outDir, ...
+                              FFX_splineTransforms(v).minMax, ...
+                              FFX_splineTransforms(v).intercept, ...
+                              FFX_splineTransforms(v).optCommand, ...
+                              FFX_splineTransforms(v).optAppend, ...
+                              FFX_splineTransforms(v).cleanUp, FFX_splineTransforms(v).instance);
+
+        % Append the name of the variable for which settings are saved
+        all_spline_settings{v,6} = tmp_var_name;
+    
+        % Name of basis functions
+        tmp_new_name = strcat({tmp_var_name}, {'_bf'}, num2str((1:size(all_cont_variables{count,2},2))'))';
+        all_cont_variables{count,1} = tmp_new_name;
+
+        % Maintain mapping
+        names_mapping{count_mapping, 1} = tmp_var_name;
+        names_mapping{count_mapping, 2} = tmp_new_name;
+        count_mapping = count_mapping + 1;
         count = count + 1;
     end
+end
 
-    % Shrink all_cont_variables, if required
-    tmp = cellfun(@isempty, all_cont_variables);
-    all_cont_variables(tmp,:) = [];
+%% Variables that were not transformed
+vars_none_transform = {FFX_vectorTransforms(strcmpi({FFX_vectorTransforms(:).transformation}, 'none')').name};
+if ~isempty(vars_none_transform)
+    all_cont_variables{count,1} = vars_none_transform;
+    all_cont_variables{count,2} = data_work{:,vars_none_transform};
+
+    % Maintain mapping
+    names_mapping(count_mapping:count_mapping+length(vars_none_transform)-1, 1) = vars_none_transform;
+    names_mapping(count_mapping:count_mapping+length(vars_none_transform)-1, 2) = vars_none_transform;
+    % count_mapping = count_mapping + 1;
+    % count = count + 1;
+end
+
+%% Shrink all_cont_variables, if required
+tmp = cellfun(@isempty, all_cont_variables);
+all_cont_variables(tmp,:) = [];
     
-    % Put all continuous variables together
-    X_data_continuous = horzcat(all_cont_variables{:,1});
-    X_name_continuous = horzcat(all_cont_variables{:,2});
+%% Put all continuous variables together
+if ~isempty(all_cont_variables)
+    X_name_continuous = horzcat(all_cont_variables{:,1});
+    X_data_continuous = horzcat(all_cont_variables{:,2});
 else
     X_data_continuous = [];
     X_name_continuous = '';
@@ -896,20 +663,19 @@ else
     end
 end
 
-%% Handle interactions
-loc_interact = check_cfg_parameter({'interaction', 'interact', 'interactions'}, cfg, true);
+%% Make a table
+designMatrix = [data_work(:,1:4), cell2table(num2cell(designMatrix), 'VariableNames', designNames)];
 
-if ~isempty(loc_interact)
-    % Split based on comma
-    tmp = strsplit(cfg{loc_interact, 2}, ',');
+%% Handle interactions
+if ~isempty(FFX_interactions)
 
     % Initialize
-    all_interact_variables = cell(length(tmp), 2);
+    all_interact_variables = cell(size(FFX_interactions,1), 2);
 
     % For every interaction, split by "*", and create new variables
-    for v = 1:length(tmp)
+    for v = 1:size(FFX_interactions,1)
         % Variables to look for in this interaction
-        toLook = strsplit(tmp, '*');
+        toLook = strtrim(strsplit(FFX_interactions(v).interaction, '*'));
 
         % Using regular expressions, look for the entries in "toLook" in
         % the first column of the mapping variable - this accounts for the
@@ -918,16 +684,16 @@ if ~isempty(loc_interact)
         locs_look = find(ismember(names_mapping(:,1), toLook));
 
         % Initialize
-        col_count     = 1;
+        col_count = 1;
 
         % Assign the first variable into tempData
         tempName = names_mapping{locs_look(1), 2};
-        tempData = data_work{:, tempName};
+        tempData = designMatrix{:, tempName};
 
         % Go over all remaining variables
         for vv = 2:length(toLook)
             % Whatever interacts with tempData is temp
-            temp   = data_work{:, names_mapping(locs_look(vv), 2)};
+            temp   = designMatrix{:, names_mapping{locs_look(vv), 2}};
 
             % Initialize where results will be temporarily saved
             tempSize    = size(tempData,2) * size(temp,2);
@@ -961,7 +727,7 @@ if ~isempty(loc_interact)
         end
     end
 
-    % Interaction results are in temp1 - extract
+    % Interaction results are in tempData - extract
     all_interact_variables{v,1} = tempData;
     all_interact_variables{v,2} = tempName;
 
@@ -975,43 +741,33 @@ end
 
 % Concatenate with design matrix
 if ~isempty(X_data_interactions)
+    X_data_interactions = cell2table(num2cell(X_data_interactions), 'VariableNames', matlab.lang.makeValidName(X_name_interactions));
     designMatrix = [designMatrix, X_data_interactions];
-    designNames  = [designNames,  X_name_interactions];
 end
 
-%% Add intercept if needed
-if intercept
-    designMatrix = [designMatrix, ones(size(designMatrix,1), 1)];
-    designNames  = [designNames, {'Intercept'}];
+%% Perform any global transformation that may be required
+if ~isempty(global_transform)
+    designMatrix{:,5:end} = doTransformation(designMatrix{:,5:end}, global_transform);
+end
+
+%% Add global intercept if needed
+if global_intercept
+    designMatrix.Intercept = ones(size(designMatrix,1), 1);
 end
 
 %% Drop rank deficient columns
-mdl    = fitlm(designMatrix, randn(size(designMatrix,1),1), 'Intercept', not(intercept));
-toDrop = isnan(mdl.Coefficients.tStat);
+mdl    = fitlm(designMatrix{:,5:end}, randn(size(designMatrix,1),1), 'Intercept', not(global_intercept));
+toDrop = find(isnan(mdl.Coefficients.tStat))+4;
 designMatrix(:,toDrop) = [];
-designNames(:, toDrop) = [];
+% designNames(:, toDrop) = [];
 
-%%
-output = standardizeTransforms(allVarNames, cfg.params.fixed.vars);
+%% Convert to table for output
+% designMatrix = cell2table(designMatrix, 'VariableNames', designNames);
 
 end
 
-function idx = check_cfg_parameter(paramName, cfg_cell, chkDup)
-% Trivial function that performs a look up for a parameter in a param x 1
-% cell configuration, checks to make sure that only one parameter exists,
-% and then returns the location of this parameter in the cell
-if ~exist('chkDup', 'var') || isempty(chkDup)
-    chkDup = true;
-end
-idx = find(ismember(lower(cfg_cell), lower(paramName)));
-if chkDup
-    if length(idx) > 1
-        error(['More than one parameter: ', paramName, ' found in configFile']);
-    end
-end
-end
 
-function [expVariable, colnames] = expand_categorical(variable, varName, refLevel)
+function [colnames, expVariable] = expand_categorical(variable, refLevel, varName)
 % This function takes a single categorical variable, a reference level, and
 % the name of the categorical variable and returns the dummy coded expanded
 % categorical variable and new column names
@@ -1023,12 +779,8 @@ function [expVariable, colnames] = expand_categorical(variable, varName, refLeve
 % 'none':   in this case, no category is dropped
 % specific reference level: in this case, the specified category is droped
 
-if ~exist('refLevel', 'var') || isempty(refLevel)
-    refLevel = 'mode';
-else
-    if iscellstr(refLevel) || iscell(refLevel) %#ok<ISCLSTR>
-        refLevel = refLevel{1};
-    end
+if iscellstr(refLevel) || iscell(refLevel) %#ok<ISCLSTR>
+    refLevel = refLevel{1};
 end
 
 % First, make into a categorical variable
@@ -1093,30 +845,23 @@ end
 if isstring(colnames)
     colnames = cellstr(colnames);
 end
+
+% Return as [1 x n]
+colnames = colnames';
 end
 
-function [outVar, outName, tmp_var_name] = applyTransforms(loc_cfg, names_continuous, ...
-                                           cfg_FFXNames, cfg, isJSON, data_work, transformName)
-if isJSON
-    loc_cfg = ismember(names_continuous, cfg_FFXNames(loc_cfg));
-else
-    % Replace space and split by comma
-    tmp_std = strsplit(strrep(cfg{loc_cfg, 2}, ' ', ''), ',');
-    loc_cfg = ismember(names_continuous, tmp_std);
+function [outName, outValue] = applyTransforms(data_work, var_names, transformName)
+outName  = strcat(var_names, {'_'}, transformName);
+outValue = doTransformation(data_work{:,var_names}, transformName);
 end
 
-if ~isempty(loc_cfg)
-    tmp_var_name = names_continuous(loc_cfg);
-    outName = strcat(tmp_var_name, {'_'}, transformName);
-    outVar = doTransformation(data_work{:,tmp_var_name}, transformName);
-else
-    outVar       = [];
-    outName      = [];
-    tmp_var_name = [];
-end
+function [outName, outValue] = applyWinsorization(data_work, var_names, lower, upper)
+outName  = strcat(var_names, {'_winsorized'});
+outValue = doTransformation(data_work{:,var_names}, 'winsorize', lower, upper);
 end
 
-function computeDelta(var_delta, participant_id, session_id)
+
+function [outName, outValue] = computeDelta(var_delta, var_names, participant_id, session_id)
 % Function to compute delta of a specified variable:
 % This creates two columns from a single input: the baseline column is the
 % value at the first event (whatever is the first event for this subject),
@@ -1128,13 +873,27 @@ function computeDelta(var_delta, participant_id, session_id)
 % session_id will always be sorted BUT requires age to be present in the
 % data_work which may not always be the case
 % Currently uses session_id
+% 
+% var_delta can be multiple columns
 
 % Simpler but (likely) slower solution: loop over every unique
 % participant_id, find the first session, and compute delta
 uqSubjects = unique(participant_id, 'stable');
 
 % Initialize
-outVar = zeros(size(var_delta, 1), 2);
+[~, numCols] = size(var_delta);
+outValue     = zeros(size(var_delta, 1), 2*numCols);
+
+% Output names
+% This solution only works for R2019 onwards
+% tmp = append(var_names, {'_baseline', '_delta'}');
+% outName = tmp(:);
+outName = cell(1, size(outValue,2));
+count = 1;
+for v = 1:length(var_names)
+    outName(1,count:count+1) = strcat(var_names{v}, {'_baseline', '_delta'});
+    count = count + 2;
+end
 
 % Loop over every subject in uqSubjects, sort by event ID to find the first
 % real event, then do the diff
@@ -1142,66 +901,75 @@ for subj = 1:length(uqSubjects)
     locs = strcmpi(participant_id, uqSubjects{subj});
     [~, b] = sort(session_id(locs), 'ascend');
 
-    % Temporary data sorted by events
-    tmp_data_ori  = var_delta(locs);
-    tmp_data_sort = tmp_data_ori(b);
-
-    % Find the first value ignoring NaN
-    baseline = tmp_data_ori(find(~isnan(tmp_data_sort), 1));
+    % There are no missing values to handle, since those were dropped
+    % before
+    tmp_data = var_delta(locs,:);
+    baseline = tmp_data(b,:);
+    delta    = tmp_data - baseline;
 
     % Assign to outVar
-    outVar(locs,1) = baseline;
-    outVar(locs,2) = baseline - tmp_data_ori;
+    outValue(locs,:) = [baseline, delta];
+
+    % % Temporary data sorted by events
+    % tmp_data_ori  = var_delta(locs);
+    % tmp_data_sort = tmp_data_ori(b);
+    % 
+    % % Find the first value ignoring NaN
+    % baseline = tmp_data_ori(find(~isnan(tmp_data_sort), 1));
+    % 
+    % % Assign to outVar
+    % outVar(locs,1) = baseline;
+    % outVar(locs,2) = baseline - tmp_data_ori;
 end
 end
 
 
-function output = standardizeTransforms(allVarNames, inputCellStruct)
-% inputCellStruct is a cell array with each entry containing a structure
-% that may or may not have a field named "transformation"; not all values
-% in allVarNames will be present in inputCellStruct - the output is all
-% transformations corresponding to all entries in allVarNames (i.e., if an
-% entry in allVarNames is not specified in inputCellStruct, the
-% transformation is set to none)
-%
-% Throws an error if allVarNames has duplicates OR if more than one
-% transform is specified for any variable
-
-% Initialize
-output = cell(length(allVarNames), 1);
-% output(1:length(allVarNames),1) = deal({'none'});
-
-% Go over every entry and extract transform
-for vars = 1:length(inputCellStruct)
-    tmp  = inputCellStruct{vars};
-    loc  = find(strcmpi(allVarNames, tmp.name));
-    if isempty(loc)
-        % Transformation defined but variable unavailable in allVarNames
-        warning(['Ignoring transformation for ', tmp.name, ' as variable not present']);
-    else
-        if isfield(tmp, 'transformation')
-            if isempty(output{loc})
-                output{loc} = lower(inputCellStruct{vars}.transformation);
-            else
-                % A transformation was already defined for this variable
-                error(['More than one transformation defined for: ', inputCellStruct{vars}.name]);
-            end
-        else
-            % Transformation not defined, check if duplicate, and assign
-            % none as a transform
-            if isempty(output{loc})
-                output{loc} = 'none';
-            else
-                % A transformation was already defined for this variable
-                error(['More than one transformation defined for: ', inputCellStruct{vars}.name]);
-            end
-        end
-    end
-end
-
-% Any unassigned variable: variable does not exist in the spec file
-output(cellfun(@isempty, output)) = {'none'};
-end
+% function output = standardizeTransforms(allVarNames, inputCellStruct)
+% % inputCellStruct is a cell array with each entry containing a structure
+% % that may or may not have a field named "transformation"; not all values
+% % in allVarNames will be present in inputCellStruct - the output is all
+% % transformations corresponding to all entries in allVarNames (i.e., if an
+% % entry in allVarNames is not specified in inputCellStruct, the
+% % transformation is set to none)
+% %
+% % Throws an error if allVarNames has duplicates OR if more than one
+% % transform is specified for any variable
+% 
+% % Initialize
+% output = cell(length(allVarNames), 1);
+% % output(1:length(allVarNames),1) = deal({'none'});
+% 
+% % Go over every entry and extract transform
+% for vars = 1:length(inputCellStruct)
+%     tmp  = inputCellStruct{vars};
+%     loc  = find(strcmpi(allVarNames, tmp.name));
+%     if isempty(loc)
+%         % Transformation defined but variable unavailable in allVarNames
+%         warning(['Ignoring transformation for ', tmp.name, ' as variable not present']);
+%     else
+%         if isfield(tmp, 'transformation')
+%             if isempty(output{loc})
+%                 output{loc} = lower(inputCellStruct{vars}.transformation);
+%             else
+%                 % A transformation was already defined for this variable
+%                 error(['More than one transformation defined for: ', inputCellStruct{vars}.name]);
+%             end
+%         else
+%             % Transformation not defined, check if duplicate, and assign
+%             % none as a transform
+%             if isempty(output{loc})
+%                 output{loc} = 'none';
+%             else
+%                 % A transformation was already defined for this variable
+%                 error(['More than one transformation defined for: ', inputCellStruct{vars}.name]);
+%             end
+%         end
+%     end
+% end
+% 
+% % Any unassigned variable: variable does not exist in the spec file
+% output(cellfun(@isempty, output)) = {'none'};
+% end
 
 % Deprecated:
 % Could use unstacking trick: re-organises data with participant_id as the
@@ -1328,3 +1096,586 @@ end
 %         % IDs to use for merging with data_demo
 %         table_dataFile.IDs_merge = strcat(table_dataFile.iid, {'_'}, table_dataFile.eid);
 %     end
+
+% Older deprecated code:
+% if ~isempty(names_continuous)
+%     all_cont_variables = cell(length(names_continuous), 2);
+% 
+% 
+% 
+%     % Use a counter for accessing all_cont_variables: shrink later
+%     count = 1;
+% 
+%     % List of possible transforms (including spelling variations and
+%     % shortened forms)
+%     allowed_transforms = {'center', 'centre', 'demean', 'std', 'standardize', ...
+%                           'normalize', 'logn', 'log10', 'inverseranknorm',    ...
+%                           'ranknorm', 'int', 'splines', 'delta', 'none'};
+% 
+%     % Make a list of all transformations to be done
+%     if isJSON
+%         all_transforms     = lower({cfg.params.fixed.vars.transformation});
+%         all_uq_transforms  = unique(all_transforms, 'stable');
+%         tmp_diff_transform = setdiff(all_uq_transforms, allowed_transforms);
+%         if ~isempty(tmp_diff_transform)
+%             tmp = strcat(tmp_diff_transform, {', '});
+%             tmp = horzcat(tmp{:});
+%             warning(['The following transforms are not currently handled: ', tmp(1:end-2)]);
+%         end
+%     end
+% 
+%     % Handle centering
+%     loc_center = check_cfg_parameter({'center', 'centre', 'demean'}, cfg, true);
+%     if ~isempty(loc_center)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'center');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle standardization
+%     loc_std = check_cfg_parameter({'std', 'standardize', 'normalize'}, cfg, true);
+%     if ~isempty(loc_std)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'std');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle logn transformation
+%     loc_logn = check_cfg_parameter('logn', cfg, true);
+%     if ~isempty(loc_logn)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'logn');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle log10 transformation
+%     loc_log10 = check_cfg_parameter('log10', cfg, true);
+%     if ~isempty(loc_log10)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'log10');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle INT
+%     loc_INT = check_cfg_parameter({'inverseranknorm', 'ranknorm', 'int'}, cfg, true);
+%     if ~isempty(loc_INT)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'ranknorm');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Second pass, now we need to handle delta and splines
+%     % For each of these transforms, need to loop over - they also produce
+%     % different number of outcome than just a single column
+% 
+%     % Handle delta transform
+%     loc_delta = check_cfg_parameter('delta', cfg, true);
+%     if ~isempty(loc_delta)
+%         if isJSON
+%             loc_delta = ismember(names_continuous, cfg_FFXNames(loc_delta));
+%         else
+%             % Replace space and split by comma
+%             tmp_delta = strsplit(strrep(cfg{loc_delta, 2}, ' ', ''), ',');
+%             loc_delta = ismember(names_continuous, tmp_delta);
+%         end
+% 
+%         if ~isempty(loc_delta)
+%             for v = 1:length(loc_delta)
+%                 tmp_var_name = names_continuous{loc_delta(v)};
+%                 tmp_new_name = [{[tmp_var_name, '_baseline']}, {[tmp_var_name, '_delta']}];
+%                 all_cont_variables{count,1} = computeDelta(data_work{:,tmp_var_name}, ...
+%                                                            data_work.participant_id, data_work.session_id);
+%                 all_cont_variables{count,2} = tmp_new_name;
+% 
+%                 % Maintain mapping
+%                 names_mapping{count_mapping, 1} = tmp_var_name;
+%                 names_mapping{count_mapping, 2} = tmp_new_name;
+%                 count_mapping = count_mapping + 1;
+%                 count = count + 1;
+%             end
+%         end
+%     end
+% 
+%     % Handle splines
+%     loc_splines = check_cfg_parameter('splines', cfg, false);
+% 
+%     % Every value in loc_splines is a separate variable for which we need to
+%     % make splines; loop over these and do what is necessary
+%     if ~isempty(loc_splines)
+%         % Initialize a variable for storing spline settings and other relevant
+%         % variables that are not part of design matrix but are necessary
+%         all_spline_settings = cell(length(loc_splines), 1);
+% 
+%         % Go over every spline index
+%         for v = 1:length(loc_splines)
+%             % Parse this line to extract parameters
+%             tmp = cfg{loc_splines(v), 2};
+% 
+%             % Split by space to get name-pair values
+%             tmp = strsplit(tmp, ' ');
+% 
+%             % First entry is the variable name
+%             tmp_var_name = tmp{1};
+% 
+%             % For every remaining entry, need to split on "=" and determine what
+%             % those parameters are; start by initializing every parameter with
+%             % empty values so that parameters are never shared across variables
+%             [tmp_knots, tmp_Xpowers, tmp_minMax, tmp_intercept, tmp_cleanUp, tmp_instance] = deal([]);
+%             [tmp_splineType, tmp_method, tmp_outDir, tmp_optCommand, tmp_optAppend] = deal('');
+% 
+%             for p = 2:length(tmp)
+%                 % Split
+%                 tmp_param  = strsplit(tmp{p}, '=');
+%                 tmp_config = tmp_value{1, 1};
+%                 tmp_value  = tmp_param{1, 2};
+% 
+%                 % Depending on which parameter we find, we assign the values
+%                 % Could probably do if-else
+%                 if strcmpi(tmp_config, 'knots')
+%                     % str2double will make comma separated values into one number
+%                     tmp_knots = str2num(tmp_value); %#ok<*ST2NM>
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'splineType')
+%                     tmp_splineType = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'Xpowers')
+%                     tmp_Xpowers = str2num(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'method')
+%                     tmp_method = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'minMax')
+%                     tmp_minMax = sort(str2num(tmp_value));
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'intercept')
+%                     tmp_intercept = eval(strtrim(tmp_value));
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'optCommand')
+%                     tmp_optCommand = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'optAppend')
+%                     tmp_optAppend = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'cleanUp')
+%                     tmp_cleanUp = eval(strtrim(tmp_value));
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'instance')
+%                     tmp_instance = str2double(tmp_value);
+%                 end
+%             end
+% 
+%             % Create basis functions
+%             [all_cont_variables{count,1}, all_spline_settings{v,1},   ...
+%              all_spline_settings{v,2},    all_spline_settings{v,3},   ...
+%              all_spline_settings{v,4},    all_spline_settings{v,5}] = ...
+%              createBasisFunctions(data_work.(tmp_var_name), tmp_knots, tmp_splineType, ...
+%                                   tmp_Xpowers, tmp_method, tmp_outDir, tmp_minMax,    ...
+%                                   tmp_intercept, tmp_optCommand, tmp_optAppend,       ...
+%                                   tmp_cleanUp, tmp_instance);
+% 
+%             % Append the name of the variable for which settings are saved
+%             all_spline_settings{v,6} = tmp_var_name;
+% 
+%             % Name of basis functions
+%             tmp_new_name = strcat({tmp_var_name}, {'_bf'}, num2str((1:size(all_cont_variables{count,1},2))'))';
+%             all_cont_variables{count,2} = tmp_new_name;
+% 
+%             % Maintain mapping
+%             names_mapping{count_mapping, 1} = tmp_var_name;
+%             names_mapping{count_mapping, 2} = tmp_new_name;
+%             count_mapping = count_mapping + 1;
+%             count = count + 1;
+%         end
+%     end
+% 
+%     % Now track what variables were not transformed
+%     vars_none_transform = setdiff(names_continuous, names_mapping(:,1));
+% 
+%     % Stack variables that were not transformed
+%     for v = 1:length(vars_none_transform)
+%         tmp_var_name = vars_none_transform{v};
+%         all_cont_variables{count,1} = data_work{:,tmp_var_name};
+%         all_cont_variables{count,2} = tmp_new_name;
+%         count = count + 1;
+%     end
+% 
+%     % Shrink all_cont_variables, if required
+%     tmp = cellfun(@isempty, all_cont_variables);
+%     all_cont_variables(tmp,:) = [];
+% 
+%     % Put all continuous variables together
+%     X_data_continuous = horzcat(all_cont_variables{:,1});
+%     X_name_continuous = horzcat(all_cont_variables{:,2});
+% else
+%     X_data_continuous = [];
+%     X_name_continuous = '';
+% end
+
+% %% Split into categorical and continuous covariates
+% names_continuous  = data_work.Properties.VariableNames(loc_cont);
+% names_categorical = data_work.Properties.VariableNames(loc_catg);
+
+% %% Dummy code categorical variables and drop reference levels
+% if ~isempty(names_categorical)
+%     all_catg_variables = cell(length(names_categorical), 2);
+%     if ~isJSON
+%         loc_reference = check_cfg_parameter('reference', cfg(:,1), true);
+% 
+%         if isempty(loc_reference)
+%             % No reference levels specified
+%             if intercept
+%                 global_refLevel = 'mode';
+%             else
+%                 global_refLevel = 'none';
+%             end
+%         end
+% 
+%         % Split the reference line
+%         % Format: <varName>=<string> <varName>=<string> ...
+%         cfg_ref_map = strsplit(cfg{loc_reference, 2}, ' ')';
+%         cfg_ref_map = cellfun(@(x) strsplit(x, '='), cfg_ref_map, 'UniformOutput', false);
+%         try
+%             cfg_ref_map = vertcat(cfg_ref_map{:});
+%         catch
+%             error(['Please check the specification of reference level in the config file; ', ...
+%                    'should be: <varName>=<string> <varName>=<string> ...']);
+%         end
+%     end
+% 
+%     for cc = 1:length(names_categorical)
+% 
+%         % Which variable are we looking at?
+%         tmp_var_name = names_categorical{cc};
+% 
+%         % Parse reference level from configuration file (if specified)
+%         if isJSON
+%             % Does this variable exist?
+%             tmp_loc = find(strcmpi(tmp_var_name, cfg_FFXNames));
+%             if ~isempty(tmp_loc)
+%                 try
+%                     tmp_ref_level = cfg.params.fixed.vars.dummy(tmp_loc);
+%                 catch
+%                     % Reference not specified; use defaults
+%                     tmp_ref_level = global_refLevel;
+%                 end
+%             else
+%                 % Variable is not part of the config file - use defaults
+%                 tmp_ref_level = global_refLevel;
+%             end
+%         else
+%             % Does this variable exist?
+%             tmp_loc = find(strcmpi(tmp_var_name, cfg_ref_map));
+%             if ~isempty(tmp_loc)
+%                 tmp_ref_level = cfg_ref_map{tmp_loc,2};
+%             else
+%                 % Reference level not specified - use defaults
+%                 tmp_ref_level = global_refLevel;
+%             end
+%         end
+% 
+%         % Create dummy coding
+%         [all_catg_variables{cc,1}, all_catg_variables{cc,2}] = ...
+%          expand_categorical(data_work.(tmp_var_name), tmp_var_name, tmp_ref_level);
+% 
+%         % Maintain mapping
+%         names_mapping{count_mapping, 1} = tmp_var_name;
+%         names_mapping{count_mapping, 2} = all_catg_variables{cc,2};
+%         count_mapping = count_mapping + 1;
+%     end
+% 
+%     % Put all categorical variables together
+%     X_data_categorical = horzcat(all_catg_variables{:,1});
+%     X_name_categorical = horzcat(all_catg_variables{:,2});
+% else
+%     X_data_categorical = [];
+%     X_name_categorical = '';
+% end
+
+% %% Perform transformations on continuous variables
+% if ~isempty(names_continuous)
+%     all_cont_variables = cell(length(names_continuous), 2);
+% 
+%     % First pass, handle transforms that generate a vector - these can be
+%     % handled together in a single iteration without a need for loop
+%     % Examples of these transforms are (all handled by doTransformation):
+%     %   * 'center' | 'centre' | 'demean'
+%     %   * 'std' | 'standardize' | 'normalize'
+%     %   * 'logn'
+%     %   * 'log10'
+%     %   * 'inverseranknorm' | 'ranknorm' | 'int'
+% 
+%     % Use a counter for accessing all_cont_variables: shrink later
+%     count = 1;
+% 
+%     % List of possible transforms (including spelling variations and
+%     % shortened forms)
+%     allowed_transforms = {'center', 'centre', 'demean', 'std', 'standardize', ...
+%                           'normalize', 'logn', 'log10', 'inverseranknorm',    ...
+%                           'ranknorm', 'int', 'splines', 'delta', 'none'};
+% 
+%     % Make a list of all transformations to be done
+%     if isJSON
+%         all_transforms     = lower({cfg.params.fixed.vars.transformation});
+%         all_uq_transforms  = unique(all_transforms, 'stable');
+%         tmp_diff_transform = setdiff(all_uq_transforms, allowed_transforms);
+%         if ~isempty(tmp_diff_transform)
+%             tmp = strcat(tmp_diff_transform, {', '});
+%             tmp = horzcat(tmp{:});
+%             warning(['The following transforms are not currently handled: ', tmp(1:end-2)]);
+%         end
+%     end
+% 
+%     % Handle centering
+%     loc_center = check_cfg_parameter({'center', 'centre', 'demean'}, cfg, true);
+%     if ~isempty(loc_center)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'center');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle standardization
+%     loc_std = check_cfg_parameter({'std', 'standardize', 'normalize'}, cfg, true);
+%     if ~isempty(loc_std)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'std');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle logn transformation
+%     loc_logn = check_cfg_parameter('logn', cfg, true);
+%     if ~isempty(loc_logn)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'logn');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle log10 transformation
+%     loc_log10 = check_cfg_parameter('log10', cfg, true);
+%     if ~isempty(loc_log10)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'log10');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Handle INT
+%     loc_INT = check_cfg_parameter({'inverseranknorm', 'ranknorm', 'int'}, cfg, true);
+%     if ~isempty(loc_INT)
+%         [all_cont_variables{count,1}, all_cont_variables{count,2}, tmp_var_name] = ...
+%          applyTransforms(loc_center, names_continuous, cfg_FFXNames, cfg, isJSON, data_work, 'ranknorm');
+% 
+%         % Maintain mapping
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 1) = tmp_var_name;
+%         names_mapping(count_mapping:count_mapping+length(tmp_var_name)-1, 2) = all_cont_variables{count,2};
+%         count_mapping = count_mapping + 1;
+%         count = count + 1;
+%     end
+% 
+%     % Second pass, now we need to handle delta and splines
+%     % For each of these transforms, need to loop over - they also produce
+%     % different number of outcome than just a single column
+% 
+%     % Handle delta transform
+%     loc_delta = check_cfg_parameter('delta', cfg, true);
+%     if ~isempty(loc_delta)
+%         if isJSON
+%             loc_delta = ismember(names_continuous, cfg_FFXNames(loc_delta));
+%         else
+%             % Replace space and split by comma
+%             tmp_delta = strsplit(strrep(cfg{loc_delta, 2}, ' ', ''), ',');
+%             loc_delta = ismember(names_continuous, tmp_delta);
+%         end
+% 
+%         if ~isempty(loc_delta)
+%             for v = 1:length(loc_delta)
+%                 tmp_var_name = names_continuous{loc_delta(v)};
+%                 tmp_new_name = [{[tmp_var_name, '_baseline']}, {[tmp_var_name, '_delta']}];
+%                 all_cont_variables{count,1} = computeDelta(data_work{:,tmp_var_name}, ...
+%                                                            data_work.participant_id, data_work.session_id);
+%                 all_cont_variables{count,2} = tmp_new_name;
+% 
+%                 % Maintain mapping
+%                 names_mapping{count_mapping, 1} = tmp_var_name;
+%                 names_mapping{count_mapping, 2} = tmp_new_name;
+%                 count_mapping = count_mapping + 1;
+%                 count = count + 1;
+%             end
+%         end
+%     end
+% 
+%     % Handle splines
+%     loc_splines = check_cfg_parameter('splines', cfg, false);
+% 
+%     % Every value in loc_splines is a separate variable for which we need to
+%     % make splines; loop over these and do what is necessary
+%     if ~isempty(loc_splines)
+%         % Initialize a variable for storing spline settings and other relevant
+%         % variables that are not part of design matrix but are necessary
+%         all_spline_settings = cell(length(loc_splines), 1);
+% 
+%         % Go over every spline index
+%         for v = 1:length(loc_splines)
+%             % Parse this line to extract parameters
+%             tmp = cfg{loc_splines(v), 2};
+% 
+%             % Split by space to get name-pair values
+%             tmp = strsplit(tmp, ' ');
+% 
+%             % First entry is the variable name
+%             tmp_var_name = tmp{1};
+% 
+%             % For every remaining entry, need to split on "=" and determine what
+%             % those parameters are; start by initializing every parameter with
+%             % empty values so that parameters are never shared across variables
+%             [tmp_knots, tmp_Xpowers, tmp_minMax, tmp_intercept, tmp_cleanUp, tmp_instance] = deal([]);
+%             [tmp_splineType, tmp_method, tmp_outDir, tmp_optCommand, tmp_optAppend] = deal('');
+% 
+%             for p = 2:length(tmp)
+%                 % Split
+%                 tmp_param  = strsplit(tmp{p}, '=');
+%                 tmp_config = tmp_value{1, 1};
+%                 tmp_value  = tmp_param{1, 2};
+% 
+%                 % Depending on which parameter we find, we assign the values
+%                 % Could probably do if-else
+%                 if strcmpi(tmp_config, 'knots')
+%                     % str2double will make comma separated values into one number
+%                     tmp_knots = str2num(tmp_value); %#ok<*ST2NM>
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'splineType')
+%                     tmp_splineType = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'Xpowers')
+%                     tmp_Xpowers = str2num(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'method')
+%                     tmp_method = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'minMax')
+%                     tmp_minMax = sort(str2num(tmp_value));
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'intercept')
+%                     tmp_intercept = eval(strtrim(tmp_value));
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'optCommand')
+%                     tmp_optCommand = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'optAppend')
+%                     tmp_optAppend = strtrim(tmp_value);
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'cleanUp')
+%                     tmp_cleanUp = eval(strtrim(tmp_value));
+%                 end
+% 
+%                 if strcmpi(tmp_config, 'instance')
+%                     tmp_instance = str2double(tmp_value);
+%                 end
+%             end
+% 
+%             % Create basis functions
+%             [all_cont_variables{count,1}, all_spline_settings{v,1},   ...
+%              all_spline_settings{v,2},    all_spline_settings{v,3},   ...
+%              all_spline_settings{v,4},    all_spline_settings{v,5}] = ...
+%              createBasisFunctions(data_work.(tmp_var_name), tmp_knots, tmp_splineType, ...
+%                                   tmp_Xpowers, tmp_method, tmp_outDir, tmp_minMax,    ...
+%                                   tmp_intercept, tmp_optCommand, tmp_optAppend,       ...
+%                                   tmp_cleanUp, tmp_instance);
+% 
+%             % Append the name of the variable for which settings are saved
+%             all_spline_settings{v,6} = tmp_var_name;
+% 
+%             % Name of basis functions
+%             tmp_new_name = strcat({tmp_var_name}, {'_bf'}, num2str((1:size(all_cont_variables{count,1},2))'))';
+%             all_cont_variables{count,2} = tmp_new_name;
+% 
+%             % Maintain mapping
+%             names_mapping{count_mapping, 1} = tmp_var_name;
+%             names_mapping{count_mapping, 2} = tmp_new_name;
+%             count_mapping = count_mapping + 1;
+%             count = count + 1;
+%         end
+%     end
+% 
+%     % Now track what variables were not transformed
+%     vars_none_transform = setdiff(names_continuous, names_mapping(:,1));
+% 
+%     % Stack variables that were not transformed
+%     for v = 1:length(vars_none_transform)
+%         tmp_var_name = vars_none_transform{v};
+%         all_cont_variables{count,1} = data_work{:,tmp_var_name};
+%         all_cont_variables{count,2} = tmp_new_name;
+%         count = count + 1;
+%     end
+% 
+%     % Shrink all_cont_variables, if required
+%     tmp = cellfun(@isempty, all_cont_variables);
+%     all_cont_variables(tmp,:) = [];
+% 
+%     % Put all continuous variables together
+%     X_data_continuous = horzcat(all_cont_variables{:,1});
+%     X_name_continuous = horzcat(all_cont_variables{:,2});
+% else
+%     X_data_continuous = [];
+%     X_name_continuous = '';
+% end
