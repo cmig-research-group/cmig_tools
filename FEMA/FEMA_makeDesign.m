@@ -1,4 +1,4 @@
-function designMatrix = FEMA_makeDesign(configFile, varargin)
+function [designMatrix, vars_of_interest] = FEMA_makeDesign(configFile, varargin)
 % Function that makes FEMA-compatible design matrix for ABCD data
 %% Inputs:
 % configFile:       character       full path to a configuration file
@@ -142,9 +142,10 @@ end
 [~, ~, tmp_ext] = fileparts(configFile);
 if strcmpi(tmp_ext, '.json')
     isJSON = true;
-    [FFX_names, FFX_categorical, FFX_vectorTransforms, FFX_winsorize, ...
-     FFX_deltaTransforms, FFX_splineTransforms, FFX_interactions,     ...
-     global_transform, global_intercept, loc_cont] = FEMA_parse_JSON(configFile);
+    [FFX_names, FFX_categorical, FFX_vectorTransforms, FFX_winsorize,  ...
+     FFX_deltaTransforms, FFX_splineTransforms, FFX_interactions,      ...
+     global_transform, global_intercept, loc_cont, names_of_interest] = ...
+     FEMA_parse_JSON(configFile);
 else
     isJSON = false;
     [FFX_names, FFX_categorical, FFX_vectorTransforms, FFX_winsorize, ...
@@ -768,9 +769,13 @@ toDrop = find(isnan(mdl.Coefficients.tStat))+4;
 designMatrix(:,toDrop) = [];
 % designNames(:, toDrop) = [];
 
+%% Prepare a list of variables of interest
+locs             = ismember(names_mapping(:,1), names_of_interest);
+vars_of_interest = names_mapping(locs,2);
+vars_of_interest = horzcat(vars_of_interest{:})';
+
 %% Convert to table for output
 % designMatrix = cell2table(designMatrix, 'VariableNames', designNames);
-
 end
 
 

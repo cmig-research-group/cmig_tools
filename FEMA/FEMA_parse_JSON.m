@@ -1,7 +1,7 @@
 function [FFX_names,        FFX_categorical,     FFX_vectorTransforms, ...
           FFX_winsorize,    FFX_deltaTransforms, FFX_splineTransforms, ...
           FFX_interactions, global_transform,    global_intercept,     ...
-          loc_cont] = FEMA_parse_JSON(configFile)
+          loc_cont, names_of_interest] = FEMA_parse_JSON(configFile)
 % Function that reads a DEAP-created JSON specification files and parses
 % various information out of it which can then be used by FEMA_makeDesign
 %% Input(s):
@@ -71,6 +71,10 @@ if length(unique(FFX_names)) ~= length(FFX_names)
     error('One or more fixed effects is duplicated in the config file');
 end
 
+%% Make a logical vector of all variables that are of interest
+locs_of_interest  = cellfun(@(x) x.of_interest, cfg_fixed.vars);
+names_of_interest = FFX_names(locs_of_interest);
+
 %% Determine how many PCs do we need to retain?
 if isfield(cfg_fixed, 'n_gpcs')
     numPCs      = cfg_fixed.n_gpcs;
@@ -83,6 +87,10 @@ if isfield(cfg_fixed, 'n_gpcs')
     tmp_exist = ismember(tmp_names, FFX_names);
     FFX_names = [FFX_names; tmp_names(~tmp_exist)];
 end
+
+% % Expand the locs_of_interest to full size
+% locs_of_interest = false(length(FFX_names),1);
+% locs_of_interest(ismember(FFX_names, names_of_interest),1) = true;
 
 %% Determine categorical and continuous
 loc_cont = cellfun(@(x) strcmpi(x.type_var, 'continuous'), cfg_fixed.vars);
