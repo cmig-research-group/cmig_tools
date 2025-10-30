@@ -133,7 +133,7 @@ addParameter(inputs, 'transformY', 'none', ...
 addParameter(inputs, 'study', 'abcd', @(x) ischar(x) && ismember(x, {'abcd', 'hbcd'}));
 addParameter(inputs, 'release', '6.0', @(x) ischar(x));
 addParameter(inputs, 'ico', 5, @(x) isscalar(x) && isnumeric(x));
-addParameter(inputs, 'contrasts', [], @(x) isnumeric(x) || ischar(x));
+addParameter(inputs, 'fname_contrast', [], @(x) ischar(x));
 addParameter(inputs, 'outputType', '.mat', @(x) ischar(x) && ...
                      ismember(x, {'.mat' '.nii' '.nii.gz' ... 
                                   'nifti' 'voxel' '.gii' ...
@@ -175,7 +175,7 @@ parse(inputs, fstem_imaging, dirname_out, dirname_imaging, datatype, varargin{:}
 
 niter = inputs.Results.niter;
 ico = inputs.Results.ico;
-contrasts = inputs.Results.contrasts;
+fname_contrast = inputs.Results.fname_contrast;
 transformY = inputs.Results.transformY;
 outputType = inputs.Results.outputType;
 if strcmp(datatype,'external') 
@@ -246,7 +246,7 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness] = ...
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missing_process_data] = ...
     FEMA_process_data(fstem_imaging, dirname_imaging, datatype, 'ico', ico, ...
                       'GRM_file', fname_GRM, 'preg_file', fname_pregnancy, ...
                       'address_file', fname_address, 'corrvec_thresh', corrvec_thresh);
@@ -255,7 +255,6 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 % back up data 
 GRM_bak=GRM;
 ymat_bak=ymat;
-cont_bak=contrasts;
             
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % IF RUNNING MEDIATION ANALYSIS
@@ -293,7 +292,7 @@ for des=1:n_desmat
     else 
         designMatrix = FEMA_makeDesign(config_design{des}, 'IID', iid_concat, 'EID', eid_concat); 
     end
-    % get column names and contrasts if any
+    % get column names
     try 
         colnames_model = setdiff(designMatrix.Properties.VariableNames, {'iid', 'eid', 'fid', 'agevec'});
     catch 
@@ -301,12 +300,13 @@ for des=1:n_desmat
     end 
 
     % contrasts 
-    if ischar(contrasts)
-        [contrasts, hypValues, contrast_names] = FEMA_parse_contrastFile(inName, colnames_model); 
+    if ~isempty(fname_contrast)
+        [contrasts, hypValues, contrast_names] = FEMA_parse_contrastFile(fname_contrast, colnames_model); 
         colnames_model = cat(2, contrast_names, colnames_model);
     end
 
-    [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = ...
+    % intersect ymat with design matrix
+    [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missing_intersect_design] = ...
         FEMA_intersect_design(designMatrix, ymat_bak, iid_concat, eid_concat, ...
                              'GRM', GRM_bak, 'preg', preg, 'address', address);
     if synth==1 % Make synthesized data

@@ -1,4 +1,4 @@
-function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
+function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missingness] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
     %
     % FEMA_intersect_design intersect imaging data and design matrix - used internally by FEMA_wrapper
     %
@@ -62,7 +62,7 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_
         fid_design = designMatrix{:, 3};
         agevec_design = designMatrix{:, 4};
     end 
-    cids = strcat(iid_design, '_', eid_design);
+    idevent_design = strcat(iid_design, '_', eid_design);
 
     %% shouldn't be necessary anymore       
         % if one of the modeled IVs is named 'age', that clashes with column 4 and thus will be renamed 'age_1' when loaded. Fix this
@@ -86,7 +86,7 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_
 	eid_design_bak = eid_design;
     
     %% shouldn't be needed anymore 
-        %if any(contains(iid_concat, 'NDAR_INV')) & any(~contains(cids, 'NDAR_INV'))  % are we going to need this post 6.0? 
+        %if any(contains(iid_concat, 'NDAR_INV')) & any(~contains(idevent_design, 'NDAR_INV'))  % are we going to need this post 6.0? 
 	    %	iid_concat = strrep(iid_concat, 'NDAR_INV', 'sub-');
 	    %	idx_00A = find(contains(eid_concat, 'baseline_year_1_arm_1') | contains(eid_concat, 'baseline'));
 	    %	idx_02A = find(contains(eid_concat, '2_year_follow_up_y_arm_1') | contains(eid_concat, '2year'));
@@ -98,8 +98,8 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_
 	    %	[eid_concat{idx_06A}] = deal('ses-06A');		
 	    %end
 	% 
-	
-    [~, idi, idc] = intersect(strcat(iid_concat(:), '_', eid_concat(:)), cids, 'stable'); 
+	idevent_concat = strcat(iid_concat, '_', eid_concat); 
+    [idevent, idi, idc] = intersect(idevent_concat, idevent_design, 'stable'); 
     ymat = ymat(idi, :);
     Cmat = Cmat_design(idc, :);
     iid = iid_design(idc);
@@ -110,30 +110,16 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_
     % Make design matrix, add contrasts
     X = double(Cmat);
 
-    
-    % Get rid of rows with missing data
-    defvec = isfinite(sum(ymat, 2)) & isfinite(sum(X, 2)); %potentially remove from code and add warning instead - should be NO NaNs?
-
-    if any(defvec == 0)
-        warning(sprintf('NaNs detected in ymat or X (%d rows removed).', length(find(defvec == 0))))
-    end
-
-    if size(ymat, 1) > sum(defvec), ymat = ymat(defvec, :); end
-    if size(X, 1) > sum(defvec), X = X(defvec, :); end
-    if length(iid) > sum(defvec), iid = iid(defvec); end
-    if length(fid) > sum(defvec), fid = fid(defvec); end
-    if length(agevec) > sum(defvec), agevec = agevec(defvec); end
-    if length(eid) > sum(defvec), eid = eid(defvec); end
+    % how many get dropped from ymat 
+    idevent_concat_dropped = setdiff(idevent_concat, idevent);
+    idevent_design_dropped = setdiff(idevent_design, idevent);
+    missingness.numDesign = length(idevent_concat_dropped);
+    missingness.idDesign = idevent_concat_dropped;
 
     if ~isempty(GRM)
-        [iid_list, IA, IC_subj] = unique(iid, 'stable'); 
-        nsubj = length(iid_list);
-        %[fid_list IA IC_fam] = unique(fids,'stable'); nfam = length(fid_list);
-        [~, IA, IB_acs] = intersect(iid_list, GRM.iid_list, 'stable'); % Why is setdiff(iid_list,tmp_pihat.iid_list) not empty?
-        GRM = NaN(nsubj, nsubj); 
-        GRM(IA, IA) = GRM.GRM(IB_acs, IB_acs); % Make genetic relatedness matrix consistent with iid_list
-    elseif isempty(GRM)
-        GRM = [];
+        [keep, IA, IB] = intersect(iid, GRM.iid_list, 'stable');
+        GRM.GRM = GRM.GRM(IB, IB);
+        GRM.iid_list = keep; 
     end
 
     % get final list of pregnancy and address IDs
@@ -156,15 +142,7 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_
         HomeID = [];
     end
 
-    logging('Final sample for analysis: %d observations', sum(defvec));
-
-	% demean the design matrix 
-	%X_bak = X;
-	%if demean == 1
-	%	cat_cols = find(all(ismember(X, [0, 1]), 1));
-	%	X(:, ~cat_cols) = X(:, ~cat_cols) - mean(X(:,~cat_cols));
-	%end
-
+    logging('Final sample for analysis: %d observations', numel(iid));
 	logging('***End***');
 	logging('Elapsed time: %s', datestr(now() - starttime, 'HH:MM:SS'));
 
