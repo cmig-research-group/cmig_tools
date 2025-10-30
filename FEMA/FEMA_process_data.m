@@ -559,11 +559,13 @@ switch datatype
     % for roi and external? user input?  
         %%%%% load GRM %%%%%
     if ~isempty(fname_GRM)
+        tic
     	logging('Reading GRM');
     	GRM = load(fname_GRM);
         iid_grm = GRM.iid_list; 
         [keep, IA, IB] = intersect(iid_concat, iid_grm, 'stable');
         defvecGRM = ismember(iid_concat, keep);
+        % missingness
         missingness.numGRM = sum(~defvecGRM);
         missingness.idGRM = idevent(~defvecGRM);
         % filter on GRM
@@ -573,8 +575,8 @@ switch datatype
         ymat = ymat(defvecGRM, :);
         GRM.GRM = GRM.GRM(IB,IB);
         GRM.iid_list = iid_grm(IB);
-        % missingness
-        else
+        toc 
+    else 
     	GRM=[];
     end
 

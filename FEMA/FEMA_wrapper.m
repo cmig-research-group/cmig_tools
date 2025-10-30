@@ -100,7 +100,7 @@ end
 
 if existSet1
     % check that it's a json file and it exists
-    [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, extraArgs] = ...
+    [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, dataFile, extraArgs] = ...
         FEMA_parseInputs(varargin{:});
     varargin = extraArgs;
 end
@@ -288,7 +288,8 @@ for des=1:n_desmat
     if designExists
         designMatrix = readtable(fname_design{des});
     else 
-        designMatrix = FEMA_makeDesign(config_design{des}, 'IID', iid_concat, 'EID', eid_concat); 
+        designMatrix = FEMA_makeDesign(config_design{des},'dataFile', dataFile, ...
+                                       'IID', iid_concat, 'EID', eid_concat); 
     end
     % get column names
     exp_colnames = {'iid' 'eid' 'fid' 'agevec'};
