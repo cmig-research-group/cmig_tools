@@ -1,0 +1,261 @@
+{
+    "project": "abcd",
+    "release": "6.0",
+    "type": "analysis",
+    "id": "39",
+    "params": {
+        "query": "SELECT participant_id, session_id, ab_g_dyn__visit_age, ab_g_dyn__design_mr__serial, ab_g_dyn__design_mr__software, ab_g_dyn__cohort_edu__cgs, ab_g_dyn__cohort_income__hhold__6lvl, ab_g_stc__cohort_sex, ab_p_demo_age, ab_g_stc__cohort_ethn, ab_g_dyn__visit_type, ab_g_dyn__design_mr__manufact, ab_g_dyn__design_mr__model, ab_g_stc__gen_pc__01, ab_g_stc__gen_pc__02, ab_g_stc__gen_pc__03, ab_g_stc__gen_pc__04, ab_g_stc__gen_pc__05, ab_g_stc__gen_pc__06, ab_g_stc__gen_pc__07, ab_g_stc__gen_pc__08, ab_g_stc__gen_pc__09, ab_g_stc__gen_pc__10, ab_g_stc__gen_pc__11, ab_g_stc__gen_pc__12, ab_g_stc__gen_pc__13, ab_g_stc__gen_pc__14, ab_g_stc__gen_pc__15, ab_g_stc__gen_pc__16, ab_g_stc__gen_pc__17, ab_g_stc__gen_pc__18, ab_g_stc__gen_pc__19, ab_g_stc__gen_pc__20, ab_g_stc__gen_pc__21, ab_g_stc__gen_pc__22, ab_g_stc__gen_pc__23, ab_g_stc__gen_pc__24 FROM abcd_v6_0",
+        "model": "GLMM",
+        "dependent_variables": {
+            "vars": [
+                {
+                    "names": [
+                        "fni_gm_sm16"
+                    ],
+                    "transformation": "None"
+                }
+            ],
+            "qcfilter": true,
+            "var_transform": "ranknorm"
+        },
+        "fixed_effects": {
+            "gpc": "24",
+            "vars": [
+                {
+                    "name": "ab_g_dyn__visit_age",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": true
+                },
+                {
+                    "name": "ab_g_dyn__design_mr__serial",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_dyn__design_mr__software",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": true
+                },
+                {
+                    "name": "ab_g_dyn__cohort_edu__cgs",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_dyn__cohort_income__hhold__6lvl",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": true
+                },
+                {
+                    "name": "ab_g_stc__cohort_sex",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_p_demo_age",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": true
+                },
+                {
+                    "name": "ab_g_stc__cohort_ethn",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_dyn__visit_type",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_dyn__design_mr__manufact",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_dyn__design_mr__model",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__01",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__02",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__03",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__04",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__05",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__06",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__07",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__08",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__09",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__10",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__11",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__12",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__13",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__14",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__15",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__16",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__17",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__18",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__19",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__20",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__21",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__22",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__23",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                },
+                {
+                    "name": "ab_g_stc__gen_pc__24",
+                    "longitudinal": false,
+                    "transformation": "None",
+                    "var_of_interest": false
+                }
+            ],
+            "mediator": "ab_g_stc__cohort_ethn",
+            "mean_center": false,
+            "standardize": true,
+            "interaction_terms": [
+                "ab_g_dyn__visit_age * ab_g_dyn__design_mr__software",
+                "ab_g_dyn__cohort_edu__cgs * ab_g_dyn__cohort_income__hhold__6lvl",
+                "ab_g_dyn__visit_age * ab_g_stc__cohort_sex"
+            ]
+        },
+        "advanced_settings": {
+            "nbins": 20,
+            "nperms": 0,
+            "covtype": "analytic",
+            "permtype": "none",
+            "precision": "single",
+            "fixedesttype": "GLS"
+        },
+        "random_effects": [
+            "F",
+            "S",
+            "E",
+            "A"
+        ],
+        "contrasts": [],
+        "stratification_vars": []
+    }
+}
