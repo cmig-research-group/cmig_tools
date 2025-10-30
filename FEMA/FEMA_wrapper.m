@@ -50,7 +50,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation
 %                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
 %   tfce <num>                 :  default 0 --> if 1 will run TFCE
-%   colsinterest <num>         :  used to specify IVs of interest in design matrix (cols in X) for resampling output and tfce (default 1, i.e. 1st column of X) - only used if nperms>0
+
 %
 % OUTPUTS
 %   fpaths_out                 :  results will be saved here in the specified format
@@ -148,7 +148,6 @@ addParameter(inputs, 'address_file', [], @(x) ischar(x));
 addParameter(inputs, 'nperms', 0, @(x) isscalar(x) && isnumeric(x));
 addParameter(inputs, 'mediation', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
 addParameter(inputs, 'tfce', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
-addParameter(inputs, 'colsinterest', 1, @(x) isnumeric(x));
 addParameter(inputs, 'corrvec_thresh', 0.8, @(x) isscalar(x) && isnumeric(x));
 %FEMA_fit variable inputs
 addParameter(inputs, 'niter', 1, @(x) isscalar(x) && isnumeric(x));
@@ -210,7 +209,6 @@ permtype = inputs.Results.permtype;
 mediation = inputs.Results.mediation;
 synth = inputs.Results.synth;
 tfce = inputs.Results.tfce;
-colsinterest = inputs.Results.colsinterest;
 corrvec_thresh = inputs.Results.corrvec_thresh;
 
 if ~exist('config_design', 'var') & ~ exist('fname_design', 'var')
@@ -293,10 +291,16 @@ for des=1:n_desmat
         designMatrix = FEMA_makeDesign(config_design{des}, 'IID', iid_concat, 'EID', eid_concat); 
     end
     % get column names
-    try 
+    exp_colnames = {'iid' 'eid' 'fid' 'agevec'};
+    exp_colnames_exist = all(ismember(exp_colnames, designMatrix.Properties.VariableNames));
+    if exp_colnames_exist
         colnames_model = setdiff(designMatrix.Properties.VariableNames, {'iid', 'eid', 'fid', 'agevec'});
-    catch 
+    else 
+        warning('Assuming first 4 columns of design matrix are participant ID, session ID, family ID and age, in that order.')
         colnames_model = designMatrix.Properties.VariableNames(5:end);
+    end
+    if isempty(ivnames)
+        colsinterest = find(contains(colnames_model, ivnames)); 
     end 
 
     % contrasts 
@@ -352,9 +356,16 @@ for des=1:n_desmat
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % FIT MODEL
-    [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, GRM,'RandomEffects',RandomEffects,...
-        'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
-        'permtype',permtype,'PregID',PregID,'HomeID',HomeID,'synthstruct',synthstruct);
+    [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec ...
+        beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm ...
+        binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = ...
+        FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, GRM.GRM, ...
+        'RandomEffects', RandomEffects, 'nperms', nperms, 'CovType', CovType, ...
+        'FixedEstType', FixedEstType, 'RandomEstType', RandomEstType, ...
+        'GroupByFamType', GroupByFamType, 'NonnegFlag', NonnegFlag, ...
+        'SingleOrDouble', SingleOrDouble, 'logLikflag', logLikflag, ...
+        'Hessflag', Hessflag, 'ciflag', ciflag, 'permtype', permtype, ...
+        'PregID', PregID, 'HomeID', HomeID, 'synthstruct', synthstruct);
 
     if sum(~mask)>0
 
@@ -406,7 +417,6 @@ for des=1:n_desmat
             coeffCovar_perm=coeffCovar_perm_tmp;
 
         end
-
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
