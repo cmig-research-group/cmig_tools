@@ -1,4 +1,4 @@
-function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID, HomeID] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
+function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
     %
     % FEMA_intersect_design intersect imaging data and design matrix - used internally by FEMA_wrapper
     %
@@ -9,7 +9,6 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     %   eid_concat                 :  eventname
     %
     % Optional inputs:
-    %   contrasts <path>           :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
     %   GRM                        :  GRM structure (output from FEMA_process_data)
     %   preg                       :  pregnancy IDs
     %   address                    :  address IDs
@@ -80,7 +79,6 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
         tmp_designMatrix = designMatrix(:,5:end);
     end 
     Cmat_design = table2array(tmp_designMatrix);
-    colnames_model = tmp_designMatrix.Properties.VariableNames;
     
     % Merge design matrix with imaging data
 	eid_concat_bak = eid_concat; 
@@ -112,17 +110,7 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     % Make design matrix, add contrasts
     X = double(Cmat);
 
-    %add contrast names to colnames
-    if ~isempty(contrasts)
-        for c = 1:length(contrasts)
-            contrast = contrasts{c};
-            idx = find(contrast ~= 0);
-            contrast_names{c}
-        end
-
-        colnames_model = cat(2, contrast_names, colnames_model);
-    end
-
+    
     % Get rid of rows with missing data
     defvec = isfinite(sum(ymat, 2)) & isfinite(sum(X, 2)); %potentially remove from code and add warning instead - should be NO NaNs?
 
@@ -138,10 +126,12 @@ function [X, iid, eid, fid, agevec, ymat, contrasts, colnames_model, GRM, PregID
     if length(eid) > sum(defvec), eid = eid(defvec); end
 
     if ~isempty(GRM)
-        [iid_list, IA, IC_subj] = unique(iid, 'stable'); nsubj = length(iid_list);
+        [iid_list, IA, IC_subj] = unique(iid, 'stable'); 
+        nsubj = length(iid_list);
         %[fid_list IA IC_fam] = unique(fids,'stable'); nfam = length(fid_list);
         [~, IA, IB_acs] = intersect(iid_list, GRM.iid_list, 'stable'); % Why is setdiff(iid_list,tmp_pihat.iid_list) not empty?
-        GRM = NaN(nsubj, nsubj); GRM(IA, IA) = GRM.GRM(IB_acs, IB_acs); % Make genetic relatedness matrix consistent with iid_list
+        GRM = NaN(nsubj, nsubj); 
+        GRM(IA, IA) = GRM.GRM(IB_acs, IB_acs); % Make genetic relatedness matrix consistent with iid_list
     elseif isempty(GRM)
         GRM = [];
     end
