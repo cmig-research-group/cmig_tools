@@ -1,6 +1,7 @@
-function [FFX_names, FFX_categorical, FFX_vectorTransforms,      ...
-          FFX_deltaTransforms, FFX_splineTransforms, FFX_global, ...
-          intercept, global_refLevel, loc_cont, loc_catg] = FEMA_parse_config(configFile)
+function [FFX_names,        FFX_categorical,     FFX_vectorTransforms,   ...
+          FFX_winsorize,    FFX_deltaTransforms, FFX_splineTransforms,   ...
+          FFX_interactions, global_transform,    global_intercept,       ...
+          loc_cont,         family_id] = FEMA_parse_config(configFile)
 % Function that reads a user-created text configuration file and parses
 % various information out of it which can then be used by FEMA_makeDesign
 %% Input(s):
@@ -19,6 +20,13 @@ function [FFX_names, FFX_categorical, FFX_vectorTransforms,      ...
 %                               * name:             name of the fixed effect(s)
 %                               * of_interest:      true/false
 %                               * transformation:   local transform to apply
+% 
+% FFX_winsorize:            structure type with four fields:
+%                               * name:             name of the fixed effect(s)
+%                               * of_interest:      true/false
+%                               * transformation:   'winsorize'
+%                               * lower:            lower percentile
+%                               * upper:            upper percentile
 % 
 % FFX_deltaTransforms:      structure type with three fields:
 %                               * name:             name of the fixed effect(s)
@@ -39,22 +47,19 @@ function [FFX_names, FFX_categorical, FFX_vectorTransforms,      ...
 %                               * cleanUp:          true/false
 %                               * instance:         instance number
 % 
-% FFX_global:               character/string type having the name of the 
-%                           global transformation (if any) that should be 
-%                           applied after all local transformations to 
-%                           continuous variables
+% FFX_global:               character type having the name of the global
+%                           transformation (if any) that should be applied
+%                           after all local transformations to continuous
+%                           variables
 % 
-% intercept:                true or false indicating if an overall
+% global_intercept:         true or false indicating if an overall
 %                           intercept should be added to the design matrix
-% 
-% global_refLevel:          default reference level setting, based on if
-%                           intercept is true (mode) or false (none)
 % 
 % loc_cont:                 logical vector of entries in FFX_names which
 %                           are continuous variables
 % 
-% loc_catg:                 logical vector of entries in FFX_names which
-%                           are categorical variables (~loc_cont)
+% family_id:                character type having the name of the
+%                           variable to use as the family_id
 
 %% Decrypt text file
 tmp_txt = fileread(configFile);
@@ -116,12 +121,12 @@ loc_catg = ~loc_cont;
 %% Overall intercept
 loc_intercept = check_cfg_parameter('intercept', cfg(:,1), true);
 if ~isempty(loc_intercept)
-    intercept = cfg{loc_intercept, 2};
-    if ischar(intercept)
-        intercept = logical(eval(intercept));
+    global_intercept = cfg{loc_intercept, 2};
+    if ischar(global_intercept)
+        global_intercept = logical(eval(global_intercept));
     end
 else
-    intercept = true;
+    global_intercept = true;
 end
 
 %% Determine which fixed effects are variables of interest
@@ -134,7 +139,7 @@ end
 
 %% Default reference level for categorical variables
 loc_reference = check_cfg_parameter('reference', cfg(:,1), true);
-if intercept
+if global_intercept
     global_refLevel = 'mode';
 else
     global_refLevel = 'none';
@@ -143,73 +148,108 @@ end
 %% Convert categorical into a standard structure format
 % Split the reference line
 % Format: <varName>=<string> <varName>=<string> ...
-if ~isempty(loc_reference)
-    cfg_ref_map = strsplit(cfg{loc_reference, 2}, ' ')';
-    cfg_ref_map = cellfun(@(x) strsplit(x, '='), cfg_ref_map, 'UniformOutput', false);
-    try
-        cfg_ref_map = vertcat(cfg_ref_map{:});
-    catch
-        error(['Please check the specification of reference level in the config file; ', ...
-               'should be: <varName>=<string> <varName>=<string> ...']);
+if ~isempty(loc_categorical)
+    if ~isempty(loc_reference)
+        cfg_ref_map = strsplit(cfg{loc_reference, 2}, ',')';
+        cfg_ref_map = cellfun(@(x) strsplit(x, '='), cfg_ref_map, 'UniformOutput', false);
+        try
+            cfg_ref_map = vertcat(cfg_ref_map{:});
+        catch
+            error(['Please check the specification of reference level in the config file; ', ...
+                   'should be: <varName>=<string> <varName>=<string> ...']);
+        end
+    else
+        cfg_ref_map = [];
     end
+    
+    FFX_categorical = standardizeCategorical(FFX_names(loc_catg), cfg_ref_map, global_refLevel, vars_of_interest);
+else
+    FFX_categorical = [];
 end
-
-FFX_categorical = standardizeCategorical(FFX_names(loc_catg), cfg_ref_map, global_refLevel, vars_of_interest);
 
 %% If global transformation is specified, extract that
 loc_globalTransform = check_cfg_parameter({'global_transform', 'global', 'globalTransform'}, cfg(:,1), true);
 if ~isempty(loc_globalTransform)
-    FFX_global = cfg{loc_globalTransform, 2};
+    global_transform = cfg{loc_globalTransform, 2};
 else
-    FFX_global = 'none';
+    global_transform = 'none';
 end
 
-%% Standardize vector transformations
-vectorTransforms = {'center', 'centre', 'demean', 'std', 'standardize', ...
-                    'normalize', 'logn', 'log10', 'inverseranknorm',    ...
-                    'ranknorm', 'int', 'none'};
-loc_vector = find(ismember(cfg(:,1), vectorTransforms));
-if ~isempty(loc_vector)
-    FFX_vectorTransforms = standardizeVectorTransforms(cfg(loc_vector,:), vars_of_interest);
+%% Family ID, if present
+loc_FID = check_cfg_parameter('family_id', cfg(:,1), true);
+if ~isempty(loc_FID)
+    family_id = cfg{loc_FID,2};
+else
+    family_id = '';
+end
+
+if ~isempty(loc_continuous)
+    %% Standardize vector transformations
+    vectorTransforms = {'center', 'centre', 'demean', 'std', 'standardize', ...
+                        'normalize', 'logn', 'log10', 'inverseranknorm',    ...
+                        'ranknorm', 'int', 'none'};
+    loc_vector = find(ismember(cfg(:,1), vectorTransforms));
+    if ~isempty(loc_vector)
+        FFX_vectorTransforms = standardizeVectorTransforms(cfg(loc_vector,:), vars_of_interest);
+    else
+        FFX_vectorTransforms = [];
+    end
+
+    %% Standardize winsorization
+    winsorizeTransforms = {'winsorize', 'winsorise', 'winsor'};
+    loc_winsorize = find(ismember(cfg(:,1), winsorizeTransforms));
+    if ~isempty(loc_winsorize)
+        FFX_winsorize = standardizeWinsorizeTransforms(cfg(loc_winsorize,2), vars_of_interest);
+    else
+        FFX_winsorize = [];
+    end
+    
+    %% Standardize delta transformations
+    loc_delta = check_cfg_parameter('delta', cfg, true);
+    if ~isempty(loc_delta)
+        FFX_deltaTransforms = standardizeDeltaTransforms(cfg{loc_delta,2}, vars_of_interest);
+    else
+        FFX_deltaTransforms = [];
+    end
+    
+    %% Standardize spline transformations
+    loc_splines = check_cfg_parameter('splines', cfg, false);
+    if ~isempty(loc_splines)
+        FFX_splineTransforms = standardizeSplineTransforms(cfg(loc_splines,2), vars_of_interest);
+    else
+        FFX_splineTransforms = [];
+    end
+    
+    %% Update vector transforms with no transformation variables
+    % Variables that are present but have no defined transformation, add 'none'
+    % as the transformation type
+    alreadyTransformed = [{FFX_categorical.name}, {FFX_vectorTransforms.name}, ...
+                          {FFX_deltaTransforms.name}, {FFX_splineTransforms.name}]';
+    remainingVariables = setdiff(FFX_names, alreadyTransformed);
+    
+    % Loop over these, and grow vectorTransforms
+    count = length(FFX_vectorTransforms) + 1;
+    for v = 1:length(remainingVariables)
+        FFX_vectorTransforms(count).name        = remainingVariables{v};
+        if strcmpi(remainingVariables{v}, vars_of_interest)
+            FFX_vectorTransforms(count).of_interest = true;
+        else
+            FFX_vectorTransforms(count).of_interest = false;
+        end
+        FFX_vectorTransforms(count).transformation = 'none';
+    
+        count = count + 1;
+    end
 else
     FFX_vectorTransforms = [];
-end
-
-%% Standardize delta transformations
-loc_delta = check_cfg_parameter('delta', cfg, true);
-if ~isempty(loc_delta)
-    FFX_deltaTransforms = standardizeDeltaTransforms(cfg{loc_delta,2}, vars_of_interest);
-else
-    FFX_deltaTransforms = [];
-end
-
-%% Standardize spline transformations
-loc_splines = check_cfg_parameter('splines', cfg, false);
-if ~isempty(loc_splines)
-    FFX_splineTransforms = standardizeSplineTransforms(cfg(loc_splines,2), vars_of_interest);
-else
+    FFX_deltaTransforms  = [];
     FFX_splineTransforms = [];
 end
 
-%% Update vector transforms with no transformation variables
-% Variables that are present but have no defined transformation, add 'none'
-% as the transformation type
-alreadyTransformed = [{FFX_categorical.name}, {FFX_vectorTransforms.name}, ...
-                      {FFX_deltaTransforms.name}, {FFX_splineTransforms.name}]';
-remainingVariables = setdiff(FFX_names, alreadyTransformed);
-
-% Loop over these, and grow vectorTransforms
-count = length(FFX_vectorTransforms) + 1;
-for v = 1:length(remainingVariables)
-    FFX_vectorTransforms(count).name        = remainingVariables{v};
-    if strcmpi(remainingVariables{v}, vars_of_interest)
-        FFX_vectorTransforms(count).of_interest = true;
-    else
-        FFX_vectorTransforms(count).of_interest = false;
-    end
-    FFX_vectorTransforms(count).transformation = 'none';
-
-    count = count + 1;
+%% Handle interactions
+loc_interact = check_cfg_parameter({'interaction', 'interact', 'interactions'}, cfg, true);
+if ~isempty(loc_interact)
+    FFX_interactions = standardizeInteractions(cfg{loc_interact,2});
 end
 end
 
@@ -259,53 +299,6 @@ output = cell2struct(output', outName);
 end
 
 
-% function output = extractTransforms(allVarNames, inputCell)
-% % inputCell is a cell array with two columns: the first column has the name of the variable each entry containing a structure
-% % that may or may not have a field named "transformation"; not all values
-% % in allVarNames will be present in inputCellStruct - the output is all
-% % transformations corresponding to all entries in allVarNames (i.e., if an
-% % entry in allVarNames is not specified in inputCellStruct, the
-% % transformation is set to none)
-% %
-% % Throws an error if allVarNames has duplicates OR if more than one
-% % transform is specified for any variable
-% 
-% % Initialize
-% output = cell(length(allVarNames), 1);
-% 
-% % Go over every entry and extract transform
-% for vars = 1:length(inputCell)
-%     tmp  = inputCell{vars};
-%     loc  = find(strcmpi(allVarNames, tmp.name));
-%     if isempty(loc)
-%         % Transformation defined but variable unavailable in allVarNames
-%         warning(['Ignoring transformation for ', tmp.name, ' as variable not present']);
-%     else
-%         if isfield(tmp, 'transform')
-%             if isempty(output{loc})
-%                 output{loc} = lower(inputCell{vars}.transform);
-%             else
-%                 % A transformation was already defined for this variable
-%                 error(['More than one transformation defined for: ', inputCell{vars}.name]);
-%             end
-%         else
-%             % Transformation not defined, check if duplicate, and assign
-%             % none as a transform
-%             if isempty(output{loc})
-%                 output{loc} = 'none';
-%             else
-%                 % A transformation was already defined for this variable
-%                 error(['More than one transformation defined for: ', inputCell{vars}.name]);
-%             end
-%         end
-%     end
-% end
-% 
-% % Any unassigned variable: variable does not exist in the spec file
-% output(cellfun(@isempty, output)) = {'none'};
-% end
-
-
 function output = standardizeVectorTransforms(cfg_vector, of_interest)
 % Output is a structure with fields: name, of_interest, transformation
 
@@ -340,6 +333,61 @@ for transform = 1:length(cfg_vector)
 
         % Update count
         count = count + 1;
+    end
+end
+output = cell2struct(output', outName);
+end
+
+
+function output = standardizeWinsorizeTransforms(cfg_winsorize, of_interest)
+% Output is a structure with fields: name, of_interest, transformation, lower, upper
+
+% First pass, split into variables using comma
+output  = cell(length(cfg_winsorize), 5);
+outName = {'name', 'of_interest', 'transformation', 'lower', 'upper'};
+
+% Assign defaults
+output(:,3) = {'winsorize'};
+output(:,4) = {0};
+output(:,5) = {100};
+
+% Now, go over every variable, split, and update structure
+for lines = 1:length(cfg_winsorize)
+
+    % Split on spaces
+    temp = strsplit(cfg_winsorize{lines}, ' ');
+
+    % Name of this variable
+    output{lines,1} = temp{1};
+
+    % Is this variable of interest?
+    if strcmpi(temp{1}, of_interest)
+        output{lines,2} = true;
+    else
+        output{lines,2} = false;
+    end
+
+    % Split using spaces
+    if isscalar(temp)
+        % User has not specified percentiles
+        warning(['Winsorization selected for: ', output{lines,1}, ' but no percentiles specified; ignoring winsorization']);
+    else
+        % Go over every name-pair value, split on "=", and extract values
+        temp = temp(2:end);
+        for v = 1:length(temp)
+            % Split on spaces to separate out name-pair values
+            temp2 = strsplit(temp{v}, '=');
+
+            if strcmpi(temp2{1}, 'lower')
+                output{lines,4} = str2double(temp2{2});
+            else
+                if strcmpi(temp2{1}, 'upper')
+                    output{lines,5} = str2double(temp2{2});
+                else
+                    error(['Unknown parameter: ', temp2{1}, ' specified for winsorization of ', output{lines,1}]);
+                end
+            end
+        end
     end
 end
 output = cell2struct(output', outName);
@@ -431,9 +479,13 @@ for lines = 1:length(cfg)
         % Which location to save the info to?
         loc = strcmpi(tmp_name, outName);
 
-        % If loc is empty, some unspecified parameter was present; warn
+        % If loc is empty, some unspecified parameter was present
         if sum(loc) == 0
-            warning(['Unknown parameter ', tmp_name, ' specified for splines of ', var_name, '; ignoring']);
+            tmp = strcat(outName(3:end), ',', {char(30)});
+            tmp = horzcat(tmp{:});
+            txt = sprintf('%s%s%s%s%s\n%s%s', 'Unknown parameter ', tmp_name, ' specified for splines of ', ...
+                                              var_name, '; ', 'Valid parameters are: ', tmp(1:end-2));
+            error(txt); %#ok<SPERR>
         else
             % Special handling
             if strcmpi(tmp_name, 'knots')
@@ -460,6 +512,23 @@ for lines = 1:length(cfg)
         end
     end
 end
+
+output = cell2struct(output', outName);
+end
+
+
+function output = standardizeInteractions(cfg)
+% Output is a structure with fields: interaction, of_interest
+% Currently unable to handle interactions which may not be of interest
+% Defaulting to of_interest being true for all interactions
+
+% Initialize
+% output  = cell(size(tmp,1), 2);
+outName = {'interaction', 'of_interest'};
+
+% Split based on comma
+output(:,1) = strtrim(strsplit(cfg, ',')');
+output(:,2) = {true};
 
 output = cell2struct(output', outName);
 end
