@@ -564,6 +564,9 @@ switch datatype
         iid_grm = GRM.iid_list; 
         [keep, IA, IB] = intersect(iid_concat, iid_grm, 'stable');
         defvecGRM = ismember(iid_concat, keep);
+        missingness.numGRM = sum(~defvecGRM);
+        missingness.idGRM = idevent(~defvecGRM);
+        % filter on GRM
         iid_concat = iid_concat(defvecGRM);
         eid_concat = eid_concat(defvecGRM);
         idevent = idevent(defvecGRM);
@@ -571,9 +574,7 @@ switch datatype
         GRM.GRM = GRM.GRM(IB,IB);
         GRM.iid_list = iid_grm(IB);
         % missingness
-        missingness.numGRM = sum(~defvecGRM);
-        missingness.idGRM = idevent(~defvecGRM);
-    else
+        else
     	GRM=[];
     end
 
