@@ -1,4 +1,4 @@
-function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, extraArgs] = FEMA_parseInputs(varargin)
+function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, dataFile, extraArgs] = FEMA_parseInputs(varargin)
 
     %% TO DOs %%
     % - contrasts
@@ -10,7 +10,7 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     idx_out = find(strcmp(varargin, {'output'}));
     
     fname_json = varargin{idx_config+1}; 
-    dirname_tabulated = varargin{idx_data+1};
+    dataFile = varargin{idx_data+1};
     dirname_out = varargin{idx_out+1};
     
     fprintf('Loading parameters from JSON file: %s\n', fname_json);
