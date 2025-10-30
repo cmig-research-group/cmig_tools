@@ -130,6 +130,8 @@ addParameter(inputs, 'transformY', 'none', ...
                                    'std' 'standardize' 'normalize' ...
                                    'logn' 'log10' 'inverseranknorm' ...
                                    'ranknorm' 'int'}));
+addParameter(inputs, 'study', 'abcd', @(x) ischar(x) && ismember(x, {'abcd', 'hbcd'}));
+addParameter(inputs, 'release', '6.0', @(x) ischar(x));
 addParameter(inputs, 'ico', 5, @(x) isscalar(x) && isnumeric(x));
 addParameter(inputs, 'contrasts', [], @(x) isnumeric(x) || ischar(x));
 addParameter(inputs, 'outputType', '.mat', @(x) ischar(x) && ...
@@ -250,21 +252,13 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
                       'address_file', fname_address, 'corrvec_thresh', corrvec_thresh);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% contrasts 
-if ischar(contrasts)
-    [contrasts, hypValues] = FEMA_parse_contrastFile(inName, colnames); 
-end 
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % back up data 
 GRM_bak=GRM;
 ymat_bak=ymat;
 cont_bak=contrasts;
             
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 % IF RUNNING MEDIATION ANALYSIS
-
 if mediation==1
 
     seed=rng; % Save rng in order to ensure resampling is the same for both models
@@ -289,18 +283,30 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % CREATE DESIGN MATRIX and  INTERSECT YMAT
-
 %Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
 fpaths_out = {};
 
 for des=1:n_desmat
+    % read in or create design matrix
     if designExists
         designMatrix = readtable(fname_design{des});
     else 
         designMatrix = FEMA_makeDesign(config_design{des}, 'IID', iid_concat, 'EID', eid_concat); 
+    end
+    % get column names and contrasts if any
+    try 
+        colnames_model = setdiff(designMatrix.Properties.VariableNames, {'iid', 'eid', 'fid', 'agevec'});
+    catch 
+        colnames_model = designMatrix.Properties.VariableNames(5:end);
     end 
-    
-    [X,iid,eid,fid,agevec,ymat,contrasts,colnames_model,GRM,PregID,HomeID] = ...
+
+    % contrasts 
+    if ischar(contrasts)
+        [contrasts, hypValues, contrast_names] = FEMA_parse_contrastFile(inName, colnames_model); 
+        colnames_model = cat(2, contrast_names, colnames_model);
+    end
+
+    [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID] = ...
         FEMA_intersect_design(designMatrix, ymat_bak, iid_concat, eid_concat, ...
                              'GRM', GRM_bak, 'preg', preg, 'address', address);
     if synth==1 % Make synthesized data
@@ -318,7 +324,7 @@ for des=1:n_desmat
     % always winsorize tfmri data
     if contains(fstem_imaging, 'beta', 'IgnoreCase', true) && ...
         strcmpi(study, 'abcd') && ...
-        strcmpi(release, '6.0')
+        strcmpi(release, '6.')
         [ymat settingsTransform] = doTransformation(ymat, 'winsorize');
     end 
     % transform according to user input 
@@ -327,9 +333,7 @@ for des=1:n_desmat
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
     % IF RUNNING MODELS FOR MEDIATION ANALYSIS
-
     if mediation==1
 
         rng(seed); %set same seed for both runs of FEMA_fit
@@ -346,11 +350,7 @@ for des=1:n_desmat
 
     end
 
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-
     % FIT MODEL
     [beta_hat beta_se zmat logpmat sig2tvec sig2mat Hessmat logLikvec beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm logLikvec_perm binvec_save nvec_bins tvec_bins FamilyStruct coeffCovar reusableVars] = FEMA_fit(X,iid,eid,fid,agevec,ymat,niter,contrasts,nbins, GRM,'RandomEffects',RandomEffects,...
         'nperms',nperms,'CovType',CovType,'FixedEstType',FixedEstType,'RandomEstType',RandomEstType,'GroupByFamType',GroupByFamType,'NonnegFlag',NonnegFlag,'SingleOrDouble',SingleOrDouble,'logLikflag',logLikflag,'Hessflag',Hessflag,'ciflag',ciflag,...
