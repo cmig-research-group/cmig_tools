@@ -309,12 +309,15 @@ for des=1:n_desmat
     if ~isempty(fname_contrast)
         [contrasts, hypValues, contrast_names] = FEMA_parse_contrastFile(fname_contrast, colnames_model); 
         colnames_model = cat(2, contrast_names, colnames_model);
+    else
+        contrasts = [];
     end
 
     % intersect ymat with design matrix
     [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missing_intersect_design] = ...
         FEMA_intersect_design(designMatrix, ymat_bak, iid_concat, eid_concat, ...
                              'GRM', GRM_bak, 'preg', preg, 'address', address);
+
     if synth==1 % Make synthesized data
         [ymat sig2tvec_true sig2mat_true] = FEMA_synthesize(X, iid, eid, fid, agevec, ymat, GRM, 'nbins', nbins, 'RandomEffects', RandomEffects); % Make GRM and zygmat optional arguments? % Need to update SSE_synthesize_dev to accept list of random effects to include, and range of values
 
@@ -322,16 +325,14 @@ for des=1:n_desmat
     else
         sig2tvec_true = []; sig2mat_true = [];
     end
-
     synthstruct = struct('sig2tvec_true',sig2tvec_true,'sig2mat_true',sig2mat_true);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % transform ymat
     % always winsorize tfmri data
-    if contains(fstem_imaging, 'beta', 'IgnoreCase', true) && ...
-        strcmpi(study, 'abcd') && ...
-        strcmpi(release, '6.')
-        [ymat settingsTransform] = doTransformation(ymat, 'winsorize');
+    if contains(fstem_imaging, 'beta', 'IgnoreCase', true) 
+        [ymat settingsTransform] = doTransformation(ymat, 'winsorize', ...
+                                                    'lower_bound', 2, 'upper_bound', 98);
     end 
     % transform according to user input 
     if ~strcmpi(transformY, 'none')
