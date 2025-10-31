@@ -288,20 +288,21 @@ for des=1:n_desmat
     if designExists
         designMatrix = readtable(fname_design{des});
     else 
-        designMatrix = FEMA_makeDesign(config_design{des},'dataFile', dataFile, ...
-                                       'IID', iid_concat, 'EID', eid_concat); 
+        logging('Creating design matrix.');
+        [designMatrix, vars_of_interest] = FEMA_makeDesign(config_design{des},'dataFile', dataFile, ...
+                                       'iid', iid_concat, 'eid', eid_concat); 
     end
     % get column names
     exp_colnames = {'iid' 'eid' 'fid' 'agevec'};
     exp_colnames_exist = all(ismember(exp_colnames, designMatrix.Properties.VariableNames));
     if exp_colnames_exist
-        colnames_model = setdiff(designMatrix.Properties.VariableNames, {'iid', 'eid', 'fid', 'agevec'});
+        colnames_model = designMatrix.Properties.VariableNames(~ismember(designMatrix.Properties.VariableNames, exp_colnames));
     else 
         warning('Assuming first 4 columns of design matrix are participant ID, session ID, family ID and age, in that order.')
         colnames_model = designMatrix.Properties.VariableNames(5:end);
     end
-    if isempty(vars_of_interest)
-        colsinterest = find(contains(colnames_model, vars_of_interest)); 
+    if ~isempty(vars_of_interest)
+        colsinterest = find(ismember(colnames_model, vars_of_interest)); 
     end 
 
     % contrasts 
