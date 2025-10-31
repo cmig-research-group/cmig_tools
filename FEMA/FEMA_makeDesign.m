@@ -6,12 +6,7 @@ function [designMatrix, vars_of_interest] = FEMA_makeDesign(configFile, varargin
 %                                   recipe folder), can either be a JSON or 
 %                                   text file saved with the extension '.config'
 %  
-%% Optional inputs (name-pair values):
-% fid:              cell / char     family IDs for all observations that
-%                                   need to be retained OR full path to a
-%                                   csv file with no header that has family
-%                                   IDs that need to be retained
-% 
+%% Optional inputs (name-pair values): 
 % iid:              cell / char     individual IDs for all observations
 %                                   that need to be retained OR full path
 %                                   to a csv file with no header that has
@@ -97,7 +92,6 @@ end
 
 %% Parse optional inputs
 p = inputParser;
-addParameter(p, 'fid',          '');
 addParameter(p, 'iid',          '');
 addParameter(p, 'eid',          '');
 addParameter(p, 'dataFile',     '');
@@ -110,7 +104,6 @@ addParameter(p, 'outName',      '');
 addParameter(p, 'outType',      '');
 
 parse(p, varargin{:})
-fid          = p.Results.fid;
 iid          = p.Results.iid;
 eid          = p.Results.eid;
 dataFile     = p.Results.dataFile;
@@ -174,13 +167,6 @@ else
     else
         familyIDvar = family_id;
     end
-end
-
-%% Determine subject ID
-if isFE
-    subjectIDvar = familyIDvar;
-else
-    subjectIDvar = 'participant_id';
 end
 
 %% Determine if tables need to be read
@@ -302,21 +288,6 @@ if readTabulated
     % Mandatory variables in data_demo to retain
     vars_always_retain = {'participant_id', 'session_id', 'ab_g_dyn__visit_age'};
 
-    % %% Figure out which PCs to read
-    % if ~isempty(tmp_PC)
-    %     loc_PCs  = not(cellfun(@isempty, regexpi(data_demo.Properties.VariableNames, basename_PC)));
-    %     vars_PCs = data_demo.Properties.VariableNames(loc_PCs);
-    % 
-    %     % If some PCs were specified in dataFile, check
-    %     if exist('data_namesPCs', 'var') & ~isempty(data_namesPCs)
-    %         vars_PCs = vars_PCs(:, setdiff(vars_PCs, data_namesPCs));
-    %     else
-    %         vars_PCs = vars_PCs(:,1:tmp_PC);
-    %     end
-    % else
-    %     vars_PCs = [];
-    % end
-
     %% Put IDs together for merging
     % Only use iid_eid so that it is easier to join with other tables
     % Make sure to use participant_id for iid instead of subjectIDvar
@@ -370,43 +341,24 @@ else
     end
 end
 
-% If IDs_merge exists, remove the variable
+%% Make a copy of IID_EID to intersect with the left hand side
 if strcmpi('IDs_merge', data_work.Properties.VariableNames)
+    IDs_merge = data_work.IDs_merge;
     removevars(data_work, 'IDs_merge');
+else
+    IDs_merge = strcat(data_work.iid, {'_'}, data.eid);
 end
 
-%% If the user has provided fid/iid/eid, filter data_work
-if ~isempty(fid)
-    if isfile(fid)
-        fid = readtable(fid, 'FileType', 'text', 'ReadVariableNames', false);
-    else
-        if ~iscell(fid)
-            fid = cellstr(fid);
-        end
-    end
-    data_work(~ismember(data_work.(familyIDvar), fid), :) = [];
-end
+%% If the user has provided iid_eid, filter data_work
+iid_eid   = strcat(iid, {'_'}, eid);
+[~, ia]   = intersect(IDs_merge, iid_eid);
+data_work = data_work(ia, :);
 
-if ~isempty(iid)
-    if isfile(iid)
-        iid = readtable(iid, 'FileType', 'text', 'ReadVariableNames', false);
-    else
-        if ~iscell(iid)
-            iid = cellstr(iid);
-        end
-    end
-    data_work(~ismember(data_work.(subjectIDvar), iid), :) = [];
-end
-
-if ~isempty(eid)
-    if isfile(eid)
-        eid = readtable(eid, 'FileType', 'text', 'ReadVariableNames', false);
-    else
-        if ~iscell(eid)
-            eid = cellstr(eid);
-        end
-    end
-    data_work(~ismember(data_work.session_id, eid), :) = [];
+%% Determine subject ID
+if isFE
+    subjectIDvar = familyIDvar;
+else
+    subjectIDvar = 'participant_id';
 end
 
 %% Assign agevec if required
