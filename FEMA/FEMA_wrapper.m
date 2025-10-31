@@ -27,7 +27,7 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %   ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
 %   transformY <string>        :  transformation to apply to Y (default 'none')
 %   output <string>            :  'mat' (default) or 'nifti' or 'deap' or concatenations to write multiple formats.
-%   ivnames <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
+%   vars_of_interest <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
 %   RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
 %                                   family relatedness (F)
 %                                   subject - required for longitudinal analyses (S)
@@ -140,7 +140,7 @@ addParameter(inputs, 'outputType', '.mat', @(x) ischar(x) && ...
                                   'gifti' 'vertex' 'tables' ...
                                   'summary'}));
 addParameter(inputs, 'synth',  false, @(x) isscalar(x) && islogical(x) || isnumeric(x)); 
-addParameter(inputs, 'ivnames', '', @(x) ischar(x) || iscell(x));
+addParameter(inputs, 'vars_of_interest', '', @(x) ischar(x) || iscell(x));
 addParameter(inputs, 'RandomEffects', {'F' 'S' 'E'}, @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'GRM_file', [], @(x) ischar(x));
 addParameter(inputs, 'preg_file', [], @(x) ischar(x));
@@ -181,14 +181,14 @@ if strcmp(datatype,'external')
         outputType = 'tables'; 
 end 
 nbins = inputs.Results.nbins;
-if ~isempty(inputs.Results.ivnames)
-    ivnames = split(inputs.Results.ivnames,','); 
+if ~isempty(inputs.Results.vars_of_interest)
+    vars_of_interest = split(inputs.Results.vars_of_interest,','); 
 else
-    ivnames = {};
+    vars_of_interest = {};
 end
 
-if ~isempty(ivnames) || isdeployed
-    logging('%d IVs specified: %s',length(ivnames), strjoin(ivnames, ', '));
+if ~isempty(vars_of_interest) || isdeployed
+    logging('%d Variables of interest specified: %s',length(vars_of_interest), strjoin(vars_of_interest, ', '));
 end
 
 RandomEffects = inputs.Results.RandomEffects;
@@ -300,8 +300,8 @@ for des=1:n_desmat
         warning('Assuming first 4 columns of design matrix are participant ID, session ID, family ID and age, in that order.')
         colnames_model = designMatrix.Properties.VariableNames(5:end);
     end
-    if isempty(ivnames)
-        colsinterest = find(contains(colnames_model, ivnames)); 
+    if isempty(vars_of_interest)
+        colsinterest = find(contains(colnames_model, vars_of_interest)); 
     end 
 
     % contrasts 
@@ -519,7 +519,7 @@ for des=1:n_desmat
         % == NIFTI Output == FIXME: no longer used for DEAP
         if contains(outputType, 'nifti')
             results = struct('beta_hat',vol_beta_hat,'beta_se',vol_beta_se,'zmat',vol_z,'logpmat',vol_logp,'sig2tvec',vol_sig2t,'sig2mat',vol_sig2);
-            writeNIFTI(results, dirname_out{des}, fstem_imaging, ivnames, colnames_model);
+            writeNIFTI(results, dirname_out{des}, fstem_imaging, vars_of_interest, colnames_model);
         end
 
         % =========================================================================
@@ -555,12 +555,12 @@ for des=1:n_desmat
             S.nfaces = 2*size(icsurfs{icnum}.faces,1);
             S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
             % parse IVs
-            if isempty(ivnames)
+            if isempty(vars_of_interest)
                 excludeCol = strmatch('mri_info_',colnames_model);
                 nCol = length(colnames_model);
                 ivCol = setdiff(1:nCol, excludeCol);
             else
-                [~,ivCol,~] = intersect(colnames_model,ivnames);
+                [~,ivCol,~] = intersect(colnames_model,vars_of_interest);
             end
             if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
             % write out the fixed effects
