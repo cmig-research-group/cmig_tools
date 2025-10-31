@@ -346,7 +346,7 @@ if strcmpi('IDs_merge', data_work.Properties.VariableNames)
     IDs_merge = data_work.IDs_merge;
     removevars(data_work, 'IDs_merge');
 else
-    IDs_merge = strcat(data_work.iid, {'_'}, data.eid);
+    IDs_merge = strcat(data_work.participant_id, {'_'}, data_work.session_id);
 end
 
 %% If the user has provided iid_eid, filter data_work
