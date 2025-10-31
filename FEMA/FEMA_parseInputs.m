@@ -33,10 +33,10 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     % outputType 
     extraArgs{end+1} = 'outputType';
     extraArgs{end+1} = setOutputType(datatype);
-    % ivnames 
-    ivnames = get_ivnames(configFile);
-    extraArgs{end+1} = 'ivnames';
-    extraArgs{end+1} = ivnames;
+    % ivnames - now handled by FEMA_parse_JSON and FEMA_makeDesign
+    %ivnames = get_ivnames(configFile);
+    %extraArgs{end+1} = 'ivnames';
+    %extraArgs{end+1} = ivnames;
     % random effects 
     extraArgs{end+1} = 'RandomEffects';
     extraArgs{end+1} = configFile.params.random;
