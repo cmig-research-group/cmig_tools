@@ -52,7 +52,7 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missingness] = FE
     %design matrix must have first four columns: iid, eid, fid, agevec
     % these are NOT used as IVs, which are in columns 5 onwards
     try 
-        iid_design = designMatrix.[iid;
+        iid_design = designMatrix.iid;
         eid_design = designMatrix.eid;
         fid_design = designMatrix.fid;
         agevec_design = designMatrix.agevec;
