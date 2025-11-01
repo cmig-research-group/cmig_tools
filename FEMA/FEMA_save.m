@@ -120,6 +120,7 @@ switch(outputType)
                 saveName = fullfile(dirOutput, [outPrefix, '_', toSave{ff}, '_', num2str(jj), '_', p.Unmatched.vars_of_interest{j}, '.gii.gz']);
                 writeGIfTI(surfData, [], outDir, basename, colnames_gii);
             end
+        end
 
     case {'tables'}
         % Need to dump regression tables into text/csv files
