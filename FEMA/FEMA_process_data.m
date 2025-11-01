@@ -80,6 +80,8 @@ nframes_min = p.Results.nframes_min;
 study = p.Results.study;
 release = p.Results.release;
 
+loggin(FEMA_info)
+
 % check if QC file and variable are both provided
 if ~isempty(fname_qc)
     if isempty(qc_var)
@@ -314,7 +316,7 @@ switch datatype
             switch ext_imaging
                 case '.parquet'
                     opts = parquetinfo(dirname_imaging);
-                    varInc = fstem_imaging;
+                    varInc = fstem_imaging; % add iid eid to varInc 
                     varPresent = ismember(varInc, opts.VariableNames);
                     if any(~varPresent)
                         missingVars = varInc(~varPresent);
@@ -330,7 +332,7 @@ switch datatype
                     end 
                 case {'.csv' '.tsv' '.txt'}
                     opts = detectImportOptions(dirname_imaging, 'FileType', 'text');
-                    varInc = fstem_imaging;
+                    varInc = fstem_imaging; % add iid eid to varInc
                     varPresent = ismember(varInc, opts.VariableNames);
                     if any(~varPresent)
                         missingVars = varInc(~varPresent);
@@ -374,25 +376,6 @@ switch datatype
 
     end
 
-    %%%%% study and release %%%%%
-    % for voxel, vertex and corrmat 
-    if ismember(datatype, {'voxel', 'vertex', 'corrmat'})
-        if isfield(tmp_volinfo, 'study')
-            study = tmp_volinfo.study;
-        else
-            study = 'abcd';
-        end
-        if isfield(tmp_volinfo, 'release')
-            release = tmp_volinfo.release;
-        else
-            release = '6.0';
-        end
-    else 
-        study = 'abcd';
-        release = '6.0';
-    end 
-
-    
     %%%%% missingness %%%%%
     % number of nans in ymat  
     defvecNaN = isfinite(sum(ymat, 2)); 
@@ -486,7 +469,7 @@ switch datatype
 
     % filter on iid and eid if given 
     % iid 
-    if ~isempty(iid)
+    if ~isempty(iid) 
         if ischar(iid)  
             if isfile(iid) % check if it's a file 
                 [~, ~, ext_iid] = fileparts(iid);

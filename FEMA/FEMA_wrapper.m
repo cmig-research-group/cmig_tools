@@ -120,8 +120,8 @@ addRequired(inputs, 'datatype', @(x) ischar(x) && ...
 % optional inputs
 addParameter(inputs, 'fname_design', @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'config_design', @(x) iscell(x) || ischar(x));
-addParameter(inputs, 'iid', [], @(x) iscell(x) || ischar(x));
-addParameter(inputs, 'eid', [], @(x) iscell(x) || ischar(x));
+addParameter(inputs, 'iid_filter', [], @(x) iscell(x) || ischar(x));
+addParameter(inputs, 'eid_filter', [], @(x) iscell(x) || ischar(x));
 addParameter(inputs, 'fname_qc', [], @(x) ischar(x));
 addParameter(inputs, 'qc_var', [], @(x) ischar(x));
 addParameter(inputs, 'transformY', 'none', ...
@@ -132,6 +132,11 @@ addParameter(inputs, 'transformY', 'none', ...
                                    'ranknorm' 'int'}));
 addParameter(inputs, 'study', 'abcd', @(x) ischar(x) && ismember(x, {'abcd', 'hbcd'}));
 addParameter(inputs, 'release', '6.0', @(x) ischar(x));
+addParameter(inputs, 'outPrefix', ['FEMA_', char(datetime('now', 'Format', 'yyyyMMdd_HHmmSS'))], @(x) ischar(x));
+addParameter(inputs, 'saveDesignMatrix', true, isscalar(x) && islogical(x) || isnumeric(x));
+addParameter(inputs, 'returnResiduals', false, @(x) islogical(x) || isnumeric(x));
+
+
 addParameter(inputs, 'ico', 5, @(x) isscalar(x) && isnumeric(x));
 addParameter(inputs, 'fname_contrast', [], @(x) ischar(x));
 addParameter(inputs, 'outputType', '.mat', @(x) ischar(x) && ...
@@ -190,7 +195,8 @@ end
 if ~isempty(vars_of_interest) || isdeployed
     logging('%d Variables of interest specified: %s',length(vars_of_interest), strjoin(vars_of_interest, ', '));
 end
-
+iid_filter = inputs.Results.iid_filter;
+eid_filter = inputs.Results.eid_filter;
 RandomEffects = inputs.Results.RandomEffects;
 fname_GRM = inputs.Results.GRM_file;
 fname_address = inputs.Results.address_file;
@@ -247,7 +253,8 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missing_process_data] = ...
     FEMA_process_data(fstem_imaging, dirname_imaging, datatype, 'ico', ico, ...
                       'GRM_file', fname_GRM, 'preg_file', fname_pregnancy, ...
-                      'address_file', fname_address, 'corrvec_thresh', corrvec_thresh);
+                      'address_file', fname_address, 'corrvec_thresh', corrvec_thresh, 
+                      'iid', iid_filter, 'eid', eid_filter);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % back up data 
@@ -453,6 +460,60 @@ for des=1:n_desmat
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % SAVE OUTPUT
 
+
+    % always 
+    outPrefix = 'FEMA_mat';
+    dirOutput = '/home/dpecheva/tmp'
+    FEMA_save('.mat', dirOutput, outPrefix, saveDesignMatrix, ...
+                'beta_hat', beta_hat, 'beta_se', beta_se, 'zmat', zmat,'logpmat', logpmat, ...
+                'X', X, 'fid', fid, 'iid', iid, 'eid', eid, ... 
+                'nbins', nbins, 'RandomEffects', RandomEffects, 'abcd', 100, 'other', 'value');
+                
+                
+                'sig2tvec',sig2tvec,'sig2mat',sig2mat, 'sig2mat_normalized', sig2mat_normalized, 'beta_hat_perm', beta_hat_perm, 'beta_se_perm', beta_se_perm, 'zmat_perm', zmat_perm, 'sig2tvec_perm', sig2tvec_perm, 'sig2mat_perm', sig2mat_perm, 'logLikvec', logLikvec, 'logLikvec_perm', logLikvec_perm, 'Hessmat', Hessmat, ...
+                        'coeffCovar', coeffCovar, 'binvec_save', binvec_save, 'nvec_bins', nvec_bins, 'tvec_bins', tvec_bins,           ...
+                        'reusableVars', reusableVars, 'contrasts', contrasts, 'hypValues', hypValues, ...
+                        'X', X, 'fid', fid, 'iid', iid, 'eid', eid, 'agevec', agevec, 'FamilyStruct', FamilyStruct, ...
+                        'MotherID', MotherID, 'FatherID', FatherID, 'HomeID', HomeID, 'PregID', PregID, ...
+                        'info', FEMA_wrapper_info};
+                        
+    nifti + gifti -> depedent on datatype 
+    outPrefix = 'FFX'
+    FEMA_save('nifti/gifti', dirOutput, outPrefix, 'beta_hat', beta_hat, 'beta_se', beta_se, ...
+             'zmat', zmat,'logpmat', logpmat, 'colsinterest', colsinterest, 'vars_of_interest', vars_of_interest)
+
+    outPrefix = 'RFX'; 
+    if strcmp(CovType, 'analytical')
+        FEMA_save('nifti', dirOutput, outPrefix, 'sig2mat', sig2mat, ...
+        'sig2tvec', sig2tvec, 'RandomEffects', RandomEffects);      
+    else
+        FEMA_save('nifti/gifti', dirOutput, outPrefix, 'sig2mat_normalized', unstructuredParams.sig2mat_normalized, ...
+        'sig2tvec', sig2tvec, 'RandomEffects', RandomEffects, 'eidOrd', unstructuredParams.eidOrd);
+    end 
+
+    %external is tables always
+    outPrefix = 'regression_tables';
+    FEMA_save('tables', dirOutput, outPrefix, 'beta_hat', beta_hat, 'beta_se', beta_se, 'zmat', zmat,'logpmat', logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat, 'sig2mat_normalized', sig2mat_normalized, 'info' FEMA_wrapper_info, 'colnames_model', colnames_model, 'ymat_names', fstem_imaging) % check fstem_imaging makessense for tabulated 
+
+    corrmat is mat always 
+    roi will be nifti or gifti when we cross that bridge 
+    
+    
+%%%%%%%
+
+
+% should be obsolete
+
+
+%write column names to json for DEAP -
+    fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
+    out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
+    jsonStr = jsonencode(out);
+    fid = fopen(fname_col,'w');
+    fprintf(fid,'%s\n',jsonStr);
+    fclose(fid);
+
+
     if nperms>0 && strcmp(permtype,'wildbootstrap')
         dirname_out{des}=sprintf('%s/nullWB_%dperms',dirname_out{des},nperms);
     elseif nperms>0 && strcmp(permtype,'wildbootstrap-nn')
@@ -470,14 +531,7 @@ for des=1:n_desmat
         fpath_out = sprintf('%s/FEMA_wrapper_output_%s_%s_synth.mat',dirname_out{des},datatype,fstem_imaging);
     end
 
-    %write column names to json for DEAP
-    fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
-    out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
-    jsonStr = jsonencode(out);
-    fid = fopen(fname_col,'w');
-    fprintf(fid,'%s\n',jsonStr);
-    fclose(fid);
-
+    
     % =========================================================================
     % Write VOXEL results (mat, nifti, or deap)
     % =========================================================================
