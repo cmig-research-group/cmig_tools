@@ -25,6 +25,9 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     config_design = fname_json;  % need to write out a config file for makeDesign??
     
     extraArgs = {};
+    % outPrefix
+    extraArgs{end+1} = 'outPrefix';
+    extraArgs{end+1} = configFile.params.id;
     % transformY 
     if isfield(configFile.params.dependent, 'transform') 
         extraArgs{end+1} = 'transformY';
