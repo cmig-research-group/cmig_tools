@@ -21,23 +21,51 @@
 n = 30000;
 p = 5;
 v = 10;
+numVisits = 5;
+maxNumInFamily = 5;
 
-% Create FID and IID
-X       = randn(n, p);
-iid_int = sort(randsample([1:n, 1:n, 1:n, 1:n, 1:n], n));  % up to 5 observations per individual
-fid_int = ceil(iid_int / 5);                               % up to 5 individuals per family
-iid     = cell(size(iid_int)); for i=1:length(iid_int), iid{i}=sprintf('I%i', iid_int(i)); end
-fid     = cell(size(fid_int)); for i=1:length(fid_int), fid{i}=sprintf('F%i', fid_int(i)); end
+% X variables
+X = randn(n, p);
+
+% Generate individual IDs
+iid_int = sort(repmat(1:n, 1, numVisits));
+
+% Generate family IDs
+fid_int = ceil(iid_int / maxNumInFamily);
+
+% Using dec2base: zero prefixes shouldn't matter
+iid = cellstr([repmat('I', length(iid_int),1), dec2base(iid_int,10)]);
+fid = cellstr([repmat('F', length(fid_int),1), dec2base(fid_int,10)]);
 clear('iid_int'); clear('fid_int');
 
-% Shuffle observations to validate FEMA_reorder_by_families
-jvec = randperm(n); 
-X    = X(jvec, :); 
-iid  = iid(:, jvec); 
-fid  = fid(:, jvec);
+% Generate event IDs
+allEvents = (1:numVisits)';
+eid       = repmat(allEvents, n, 1);
+
+% Now, annihilate vists
+toKeep   = randperm(length(iid), n);
+toDelete = setdiff(1:length(iid), toKeep);
+eid(toDelete) = [];
+iid(toDelete) = [];
+fid(toDelete) = [];
+
+% Older solution
+% % Create FID and IID
+% iid_int = sort(randsample([1:n, 1:n, 1:n, 1:n, 1:n], n));  % up to 5 observations per individual
+% fid_int = ceil(iid_int / 5);                               % up to 5 individuals per family
+% iid     = cell(size(iid_int)); for i=1:length(iid_int), iid{i}=sprintf('I%i', iid_int(i)); end
+% fid     = cell(size(fid_int)); for i=1:length(fid_int), fid{i}=sprintf('F%i', fid_int(i)); end
+
+% %% Shuffle observations to validate FEMA_reorder_by_families
+% jvec = randperm(n); 
+% X    = X(jvec, :); 
+% iid  = iid(jvec); 
+% fid  = fid(jvec);
+% iid  = iid(:, jvec); 
+% fid  = fid(:, jvec);
 
 % Additional variables
-eid    = ones(n, 1);  % not needed
+% eid    = ones(n, 1);  % not needed
 agevec = zeros(n, 1); % not needed
 ymat   = nan(n, v);   % only size of ymat is used by FEMA_synthesize
 
@@ -61,7 +89,7 @@ RandomEffects     = {'F', 'A', 'S', 'E'};
 [~, s_effect_idx] = ismember('S', RandomEffects);
 [~, e_effect_idx] = ismember('E', RandomEffects);
 
-[X,iid,eid,fid,agevec,~,pihatmat]   = FEMA_reorder_by_families(X,iid,eid,fid,agevec,[],pihatmat);
+% [X,iid,eid,fid,agevec,~,pihatmat]   = FEMA_reorder_by_families(X,iid,eid,fid,agevec,[],pihatmat);
 [ymat, sig2tvec_true, sig2mat_true] = FEMA_synthesize(X,iid,eid,fid,agevec,ymat,pihatmat,'RandomEffects',RandomEffects);
 
 % output of FEMA_FEMA_synthesize :
@@ -72,18 +100,19 @@ RandomEffects     = {'F', 'A', 'S', 'E'};
 
 % setup parameters for FEMA_fit
 contrasts = ones(1, p);
-niter     = 1;
+% niter     = 1;
 nbins     = 20;
 nperms    = 20;
 
 %% Fit the model
-[beta_hat,      beta_se,        zmat,        logpmat,              ...
- sig2tvec,      sig2mat,        Hessmat,     logLikvec,            ...
- beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,        ...
- sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,            ...
- tvec_bins,     FamilyStruct,   coeffCovar,  reusableVars] =       ...
- FEMA_fit(X, iid, eid, fid, agevec, ymat, niter, contrasts, nbins, ...
-          pihatmat, 'RandomEffects', RandomEffects, 'nperms', nperms);
+[beta_hat,      beta_se,        zmat,        logpmat,               ...
+ sig2tvec,      sig2mat,        Hessmat,     logLikvec,             ...
+ beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,         ...
+ sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,             ...
+ tvec_bins,     FamilyStruct,   coeffCovar,  unstructParams,        ...
+ residuals_GLS, info] = FEMA_fit(X, iid, eid, fid, agevec, ymat,    ...
+                                 contrasts, nbins, pihatmat,        ...
+                                 'RandomEffects', RandomEffects, 'nperms', nperms, 'returnResiduals', true, 'CovType', 'unstructured', 'niter', 2);
 
 %% Visualize estimates
 figure(1); clf; hold on;
