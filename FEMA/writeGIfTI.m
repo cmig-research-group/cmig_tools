@@ -261,10 +261,10 @@ if genUnderlay
         save(res, fullfile(outDir, outNames{1}), 'Base64Binary');
     else
         res = gifti(struct('cdata', cData(1:length(surfaceData.icsurfs{icoNum+1}.vertices))));
-        save(res, fullfile(outDir, ['lh.', outNames{1}]), 'Base64Binary');
+        save(res, fullfile(outDir, [outNames{1} '.lh']), 'Base64Binary');
 
         res = gifti(struct('cdata', cData(length(surfaceData.icsurfs{icoNum+1}.vertices)+1:end)));
-        save(res, fullfile(outDir, ['rh.', outNames{1}]), 'Base64Binary');
+        save(res, fullfile(outDir, [outNames{1}, '.']), 'Base64Binary');
     end
     
 else
@@ -290,7 +290,7 @@ else
     if genColNames
         colnames = strrep(strcat({'FEMA_estimate_'}, num2str((1:numCoeff)')), ' ', '');
     end
-    outNames = strcat(basename, {'_'}, colnames, {'.gii'});
+    outNames = strcat(basename, {'_'}, colnames);
 
     if length(colnames) ~= numCoeff
         error(['Mismatch between number of coefficients in the input: ', num2str(numCoeff), ...
@@ -299,10 +299,12 @@ else
         % Loop over every coefficient and start saving!
         for coeff = 1:numCoeff
             res = gifti(struct('cdata', squeeze(toWrite(coeff,1:length(surfaceData.icsurfs{icoNum+1}.vertices))')));
-            save(res, fullfile(outDir, ['lh.', outNames{coeff}]), 'Base64Binary');
+            fname_save = fullfile(outDir, [outNames{coeff} '.lh.gii']);
+            save(res, fname_save, 'Base64Binary');
 
             res = gifti(struct('cdata', squeeze(toWrite(coeff,length(surfaceData.icsurfs{icoNum+1}.vertices)+1:end)')));
-            save(res, fullfile(outDir, ['rh.', outNames{coeff}]), 'Base64Binary');
+            fname_save = fullfile(outDir, [outNames{coeff} '.rh.gii']);
+            save(res, fname_save, 'Base64Binary');
 
             % res = gifti(struct('cdata', squeeze(toWrite(coeff,:)')));
             % save(res, fullfile(outDir, outNames{coeff}), 'Base64Binary');

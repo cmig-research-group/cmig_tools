@@ -1,0 +1,103 @@
+{
+    "study": "abcd",
+    "release": "6.0",
+    "type": "analysis",
+    "id": "dasfgljg",
+    "params": {
+        "query": "SELECT participant_id, session_id, ... FROM abcd_v6_0",
+        "model": "glmm",
+        "tool": "fema",
+        "dependent": {
+            "name": "ja",
+            "dir_data": "/space/ceph/1/ABCD/data/release_archive/6_0/concatenated/imaging/voxelwise/smri/",
+            "type_data": "voxelwise",
+            "transform": "inverseranknorm"
+        },
+        "fixed": {
+            "vars": [
+                {
+                    "name": "ab_g_dyn__visit_age",
+                    "name_custom": "age",
+                    "type_var": "continuous",
+                    "of_interest": true,
+                    "transform": "splines",
+                    "splines": {
+                        "type_spline": "nsk",
+                        "method": "svd",
+                        "knots": [
+                            12,
+                            14,
+                            16
+                        ]
+                    }
+                },
+                {
+                    "name": "ab_p_demo__age__slf_001",
+                    "name_custom": "parent_age",
+                    "type_var": "continuous",
+                    "of_interest": false,
+                    "transform": "standardize"
+                },
+                {
+                    "name": "ab_g_stc__cohort_sex",
+                    "name_custom": "sex",
+                    "type_var": "categorical",
+                    "of_interest": true,
+                    "reference": "mode"
+                },
+                {
+                    "name": "ab_g_dyn__cohort_income__hhold__6lvl",
+                    "type_var": "categorical",
+                    "of_interest": false
+                },
+                {
+                    "name": "ab_g_dyn__cohort_edu__cgs",
+                    "type_var": "categorical",
+                    "of_interest": false,
+                    "reference": "1"
+                },
+                {
+                    "name": "ab_g_dyn__design_mr__software",
+                    "type_var": "categorical",
+                    "of_interest": false,
+                    "reference": "mode"
+                },
+                {
+                    "name": "ab_g_dyn__design_mr__serial",
+                    "type_var": "categorical",
+                    "of_interest": false,
+                    "reference": "mode"
+                }
+            ],
+            "transform_global": "demean",
+            "n_gpcs": 10,
+            "interaction": [
+                {
+                    "vars": "ab_g_dyn__visit_age * ab_g_stc__cohort_sex",
+                    "of_interest": true
+                },
+                {
+                    "vars": "ab_g_dyn__design_mr__serial * ab_g_dyn__cohort_edu__cgs * ab_p_demo__age__slf_001",
+                    "of_interest": false
+                }
+            ],
+            "mediator": "parent_age"
+        },
+        "random": [
+            "F",
+            "S",
+            "E"
+        ],
+        "contrast": [],
+        "advanced": {
+            "type_perm": "none",
+            "n_perm": 0,
+            "type_cov": "analytic",
+            "type_fixed_est": "gls",
+            "n_bins": 20,
+            "precision": "double",
+            "intercept": true
+        },
+        "dir_grm": "/space/ceph/1/ABCD/data/release_archive/6_1/concatenated/genetics/genotype_microarray/genesis/pcrelate_relatedness_grm.mat"
+    }
+}
