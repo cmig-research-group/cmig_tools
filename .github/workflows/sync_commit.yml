@@ -1,0 +1,39 @@
+name: Sync commits to public repo
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      # - main
+      - sync-commit
+
+jobs:
+  sync-commit:
+    runs-on: self-hosted
+    steps:
+      - name: clean up github workspace
+        uses: docker://ubuntu:latest
+        with:
+          args: find /github/workspace/. -name . -o -prune -exec rm -rf -- {} +
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: copy repo to public repo
+        uses: andstor/copycat-action@v3.2.4
+        with:
+          personal_token: ${{ secrets.GH_CMIG_TOKEN }} # this token need to access both source and destination repo
+          src_path: /.
+          dst_path: /
+          # to add more exclude patterns, use | to separate, e.g "'*+(github/workflows/|admin/|abc.txt)*'"
+          exclude: "'*+(github/workflows/)*'"
+          dst_owner: cmig-research-group
+          dst_repo_name: cmig_tools
+          dst_branch: ${{ github.ref_name }}
+          src_branch: ${{ github.ref_name }}
+          username: '${{ github.actor }}'
+          email: ${{ github.actor }}@users.noreply.github.com
+          commit_message: "${{ github.event.head_commit.message }}"
+          # clean the destination repo before copying, default false
+          clean: true
+          
