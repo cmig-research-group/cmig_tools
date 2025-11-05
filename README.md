@@ -2,9 +2,16 @@
 
 This package includes code to run mass univariate linear mixed effects analysis in a fast and efficient manner.  This can be done at the whole brain level using vertexwise and voxelwise data, and connectivity matrices.  FEMA includes an external data option (.txt format) which can include columms of imaging or behavioral data.  The code includes an ABCD Study specific wrapper ([`FEMA_wrapper.m`](FEMA/FEMA_wrapper.m)), which uses the concatenated imaging files saved on abcd-sync.  The internal function(s) within the wrapper can be used to analyse any data as long as its inputs are in the correct format within MATLAB.  Specifically, ([`FEMA_fit.m`](FEMA/FEMA_fit.m)) is the core function that performs model fitting (see [`FEMA_Guide.md`](Guide_FEMA.md) for more details on how to format the data and use FEMA_fit outside of the wrapper). The code was developed and tested using MATLAB 2020a / 2023a.
 
-Technical details on how FEMA works can be found [here](https://doi.org/10.1002/hbm.26579)
+Technical details on how FEMA works can be found [here](https://doi.org/10.1002/hbm.26579) and [here](https://doi.org/10.1101/2025.05.09.653146)
 
-**Reference**: Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579 
+**Reference**: 
+
+Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579 
+
+If you use splines, unstructured covariance, or the GWAS module, please additionally cite:
+
+Parekh, P., Parker, N., Pecheva, D., Frei, E., Vaudel, M., Smith, D.M., Rigby, A., Jahołkowski, P., Sønderby, I.E., Birkenæs, V., Bakken, N.R., Fan, C.C., Makowski, C., Kopal, J., Loughnan, R., Hagler, D.J., Meer, D. van der, Johansson, S., Njølstad, P.R., Jernigan, T.L., Thompson, W.K., Frei, O., Shadrin, A.A., Nichols, T.E., Andreassen, O.A., Dale, A.M., 2025. FEMA-Long: Modeling unstructured covariances for discovery of time-dependent effects in large-scale longitudinal datasets. bioRxiv. https://doi.org/10.1101/2025.05.09.653146
+
 
 Please see the see the tutorials in the [`CMIG Tools Wiki`](https://github.com/cmig-research-group/cmig_tools/wiki) for more details on how to use FEMA.
 
@@ -42,6 +49,8 @@ For instructions on how to create design matrices for FEMA, run FEMA analyses an
 
 ## Reference
 Parekh, P., Fan, C. C., Frei, O., Palmer, C. E., Smith, D. M., Makowski, C., Iversen, J. R., Pecheva, D., Holland, D., Loughnan, R., Nedelec, P., Thompson, W. K., Hagler, D. J. Jr, Andreassen, O. A., Jernigan, T. L., Nichols, T. E., & Dale, A. M. (2024). FEMA: Fast and efficient mixed-effects algorithm for large sample whole-brain imaging data. Human Brain Mapping, 45(2), e26579. https://doi.org/10.1002/hbm.26579
+
+Parekh, P., Parker, N., Pecheva, D., Frei, E., Vaudel, M., Smith, D.M., Rigby, A., Jahołkowski, P., Sønderby, I.E., Birkenæs, V., Bakken, N.R., Fan, C.C., Makowski, C., Kopal, J., Loughnan, R., Hagler, D.J., Meer, D. van der, Johansson, S., Njølstad, P.R., Jernigan, T.L., Thompson, W.K., Frei, O., Shadrin, A.A., Nichols, T.E., Andreassen, O.A., Dale, A.M., 2025. FEMA-Long: Modeling unstructured covariances for discovery of time-dependent effects in large-scale longitudinal datasets. bioRxiv. https://doi.org/10.1101/2025.05.09.653146
 
 ## Copyright
 
