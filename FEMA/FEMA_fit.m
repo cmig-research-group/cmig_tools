@@ -1166,7 +1166,7 @@ end
 
 zmat    = double(beta_hat) ./ double(beta_se);
 logpmat = -sign(zmat) .* log10(normcdf(-abs(zmat))*2); % Should look for normcdfln function
-                 tr       -log10(2 * normcdf(-abs(tStats), 0, 1));
+
 if ciflag
     sig2mat = cat(3, sig2mat, sig2mat_ci);
 end
