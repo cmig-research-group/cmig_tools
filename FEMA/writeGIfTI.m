@@ -1,4 +1,4 @@
-function writeGIfTI(toWrite, icoNum, outDir, basename, colnames, underlayType, dirFreesurfer, splitLR)
+function writeGIfTI(toWrite, icoNum, outName, underlayType, dirFreesurfer, splitLR)
 % Function that writes out GIfTI file(s) given a set of inputs
 % Requires the GIfTI toolbox: https://github.com/gllmflndn/gifti to be on
 % path such that the function 'gifti' is callable
@@ -21,17 +21,8 @@ function writeGIfTI(toWrite, icoNum, outDir, basename, colnames, underlayType, d
 %                               * icoNum == 6, 40962 vertices, 81920 faces
 %                               * icoNum == 7, 163842 vertices, 327680 faces
 % 
-% outDir:       character   full path to where the GIfTI files should be
-%                           written out
-% 
-% basename:     character   the basename to be used for each of the p GIfTI
-%                           images; if empty, defaults to 'FEMA_estimate'
-% 
-% colnames:     [p x 1]     cell type having the name of each of the
-%                           coefficients in toWrite; the names are appended
-%                           to the basename to create the name of the
-%                           output file; if left empty, '_1', '_2', and so
-%                           on are appended to the basename
+% outName:      [p x 1]    cell string containing the full paths and names
+%                          of the output GIfTI files; if empty, uses pwd
 % 
 % underlayType  character   a value indicating which of the following
 %                           underlays should be generated as a GIfTI image:
@@ -39,7 +30,8 @@ function writeGIfTI(toWrite, icoNum, outDir, basename, colnames, underlayType, d
 %                               * 'curv' | 'curvature'
 %                               * 'inflated'
 %                               * name of a supported Freesurfer atlas:
-%                                   - 'aparc' (refers to aparc2009)
+%                                   - 'aparc' (refers to aparc)
+%                                   - 'aparc2009' (refers to aparc.a2009s)
 %                                   - 'yeo17' (refers to Yeo 17 networks)
 %                                   - 'yeo7'  (refers to Yeo 7 networks)
 % 
@@ -50,23 +42,21 @@ function writeGIfTI(toWrite, icoNum, outDir, basename, colnames, underlayType, d
 %                           only required if underlayType is of the
 %                           Freesurfer atlas files
 % 
-% splitLR:      logical     yes or no indicating if the underlay should be
-%                           written out as separate left and right
-%                           hemisphere files or an overall file (only if
-%                           underlay is requested; default: false)
-
+% splitLR:      logical     yes or no indicating if the GIfTI file should
+%                           be written out as separate left and right
+%                           hemisphere files or an overall file 
+%                           (default: true)
+% 
 %% Notes:
 % When generating underlays, toWrite can be set to []; in this case, we
-% still need the icoNum, outDir, and basename to be provided; if colnames
-% is provided, it is used; otherwise, the 'basename_underlay_icoNum' is
-% used as the output name
+% still need the icoNum and outName to be provided
 %
 % Currently, the script does not downsample faces but picks the faces from
 % the corresponding icsurfs entry
 % 
 % At the moment, not downsampling pial, inflated, or curvature files
 % 
-% splitLR needs to be implemented for inflated or atlases
+% For atlas files, supported ico numbers are: 3, 4, 5, 6, and 7
 
 %% References:
 % https://brainder.org/2016/05/31/downsampling-decimating-a-brain-surface/
@@ -82,31 +72,11 @@ else
     end
 end
 
-% Check output directory and make it if it doesn't exist
-if ~exist('outDir', 'var') || isempty(outDir)
-    error('Please provide a full path to where the GIfTI images should be saved');
+% Check if output names are provided
+if ~exist('outName', 'var') || isempty(outName)
+    genNames = true;
 else
-    if ~exist(outDir, 'dir')
-        mkdir(outDir);
-    end
-end
-
-% Check output basename
-if ~exist('basename', 'var') || isempty(basename)
-    basename = 'FEMA_estimate';
-end
-
-% Check column names of estimates
-if ~exist('colnames', 'var') || isempty(colnames)
-    genColNames = true;
-else
-    genColNames = false;
-    if ~iscell(colnames)
-        colnames = cellstr(colnames);
-    else
-        % Ensure that this is a p x 1 vector
-        colnames = reshape(colnames, numel(colnames), 1);
-    end
+    genNames = false;
 end
 
 % Check if underlay type is specified
@@ -114,12 +84,13 @@ if exist('underlayType', 'var') && ~isempty(underlayType)
     underlayType = lower(underlayType);
 
     % First check if valid type of underlay is requested
-    if ~ismember(underlayType, {'pial', 'curv', 'curvature', 'inflated', 'aparc', 'yeo17', 'yeo7'})
+    if ~ismember(underlayType, {'pial', 'curv', 'curvature', 'inflated', ...
+                                'aparc', 'aparc.a2009s', 'yeo17', 'yeo7'})
         error(['Unknown underlayType specified: ', underlayType]);
     else
         genUnderlay = true;
         % If type is valid and an atlas is requested
-        if ismember(underlayType, {'aparc', 'yeo17', 'yeo7'})
+        if ismember(underlayType, {'aparc', 'aparc.a2009s', 'yeo17', 'yeo7'})
             % Check if Freesurfer path is provided
             if ~exist('dirFreesurfer', 'var') || isempty(dirFreesurfer)
                 % Path is not provided, try to get from system environment
@@ -153,12 +124,10 @@ end
 
 % Do we need to split hemispheres?
 if ~exist('splitLR', 'var') || isempty(splitLR)
-    splitLR = false;
+    splitLR = true;
 else
-    if genUnderlay
-        if ~islogical(splitLR)
-            error('splitLR should be either true or false');
-        end
+    if ~islogical(splitLR)
+        error('splitLR should be either true or false');
     end
 end
 
@@ -171,6 +140,14 @@ if genUnderlay
 else
     if ~exist('toWrite', 'var') || isempty(toWrite)
         error('Please provide a vector or matrix of values to write');
+    else
+        [numRows, numVertices] = size(toWrite);
+        if ~genNames
+            if length(outName) ~= numRows
+                error(['Mismatch between number of coefficients: ', num2str(numRows), ...
+                       ' and number of output names: ', num2str(length(outName))]);
+            end
+        end
     end
 end
 
@@ -198,37 +175,72 @@ allFaces = [surfaceData.icsurfs{icoNum+1}.faces; ...
 if genUnderlay
     switch underlayType
         case 'pial'
-            allVertices = [surfaceData.surf_lh_pial.vertices; surfaceData.surf_rh_pial.vertices];
-            allFaces    = [surfaceData.surf_lh_pial.faces; ...
-                           surfaceData.surf_rh_pial.faces + size(surfaceData.surf_lh_pial.vertices,1)];
-            cData       = [];
+            if splitLR
+                left_vertices   = surfaceData.surf_lh_pial.vertices;
+                right_vertices  = surfaceData.surf_rh_pial.vertices;
+                left_faces      = surfaceData.surf_lh_pial.faces;
+                right_faces     = surfaceData.surf_rh_pial.faces + size(surfaceData.surf_lh_pial.vertices,1);
+            else
+                allVertices = [surfaceData.surf_lh_pial.vertices; surfaceData.surf_rh_pial.vertices];
+                allFaces    = [surfaceData.surf_lh_pial.faces; ...
+                               surfaceData.surf_rh_pial.faces + size(surfaceData.surf_lh_pial.vertices,1)];
+            end
 
         case {'curv', 'curvature'}
-            allVertices = [surfaceData.curvvec_lh; surfaceData.curvvec_rh];
-            allFaces    = [surfaceData.surf_lh_pial.faces; ...
-                          surfaceData.surf_rh_pial.faces + size(surfaceData.surf_lh_pial.vertices,1)];
-            cData       = [];
+            if splitLR
+                left_vertices   = surfaceData.curvvec_lh;
+                right_vertices  = surfaceData.curvvec_rh;
+                left_faces      = surfaceData.surf_lh_pial.faces;
+                right_faces     = surfaceData.surf_rh_pial.faces + size(surfaceData.surf_lh_pial.vertices,1);
+            else
+                allVertices = [surfaceData.curvvec_lh; surfaceData.curvvec_rh];
+                allFaces    = [surfaceData.surf_lh_pial.faces; ...
+                               surfaceData.surf_rh_pial.faces + size(surfaceData.surf_lh_pial.vertices,1)];
+            end
 
         case 'inflated'
-            allVertices = [surfaceData.surf_lh_inflated.vertices; surfaceData.surf_rh_inflated.vertices];
-            % allFaces    = [surfaceData.surf_lh_inflated.faces; ...
-            %               surfaceData.surf_lh_inflated.faces + size(surfaceData.surf_lh_inflated.vertices,1)];
-            cData       = [];
+            if splitLR
+                left_vertices   = surfaceData.surf_lh_inflated.vertices;
+                right_vertices  = surfaceData.surf_rh_inflated.vertices;
+                left_faces      = surfaceData.surf_lh_inflated.faces;
+                right_faces     = surfaceData.surf_lh_inflated.faces + size(surfaceData.surf_lh_inflated.vertices,1);
+            else
+                allVertices = [surfaceData.surf_lh_inflated.vertices; surfaceData.surf_rh_inflated.vertices];
+                allFaces    = [surfaceData.surf_lh_inflated.faces; ...
+                               surfaceData.surf_lh_inflated.faces + size(surfaceData.surf_lh_inflated.vertices,1)];
+            end
 
         case 'aparc'
-            fname       = 'aparc.a2009s';
-            cData       = read_annotations(dirFreesurfer, fname);
-            allVertices = [surfaceData.icsurfs{icoNum+1}.vertices; surfaceData.icsurfs{icoNum+1}.vertices];
+            fname = 'aparc';
+            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            if splitLR
+                leftData  = Data(1);
+                rightData = Data(2);
+            end
+
+        case 'aparc.a2009s'
+            fname = 'aparc.a2009s';
+            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            if splitLR
+                leftData  = Data(1);
+                rightData = Data(2);
+            end            
 
         case 'yeo17'
-            fname       = 'Yeo2011_17Networks_N1000';
-            cData       = read_annotations(dirFreesurfer, fname);
-            allVertices = [surfaceData.icsurfs{icoNum+1}.vertices; surfaceData.icsurfs{icoNum+1}.vertices];
+            fname = 'Yeo2011_17Networks_N1000';
+            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            if splitLR
+                leftData  = Data(1);
+                rightData = Data(2);
+            end
             
         case 'yeo7'
-            fname       = 'Yeo2011_7Networks_N1000';
-            cData       = read_annotations(dirFreesurfer, fname);
-            allVertices = [surfaceData.icsurfs{icoNum+1}.vertices; surfaceData.icsurfs{icoNum+1}.vertices];
+            fname = 'Yeo2011_7Networks_N1000';
+            Data  = read_annotations(dirFreesurfer, fname, splitLR);
+            if splitLR
+                leftData  = Data(1);
+                rightData = Data(2);
+            end
     end
 
     % How many verticies to keep?
@@ -244,33 +256,35 @@ if genUnderlay
     % end
 
     % Output name
-    if genColNames
-        colnames = cellstr([underlayType, '_', num2str(icoNum)]);
-    end    
-    outNames = strcat({basename}, {'_'}, colnames, {'.gii'});
+    if genNames
+        outName = fullfile(pwd, underlayType);
+    end
 
     % Prepare GIfTI object
-    % if isempty(cData)
-    %     res = gifti(struct('faces', allFaces, 'vertices', allVertices));
-    % else
-    %     res = gifti(struct('faces', allFaces, 'vertices', allVertices, 'cdata', cData));
-    % end
-    % save(res, fullfile(outDir, outNames{1}), 'Base64Binary');
-    if isempty(cData)
-        res = gifti(struct('faces', allFaces, 'vertices', allVertices));
-        save(res, fullfile(outDir, outNames{1}), 'Base64Binary');
+    if ismember(underlayType, {'pial', 'inflated', 'curv', 'curvature'})
+        if splitLR
+            res = gifti(struct('faces', left_faces, 'vertices', left_vertices));
+            save(res, [outName, '_lh'], 'GZipBase64Binary');
+            
+            res = gifti(struct('faces', right_faces, 'vertices', right_vertices));
+            save(res, [outName, '_rh'], 'GZipBase64Binary');
+        else
+            res = gifti(struct('faces', allFaces, 'vertices', allVertices));
+            save(res, outName, 'GZipBase64Binary');
+        end
     else
-        res = gifti(struct('cdata', cData(1:length(surfaceData.icsurfs{icoNum+1}.vertices))));
-        save(res, fullfile(outDir, ['lh.', outNames{1}]), 'Base64Binary');
+        if splitLR
+            res = gifti(struct('cdata', leftData.cdata, 'labels', leftData.labels));
+            save(res, [outName, '_lh'], 'GZipBase64Binary');
 
-        res = gifti(struct('cdata', cData(length(surfaceData.icsurfs{icoNum+1}.vertices)+1:end)));
-        save(res, fullfile(outDir, ['rh.', outNames{1}]), 'Base64Binary');
+            res = gifti(struct('cdata', rightData.cdata, 'labels', rightData.labels));
+            save(res, [outName, '_rh'], 'GZipBase64Binary');
+        else
+            res = gifti(struct('cdata', Data.cdata, 'labels', Data.labels));
+            save(res, outName, 'GZipBase64Binary');
+        end
     end
-    
 else
-    % Size of inputs
-    [numCoeff, numVertices] = size(toWrite);
-
     % Size in icsurfs
     % numVertices_icsurfs = length(surfaceData.icsurfs{icoNum+1}.vertices);
 
@@ -287,37 +301,59 @@ else
     end
 
     % Generate output names, if required
-    if genColNames
-        colnames = strrep(strcat({'FEMA_estimate_'}, num2str((1:numCoeff)')), ' ', '');
+    if genNames
+        outName = fullfile(pwd, strrep(strcat({'FEMA_estimate_'}, num2str((1:numRows)')), ' ', ''));
     end
-    outNames = strcat(basename, {'_'}, colnames, {'.gii'});
 
-    if length(colnames) ~= numCoeff
-        error(['Mismatch between number of coefficients in the input: ', num2str(numCoeff), ...
-            ' and the number of entries in colnames: ', num2str(length(colnames))]);
-    else
-        % Loop over every coefficient and start saving!
-        for coeff = 1:numCoeff
-            res = gifti(struct('cdata', squeeze(toWrite(coeff,1:length(surfaceData.icsurfs{icoNum+1}.vertices))')));
-            save(res, fullfile(outDir, ['lh.', outNames{coeff}]), 'Base64Binary');
-
-            res = gifti(struct('cdata', squeeze(toWrite(coeff,length(surfaceData.icsurfs{icoNum+1}.vertices)+1:end)')));
-            save(res, fullfile(outDir, ['rh.', outNames{coeff}]), 'Base64Binary');
-
-            % res = gifti(struct('cdata', squeeze(toWrite(coeff,:)')));
-            % save(res, fullfile(outDir, outNames{coeff}), 'Base64Binary');
+    % Loop over every coefficient and start saving!
+    for rows = 1:numRows
+        if splitLR
+            res = gifti(struct('cdata', squeeze(toWrite(rows,1:length(surfaceData.icsurfs{icoNum+1}.vertices))')));
+            save(res, [outName{rows}, '_lh'], 'GZipBase64Binary');
+    
+            res = gifti(struct('cdata', squeeze(toWrite(rows,length(surfaceData.icsurfs{icoNum+1}.vertices)+1:end)')));
+            save(res, [outName{rows}, '_rh'], 'GZipBase64Binary');
+        else
+            res = gifti(struct('cdata', squeeze(toWrite(rows,:)')));
+            save(res, outName{rows}, 'Base64Binary');
         end
     end
 end
 end
 
 
-function cData = read_annotations(dirFreesurfer, fname)
+function out_struct = read_annotations(dirFreesurfer, icoNum, fname, splitLR)
 % Function that reads an annotation file from Freesurfer and returns
 % concatenated list of cData
 
+if ~exist('splitLR', 'var') || isempty(splitLR)
+    splitLR = false;
+end
+
+if ~exist('icoNum', 'var') || isempty(icoNum)
+    icoNum = 5;
+else
+    if icoNum < 3
+        error('Supported ico numbers for atlas files are: 3, 4, 5, 6, and 7');
+    end
+end
+
+% Determine fsaverage folder name
+switch icoNum
+    case 3
+        fsaverage_name = 'fsaverage3';
+    case 4
+        fsaverage_name = 'fsaverage4';
+    case 5
+        fsaverage_name = 'fsaverage5';
+    case 6
+        fsaverage_name = 'fsaverage6';
+    case 7
+        fsaverage_name = 'fsaverage';
+end
+
 % Path to annotation files and path to script file
-dir_annotations = fullfile(dirFreesurfer, 'subjects', 'fsaverage', 'label');
+dir_annotations = fullfile(dirFreesurfer, 'subjects', fsaverage_name, 'label');
 dir_script      = fullfile(dirFreesurfer, 'matlab');
 fname_script    = 'read_annotation.m';
 
@@ -342,9 +378,78 @@ cd(dir_script);
 [rh_vertices, rh_label, rh_colortable] = read_annotation(fullfile(dir_annotations, fname_rh)); %#ok<ASGLU>
 cd(tmp);
 
-% Return concatenated vertices and label
-% all_vertices = [lh_vertices; rh_vertices];
-cData = [lh_label; rh_label];
+% What is the "index" of mapping of *_label to entries in
+% *_colortable.table(:,5)?
+[~, lh_mapping] = ismember(lh_label, lh_colortable.table(:,5));
+[~, rh_mapping] = ismember(rh_label, rh_colortable.table(:,5));
+
+% % Extract names
+% lh_names = lh_colortable.struct_names(lh_mapping);
+% rh_names = rh_colortable.struct_names(rh_mapping);
+
+% Append some integer constant for right hemisphere to maintain unique
+% separate mapping: this is not the most robust solution
+maxVal = max(unique(lh_mapping));
+if maxVal < 100
+    toAdd = 100;
+else
+    if maxVal < 1000
+        toAdd = 1000;
+    else
+        toAdd = 10000;
+    end
+end
+
+% Find the location of unknown
+lh_loc_unknown = strcmpi(lh_colortable.struct_names, 'unknown');
+rh_loc_unknown = strcmpi(rh_colortable.struct_names, 'unknown');
+
+% Get keys
+lh_keys = unique(lh_mapping);
+rh_keys = unique(rh_mapping);
+
+% Check if medial wall is missing in the keys
+if length(lh_keys) ~= length(lh_colortable.struct_names)
+    wch = colvec(setdiff(1:length(lh_colortable.struct_names), lh_keys));
+
+    % Append wch
+    lh_keys = sort([lh_keys; wch]);
+end
+
+% Repeat for the right hemisphere
+if length(rh_keys) ~= length(rh_colortable.struct_names)
+    wch = colvec(setdiff(1:length(rh_colortable.struct_names), rh_keys));
+
+    % Append wch
+    rh_keys = sort([rh_keys; wch]);
+end
+
+% Add a constant to rh
+rh_keys(~rh_loc_unknown) = rh_keys(~rh_loc_unknown) + toAdd;
+
+% Append lh and rh to ROI names
+lh_colortable.struct_names(~lh_loc_unknown) = strcat(lh_colortable.struct_names(~lh_loc_unknown), {'_lh'});
+rh_colortable.struct_names(~rh_loc_unknown) = strcat(rh_colortable.struct_names(~rh_loc_unknown), {'_rh'});
+
+% Create a labels table
+if splitLR
+    left_struct.labels.name  = lh_colortable.struct_names;
+    left_struct.labels.key   = lh_keys;
+    left_struct.labels.rgba  = lh_colortable.table(:,1:4);
+    left_struct.cdata        = lh_mapping;
+    
+    right_struct.labels.name = rh_colortable.struct_names;
+    right_struct.labels.key  = rh_keys;
+    right_struct.labels.rgba = rh_colortable.table(:,1:4);
+    right_struct.cdata       = rh_mapping;
+
+    out_struct = [left_struct; right_struct];
+else
+    out_struct.labels.name = [lh_colortable.struct_names; rh_colortable.struct_names(~rh_loc_unknown)];
+    out_struct.labels.key  = [lh_keys; rh_keys(~rh_loc_unknown)];
+    out_struct.labels.rgba = [lh_colortable.table(:,1:4); rh_colortable.table(~rh_loc_unknown,1:4)];
+    out_struct.cdata       = [lh_mapping; rh_mapping];
+end
 end
 
 function endLoc = resampleLocations(icoNum)
