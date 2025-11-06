@@ -52,7 +52,7 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     extraArgs{end+1} = configFile.params.advanced.n_perm;
     % permutation type
     extraArgs{end+1} = 'PermType';
-    extraArgs{end+1} = permtype; 
+    extraArgs{end+1} = configFile.params.advanced.type_perm;
     % covariance 
     extraArgs{end+1} = 'CovType';
     extraArgs{end+1} = configFile.params.advanced.type_cov;
