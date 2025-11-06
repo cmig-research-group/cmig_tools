@@ -92,7 +92,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,            ...
 % GroupByFamType  <boolean>        cluster by family type instead of family
 %                                  units for a faster computation; only
 %                                  implemented for FSE RandomEffects for
-%                                  analytical random effects covariance
+%                                  analytic random effects covariance
 %                                  type (default: true, if FSE/FE/SE)
 % 
 % NonnegFlag      <boolean>        ensure non-negativity constrained random
@@ -151,7 +151,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,            ...
 % coeffCovar      <num>      [p x p x v]        estimated coefficient covariance matrix for every v
 % 
 % unstructParams  <struct>                      contains the following fields:
-%                                                   * 'sig2mat':            sig2mat using analytical/compound symmetry
+%                                                   * 'sig2mat':            sig2mat using analytic/compound symmetry
 %                                                   * 'eidOrd':             order of events in eid;
 %                                                                           this is the order of entries in 
 %                                                                           sig2mat and sig2mat_normalized
@@ -272,9 +272,9 @@ else
 end
 
 % Ensure CovType is valid
-if ~ismember(CovType, {'analytical', 'unstructured'})
-    warning(['Unknown CovType specified: ', CovType, '; setting CovType to analyical']);
-    CovType = 'analytical';
+if ~ismember(CovType, {'analytic', 'unstructured'})
+    warning(['Unknown CovType specified: ', CovType, '; setting CovType to analytic']);
+    CovType = 'analytic';
 end
 
 % Ensure permType is valid
@@ -629,9 +629,9 @@ for permi = 0:nperms
             visvec2               = visitnum(subvec2);
     
             % Backup sig2mat
-            unstructParams.sig2mat_analytical = sig2mat;
-            unstructParams.eidOrd             = dummy;
-            unstructParams.visitnum           = visitnum;
+            unstructParams.sig2mat_analytic = sig2mat;
+            unstructParams.eidOrd           = dummy;
+            unstructParams.visitnum         = visitnum;
 
             % Unstructured covariance matrix - overwriting sig2mat
             sig2mat  = zeros(nvisits, nvisits, num_RFX-1, num_y);
