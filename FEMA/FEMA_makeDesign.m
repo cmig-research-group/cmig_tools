@@ -720,7 +720,11 @@ if ~isempty(FFX_interactions)
 
     % Put all interactions together
     X_data_interactions = horzcat(all_interact_variables{:,1});
-    X_name_interactions = horzcat(all_interact_variables{:,2});
+    X_name_interactions = vertcat(all_interact_variables{:,2});
+
+    % Make these names unique and valid
+    X_name_interactions = matlab.lang.makeValidName(X_name_interactions);
+    X_name_interactions = matlab.lang.makeUniqueStrings(X_name_interactions, X_name_interactions, namelengthmax);
 else
     X_data_interactions = [];
     X_name_interactions = '';
@@ -728,7 +732,7 @@ end
 
 % Concatenate with design matrix
 if ~isempty(X_data_interactions)
-    X_data_interactions = cell2table(num2cell(X_data_interactions), 'VariableNames', matlab.lang.makeValidName(X_name_interactions));
+    X_data_interactions = cell2table(num2cell(X_data_interactions), 'VariableNames', X_name_interactions);
     designMatrix = [designMatrix, X_data_interactions];
 end
 
@@ -800,23 +804,22 @@ switch refLevel
         [~, ~, c]   = mode(tmp_variable);
         tmp_ref     = setdiff(1:length(tmp_categories), find(ismember(tmp_categories, c{1}), 1));
         expVariable = tmp_dummy(:, tmp_ref);
-        colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref), [], namelengthmax)));
+        colnames    = strcat(varName, {'_'}, tmp_categories(tmp_ref));
+
+        % colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
+        %                                      matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref), [], namelengthmax)));
 
     case 'first'
         expVariable = tmp_dummy(:, 2:end);
-        colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories(2:end), [], namelengthmax)));
+        colnames    = strcat(varName, {'_'}, tmp_categories(2:end));
 
     case 'last'
         expVariable = tmp_dummy(:, 1:end-1);
-        colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories(1:end-1), [], namelengthmax)));
+        colnames    = strcat(varName, {'_'}, tmp_categories(1:end-1));
 
     case 'none'
         expVariable = tmp_dummy;
-        colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories), [], namelengthmax));
+        colnames    = strcat(varName, {'_'}, tmp_categories);
 
     otherwise
         tmp_ref = find(ismember(tmp_categories, refLevel), 1);
@@ -828,8 +831,7 @@ switch refLevel
             tmp_ref   = setdiff(1:length(tmp_categories), tmp_ref);
         end
         expVariable   = tmp_dummy(:, tmp_ref);
-        colnames      = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                               matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref), [], namelengthmax)));
+        colnames      = strcat(varName, {'_'}, tmp_categories(tmp_ref));
 end
 
 % If colnames is a string, convert to cellstr
@@ -837,17 +839,23 @@ if isstring(colnames)
     colnames = cellstr(colnames);
 end
 
-% Return as [1 x n]
-colnames = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(colnames', [], namelengthmax));
+% Now make colnames valid and unique; return as [1 x n]
+colnames = matlab.lang.makeValidName(colnames');
+colnames = matlab.lang.makeUniqueStrings(colnames, colnames, namelengthmax);
+% colnames = matlab.lang.makeUniqueStrings(matlab.lang.makeValidName(colnames'), [], namelengthmax);
 end
 
+
 function [outName, outValue] = applyTransforms(data_work, var_names, transformName)
-outName  = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(strcat(var_names, {'_'}, transformName)));
+outName  = matlab.lang.makeValidName(strcat(var_names, {'_'}, transformName));
+outName  = matlab.lang.makeUniqueStrings(outName, outName, namelengthmax);
 outValue = doTransformation(data_work{:,var_names}, transformName);
 end
 
+
 function [outName, outValue] = applyWinsorization(data_work, var_names, lower, upper)
-outName  = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(strcat(var_names, {'_winsorized'})));
+outName  = strcat(var_names, {'_winsorized'});
+outName  = matlab.lang.makeUniqueStrings(outName, outName, namelengthmax);
 outValue = doTransformation(data_work{:,var_names}, 'winsorize', lower, upper);
 end
 
@@ -885,7 +893,7 @@ for v = 1:length(var_names)
     outName(1,count:count+1) = strcat(var_names{v}, {'_baseline', '_delta'});
     count = count + 2;
 end
-outName = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(outName));
+outName = matlab.lang.makeUniqueStrings(outName, outName, namelengthmax);
 
 % Loop over every subject in uqSubjects, sort by event ID to find the first
 % real event, then do the diff

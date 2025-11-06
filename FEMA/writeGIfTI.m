@@ -143,6 +143,9 @@ else
     else
         [numRows, numVertices] = size(toWrite);
         if ~genNames
+            if ischar(outName)
+                outName = cellstr(outName);
+            end
             if length(outName) ~= numRows
                 error(['Mismatch between number of coefficients: ', num2str(numRows), ...
                        ' and number of output names: ', num2str(length(outName))]);
