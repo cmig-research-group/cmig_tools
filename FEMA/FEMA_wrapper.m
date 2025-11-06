@@ -1,4 +1,4 @@
-function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(varargin)
+function [beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_perm beta_se_perm zmat_perm sig2tvec_perm sig2mat_perm inputs mask tfce_perm colnames_interest save_params logLikvec Hessmat coeffCovar] = FEMA_wrapper(varargin)
 %
 % FEMA_wrapper can be called either as:
 %   FEMA_wrapper(fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, ...)
@@ -46,15 +46,14 @@ function [fpaths_out beta_hat beta_se zmat logpmat sig2tvec sig2mat beta_hat_per
 %   NonnegFlag <blooean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
 %   precision <char>      :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
 %   logLikflag <boolean>       :  input for FEMA_fit - default 0
-%   permtype <char>            :  input for FEMA_fit - options:
+%   PermType <char>            :  input for FEMA_fit - options:
 %                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation
 %                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
 %   tfce <num>                 :  default 0 --> if 1 will run TFCE
 
 %
 % OUTPUTS
-%   fpaths_out                 :  results will be saved here in the specified format
-%   All other outputs are optional if user wants results to be output in the MATLAB workspace
+%   All  outputs are optional if user wants results to be output in the MATLAB workspace
 %   All permutation outputs will be empty is nperms==0
 %
 
@@ -133,7 +132,7 @@ addParameter(inputs, 'transformY', 'none', ...
                                    'ranknorm' 'int'}));
 addParameter(inputs, 'study', 'abcd', @(x) ischar(x) && ismember(x, {'abcd', 'hbcd'}));
 addParameter(inputs, 'release', '6.0', @(x) ischar(x));
-addParameter(inputs, 'outPrefix', ['FEMA_', char(datetime('now', 'Format', 'yyyyMMdd_HHmmSS'))], @(x) ischar(x));
+addParameter(inputs, 'outPrefix', [], @(x) ischar(x));
 addParameter(inputs, 'saveDesignMatrix', true, @(x) isscalar(x) && islogical(x) || isnumeric(x));
 addParameter(inputs, 'returnResiduals', false, @(x) islogical(x) || isnumeric(x));
 
@@ -169,9 +168,8 @@ addParameter(inputs, 'precision', 'double', @(x) ischar(x) && ...
 addParameter(inputs, 'logLikflag', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
 addParameter(inputs, 'Hessflag', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
 addParameter(inputs, 'ciflag', false, @(x) isscalar(x) && islogical(x) || isnumeric(x));
-addParameter(inputs, 'permtype', 'wildbootstrap', @(x) ischar(x) && ...
+addParameter(inputs, 'PermType', 'wildbootstrap', @(x) ischar(x) && ...
                       ismember(x, {'wildbootstrap', 'wildbootstrap-nn', 'none'}));
-
 
 parse(inputs, fstem_imaging, dirname_out, dirname_imaging, datatype, varargin{:})
 
@@ -196,6 +194,9 @@ end
 if ~isempty(vars_of_interest) || isdeployed
     logging('%d Variables of interest specified: %s',length(vars_of_interest), strjoin(vars_of_interest, ', '));
 end
+study = inputs.Results.study;
+release = inputs.Results.release;
+returnResiduals = inputs.Results.returnResiduals;
 outPrefix = inputs.Results.outPrefix;
 saveDesignMatrix = inputs.Results.saveDesignMatrix;
 iid_filter = inputs.Results.iid_filter;
@@ -214,7 +215,7 @@ logLikflag = inputs.Results.logLikflag;
 Hessflag = inputs.Results.Hessflag;
 ciflag = inputs.Results.ciflag;
 nperms = inputs.Results.nperms;
-permtype = inputs.Results.permtype;
+PermType = inputs.Results.PermType;
 mediation = inputs.Results.mediation;
 synth = inputs.Results.synth;
 tfce = inputs.Results.tfce;
@@ -253,11 +254,11 @@ fprintf('Random effects: %s\n', strjoin(RandomEffects, ', '));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % LOAD AND PROCESS IMAGING DATA FOR ANALYSIS - ABCD specific function unless datatype='external'
-[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missing_process_data] = ...
+[ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, info_process_data] = ...
     FEMA_process_data(fstem_imaging, dirname_imaging, datatype, 'ico', ico, ...
                       'GRM_file', fname_GRM, 'preg_file', fname_pregnancy, ...
                       'address_file', fname_address, 'corrvec_thresh', corrvec_thresh, ...
-                      'iid', iid_filter, 'eid', eid_filter);
+                      'iid', iid_filter, 'eid', eid_filter, 'study', study, 'release', release);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % back up data 
@@ -270,8 +271,8 @@ if mediation==1
 
     seed=rng; % Save rng in order to ensure resampling is the same for both models
 
-    if ~ismember(lower(permtype),{'wildbootstrap-nn'})
-        error('Change permtype input to wildboostrap-nn to perform non-null WB needed for mediation analysis OR set mediation=0.')
+    if ~ismember(lower(PermType),{'wildbootstrap-nn'})
+        error('Change PermType input to wildboostrap-nn to perform non-null WB needed for mediation analysis OR set mediation=0.')
     end
 
     if length(fname_design)~=2
@@ -291,14 +292,11 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % CREATE DESIGN MATRIX and  INTERSECT YMAT
 %Loops over multiple design matrices (rows in fname_design cell array) to run several models with the same imaging data
-fpaths_out = {};
-
 for des=1:n_desmat
     % read in or create design matrix
     if designExists
         designMatrix = readtable(fname_design{des});
     else 
-        logging('Creating design matrix.');
         [designMatrix, vars_of_interest] = FEMA_makeDesign(config_design{des},'dataFile', dataFile, ...
                                        'iid', iid_concat, 'eid', eid_concat); 
     end
@@ -325,7 +323,7 @@ for des=1:n_desmat
     end
 
     % intersect ymat with design matrix
-    [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missing_intersect_design] = ...
+    [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, info_intersect_design] = ...
         FEMA_intersect_design(designMatrix, ymat_bak, iid_concat, eid_concat, ...
                              'GRM', GRM_bak, 'preg', preg, 'address', address);
 
@@ -334,17 +332,12 @@ for des=1:n_desmat
 
         % sig2mat_true(length(RandomEffects),:) = 1-sum(sig2mat_true(1:length(RandomEffects)-1,:),1); % This shouldn't be needed, if RandomEffects include 'E'
     else
-        sig2tvec_true = []; sig2mat_true = [];
+        sig2tvec_true = []; 
+        sig2mat_true = [];
     end
     synthstruct = struct('sig2tvec_true',sig2tvec_true,'sig2mat_true',sig2mat_true);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % transform ymat
-    % always winsorize tfmri data
-    if contains(fstem_imaging, 'beta', 'IgnoreCase', true) 
-        [ymat settingsTransform] = doTransformation(ymat, 'winsorize', ...
-                                                    'lower_bound', 2, 'upper_bound', 98);
-    end 
     % transform according to user input 
     if ~strcmpi(transformY, 'none')
         [ymat settingsTransform] = doTransformation(ymat, transformY);
@@ -377,8 +370,8 @@ for des=1:n_desmat
              'niter', niter, 'RandomEffects', RandomEffects, 'nperms', nperms, 'CovType', CovType,       ...
              'FixedEstType', FixedEstType, 'RandomEstType', RandomEstType, ...
              'GroupByFamType', GroupByFamType, 'NonnegFlag', NonnegFlag, ...
-             'SingleOrDouble', precision, 'logLikflag', logLikflag, ...
-             'Hessflag', Hessflag, 'ciflag', ciflag, 'permtype', permtype, ...
+             'precision', precision, 'logLikflag', logLikflag, ...
+             'Hessflag', Hessflag, 'ciflag', ciflag, 'PermType', PermType, ...
              'PregID', PregID, 'HomeID', HomeID, 'synthstruct', synthstruct, 'returnResiduals', returnResiduals);
 
     if sum(~mask)>0
@@ -466,7 +459,7 @@ for des=1:n_desmat
 
     % always save out a .mat file 
     outputType = '.mat';
-    FEMA_save(outputType, dirname_out{des}, outPrefix, ...
+    FEMA_save(outputType, dirname_out{des}, 'outPrefix', outPrefix, ...
               'beta_hat', beta_hat, 'beta_se', beta_se, 'zmat', zmat, 'logpmat', logpmat, ...
               'sig2tvec', sig2tvec, 'sig2mat', sig2mat, ... % 'sig2mat_normalized', sig2mat_normalized, 
               'beta_hat_perm', beta_hat_perm, 'beta_se_perm', beta_se_perm, 'zmat_perm', zmat_perm, ...
@@ -479,7 +472,7 @@ for des=1:n_desmat
               'RandomEffects', RandomEffects, 'nperms', nperms, 'CovType', CovType, ...
               'FixedEstType', FixedEstType, 'RandomEstType', RandomEstType, 'GroupByFamType', GroupByFamType, ...
               'NonnegFlag', NonnegFlag, 'precision', precision, 'logLikflag', logLikflag, ...
-              'permtype', permtype); 
+              'PermType', PermType); 
               %'FamilyStruct', FamilyStruct, 'MotherID', MotherID, 'FatherID', ...
               %FatherID, 'HomeID', HomeID, 'PregID', PregID, ... \
               %'numWorkers', numWorkers, 'numThreads', numThreads
@@ -490,25 +483,27 @@ for des=1:n_desmat
         case {'voxel', 'vertex', 'roi'}
             % need to add how to handle roi 
             % save nifti/gifti of fixed effects variables of itnerest
-            outPrefix = 'FFX'; 
-            FEMA_save(datatype, dirname_out{des}, outPrefix, 'beta_hat', beta_hat, 'beta_se', beta_se, ...
+            FEMA_save(datatype, dirname_out{des}, 'outPrefix', outPrefix, 'beta_hat', beta_hat, 'beta_se', beta_se, ...
                       'zmat', zmat,'logpmat', logpmat, 'colsinterest', colsinterest, ...
                       'vars_of_interest', vars_of_interest); 
             % save nifti/gifti of random effects 
-            outPrefix = 'RFX'; 
             if strcmp(CovType, 'analytic')
-                FEMA_save(datatype, dirname_out{des}, outPrefix, ...
+                FEMA_save(datatype, dirname_out{des}, 'outPrefix', outPrefix, ...
                           'sig2mat', sig2mat, 'sig2tvec', sig2tvec, 'RandomEffects', RandomEffects);      
             else
-                FEMA_save(datatype, dirname_out{des}, outPrefix, ...
+                FEMA_save(datatype, dirname_out{des}, 'outPrefix', outPrefix, ...
                           'sig2mat_normalized', unstructuredParams.sig2mat_normalized, ...
                           'sig2tvec', sig2tvec, 'RandomEffects', RandomEffects, ...
                           'eidOrd', unstructuredParams.eidOrd);
             end
         case 'external'
-            outPrefix = 'regression_tables';
             outputType = 'tables'; 
-            FEMA_save(outputType, dirname_out{des}, outPrefix, 'beta_hat', beta_hat, 'beta_se', beta_se, 'zmat', zmat,'logpmat', logpmat,'sig2tvec',sig2tvec,'sig2mat',sig2mat, 'sig2mat_normalized', sig2mat_normalized, 'info', FEMA_wrapper_info, 'colnames_model', colnames_model, 'ymat_names', fstem_imaging) % check fstem_imaging makes sense for tabulated 
+            FEMA_save(outputType, dirname_out{des}, 'outPrefix', outPrefix, ...
+                      'beta_hat', beta_hat, 'beta_se', beta_se, 'zmat', zmat, ...
+                      'logpmat', logpmat,'sig2tvec',sig2tvec,'sig2mat', ...
+                      sig2mat, 'sig2mat_normalized', sig2mat_normalized, ...
+                      'info', FEMA_wrapper_info, 'colnames_model', colnames_model, ...
+                      'ymat_names', fstem_imaging) % check fstem_imaging makes sense for tabulated 
     end 
     
 end  % LOOP over design matrices

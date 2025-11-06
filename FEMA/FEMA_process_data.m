@@ -1,4 +1,4 @@
-function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, missingness] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
+function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, preg, address, info] = FEMA_process_data(fstem_imaging,dirname_imaging,datatype,varargin)
 %
 % ABCD specific function to load and process imaging data 
 %
@@ -52,9 +52,9 @@ addParameter(p, 'iid', [], allowEmpty(@(x) iscell(x) || ischar(x)));
 addParameter(p, 'eid', [], allowEmpty(@(x) iscell(x) || ischar(x)));
 addParameter(p, 'fname_qc', [], allowEmpty(@(x) ischar(x)));
 addParameter(p, 'qc_var', [], allowEmpty(@(x) ischar(x)));
-addParameter(p, 'ranknorm_wholeSample', false);
-addParameter(p, 'standardize_wholeSample', false);
-addParameter(p, 'wholeSampleTransform', false);
+addParameter(p, 'ranknorm_wholeSample',  false, @(x) isscalar(x) && (islogical(x) || isnumeric(x)));
+addParameter(p, 'standardize_wholeSample', false, @(x) isscalar(x) && (islogical(x) || isnumeric(x)));
+addParameter(p, 'wholeSampleTransform', false, @(x) isscalar(x) && (islogical(x) || isnumeric(x)));
 addParameter(p, 'ico', 5);
 addParameter(p, 'GRM_file', [], allowEmpty(@(x) ischar(x)));
 addParameter(p, 'preg_file', [], allowEmpty(@(x) ischar(x)));
@@ -71,8 +71,8 @@ fname_qc = p.Results.fname_qc;
 qc_var = p.Results.qc_var;
 ico = str2num_amd(p.Results.ico);
 icnum = ico + 1;
-ranknorm_wholeSample = str2num_amd(p.Results.ranknorm_wholeSample);
-standardize_wholeSample = str2num_amd(p.Results.standardize_wholeSample);
+ranknorm_wholeSample = p.Results.ranknorm_wholeSample;
+standardize_wholeSample = p.Results.standardize_wholeSample;
 wholeSampleTransform = p.Results.wholeSampleTransform;
 fname_GRM = p.Results.GRM_file;
 fname_preg = p.Results.preg_file;
@@ -83,6 +83,16 @@ study = p.Results.study;
 release = p.Results.release;
 
 logging(FEMA_info)
+% log overall timing 
+tOverall = tic; 
+
+% save settings 
+info.settings = rmfield(p.Results, {'iid', 'eid'});
+info.settings.iid_filter = ~isempty(iid);
+info.settings.eid_filter = ~isempty(eid);
+% basic info 
+info.FEMA_version       = FEMA_info;
+info.provenance = 'FEMA_process_data'; 
 
 % check if QC file and variable are both provided
 if ~isempty(fname_qc)
@@ -99,7 +109,7 @@ switch datatype
     case 'voxel'
         %Load voxelwise imaging data
 		logging('Reading voxelwise %s imaging data',fstem_imaging);
-		tic
+		tLoadData = tic; 
 		measname = fstem_imaging;
 		dirname_volmats = dirname_imaging;
 	
@@ -144,12 +154,13 @@ switch datatype
         eid_concat = tmp_volinfo.session_id;
         idevent = strcat(iid_concat(:),'_',eid_concat(:));
         corrmat_concat = tmp_volinfo.corrmat;
-        toc 
-
+        
+        info.timing.tLoadData = toc(tLoadData);
+        
 	case 'vertex'
 		% Read in vertexwise imaging data
 		logging('Reading vertexwise %s imaging data',fstem_imaging);
-		tic
+		tLoadData = tic;
 		%	SurfView_loadsurfs; % Shouldn't be neccessary, if data saved out pre-truncated
 		% load('SurfView_surfs.mat'); %this matfile is included in the executable when compiling using -a
         load(fullfile(fileparts(fileparts(which('FEMA_process_data'))), 'showSurf', 'SurfView_surfs.mat'), 'icsurfs');
@@ -227,10 +238,11 @@ switch datatype
         iid_concat = tmp_volinfo.participant_id;
 		eid_concat = tmp_volinfo.session_id;
 		idevent = strcat(iid_concat(:),'_',eid_concat(:));
-		toc
+		info.timing.tLoadData = toc(tLoadData);
 
 	case 'corrmat'
 		logging('Processing corrmat %s data', fstem_imaging);
+		tLoadData = tic;
 		if isstruct(dirname_imaging)
 			tmp = dirname_imaging;
 		else
@@ -281,8 +293,11 @@ switch datatype
 		ivec_mask=[];
 		mask=[];
 
+        info.timing.tLoadData = toc(tLoadData);
+
     case 'roi'
         logging('Reading ROI tabulated data from %s', fstem_imaging);
+        tLoadData = tic;
         fname_roi = fullfile(dirname_imaging, fstem_imaging);
         [dirname_roi, fstem_roi, ext_roi] = fileparts(fname_roi);
         switch ext_roi 
@@ -311,8 +326,10 @@ switch datatype
 	    ivec_mask=[];
 	    mask=[];
 
+        info.timing.tLoadData = toc(tLoadData);
     case 'external'
 	    logging('Reading tabulated imaging data from %s/%s', dirname_imaging, fstem_imaging);
+        tLoadData = tic;
         [~, ~, ext_imaging] = fileparts(dirname_imaging);
         if ~isempty(fstem_imaging)
             switch ext_imaging
@@ -376,31 +393,39 @@ switch datatype
 	    ivec_mask=[];
 	    mask=[];
 
+        info.timing.tLoadData = toc(tLoadData);
     end
+
+    %%%%% back up ymat and lists %%%%%
+    ymat_bak = ymat;
+    iid_concat_bak = iid_concat;
+    eid_concat_bak = eid_concat;
+    idevent_bak = idevent;
 
     %%%%% missingness %%%%%
     % number of nans in ymat  
-    defvecNaN = isfinite(sum(ymat, 2)); 
-    numNaN = length(find(defvecNaN == 0));
-    idNaN = strcat(iid_concat(~defvecNaN), '_', eid_concat(~defvecNaN));
-    missingness.numNaN = numNaN;
-    missingness.idNaN = idNaN; 
+    tMissingNaN = tic;
+    defvec_nan = isfinite(sum(ymat, 2)); 
+    missingness.n_nan = length(find(defvec_nan == 0));
+    missingness.id_nan = idevent(~defvec_nan);
+    info.timing.tMissingNaN = toc(tMissingNaN);
 
     %  how many don't pass threshold on correlation 
     if strcmp(datatype, 'voxel')
+        tCorrVec = tic;
     	corrvec = mean(corrmat_concat,2);
         thresh = corrvec_thresh;
-    	defvec_corrvec = find(corrvec>=thresh);
-        numFailCorr = length(find(defvec_corrvec == 0));
-        idFailCorr = strcat(iid_concat(~defvec_corrvec), '_', eid_concat(~defvec_corrvec));
-        missingness.numCorr = numFailCorr; % number removed dur to poor registration
-        missingness.idCorr = idFailCorr;
+    	defvec_corrvec = corrvec>=thresh;
+        missingness.n_fail_corrvec = length(find(defvec_corrvec == 0));
+        missingness.id_fail_corrvec = idevent(~defvec_corrvec);
+        info.timing.tCorrVec = toc(tCorrVec);
     else
         defvec_corrvec = true(size(ymat, 1), 1);
     end 
-
+    
     % filter on qc if qc file is given 
     if ~isempty(fname_qc)
+        tQC = tic;
         % check file type of fname_qc
         [dirname_qc, fstem_fname_qc, ext_qc] = fileparts(fname_qc);
         switch ext_qc
@@ -439,39 +464,35 @@ switch datatype
         end
         passQC_idevent = strcat(qc_tbl.participant_id, '_', string(qc_tbl.session_id));
         passQC_idevent = passQC_idevent((qc_tbl.(qc_var) == '1'));
-        defvecQC = ismember(idevent, passQC_idevent);
-        idFailQC = idevent(~defvecQC);
-        missingness.numFailQC = sum(~defvecQC);    
-        missingness.idFailQC = idFailQC;
+        defvec_qc = ismember(idevent, passQC_idevent);
+        missingness.n_fail_qc = sum(~defvec_qc);    
+        missingness.id_fail_qc = idevent(~defvec_qc);
+        info.timing.tQC = toc(tQC);
     else 
-        defvecQC = true(size(ymat, 1), 1);
+        defvec_qc = true(size(ymat, 1), 1);
     end 
-
-    % remove nans, fail corrvec, fail qc 
-    defvec =  defvecNaN & defvec_corrvec & defvecQC; 
-    iid_concat = iid_concat(defvec);
-    eid_concat = eid_concat(defvec);
-    idevent = idevent(defvec);
-    ymat = ymat(defvec, :);
-    missingness.numFailAny = sum(~defvec);
-    missingness.idFailAny = idevent(~defvec);
-
+    
     % inverse ranknorm or standardize on qc'd data 
     if ranknorm_wholeSample
-    	logging('Rank-norming Y');
+    	logging('Rank-norming whole sample Y');
+        tRankNormWholeSample = tic;
     	%ymat=rank_based_INT(ymat);
         [ymat settingsTransform] = doTransformation(ymat, 'ranknorm');
+        info.timing.tRankNorm = toc(tRankNormWholeSample);
     end
 
     if standardize_wholeSample
-    	logging('Standardizing Y');
+    	logging('Standardizing whole sample Y');
+        tStandardizeWholeSample = tic;
     	%ymat=normalize(ymat);
         [ymat settingsTransform] = doTransformation(ymat, 'standardize');
+        info.timing.tStandardize = toc(tStandardizeWholeSample);
     end
 
     % filter on iid and eid if given 
     % iid 
     if ~isempty(iid) 
+        tFilterIID = tic;
         if ischar(iid)  
             if isfile(iid) % check if it's a file 
                 [~, ~, ext_iid] = fileparts(iid);
@@ -488,11 +509,15 @@ switch datatype
             end
         end
         defvec_iid = ismember(iid_concat, iid); 
+        missingness.n_rm_iid = sum(~defvec_iid);
+        missingness.id_rm_iid = idevent(~defvec_iid);
+        info.timing.tFilterIID = toc(tFilterIID);
     else 
         defvec_iid = true(size(iid_concat));
     end
     % eid 
     if ~isempty(eid)
+        tFilterEID = tic;
         if ischar(eid)  
             if isfile(eid) % check if it's a file 
                 [~, ~, ext_eid] = fileparts(eid);
@@ -509,65 +534,35 @@ switch datatype
             end
         end
         defvec_eid = ismember(eid_concat, eid); 
+        missingness.n_rm_eid = sum(~defvec_eid);
+        missingness.id_rm_eid = idevent(~defvec_eid);
+        info.timing.tFilterEID = toc(tFilterEID);
     else 
         defvec_eid = true(size(eid_concat));
     end
-
-    % filter on iid and eid if supplied
-    defvec = defvec_iid & defvec_eid;
-    iid_concat = iid_concat(defvec);
-    eid_concat = eid_concat(defvec);
-    idevent = idevent(defvec);
-    ymat = ymat(defvec, :);
-
-    % how many nans in iid- and eid- filtered data
-    % nans in filtered data
-    if ~isempty(eid) || ~isempty(iid)
-        defvecNaN_filtered = defvecNaN(defvec) & defvec_iid & defvec_eid;
-        missingness.numNaN_filtered = sum(~defvecNaN_filtered);
-        missingness.idNaN_filtered = idevent(~defvecNaN_filtered);
-        % fail corrvec in filtered data
-        defvec_corrvec_filtered = defvec_corrvec(defvec) & defvec_iid & defvec_eid;
-        missingness.numFailCorrvec_filtered = sum(~defvec_corrvec_filtered);
-        missingness.idFailCorrvec_filtered = idevent(~defvec_corrvec_filtered);
-        % fail qc in filtered data
-        defvecQC_filtered = defvecQC(defvec) & defvec_iid & defvec_eid;
-        missingness.numFailQC_filtered = sum(~defvecQC_filtered);
-        missingness.idFailQC_filtered = idevent(~defvecQC_filtered);
-        %  fail any in filtered data
-        defvecAny_filtered = defvecNaN(defvec) & defvec_corrvec(defvec) & ...
-                             defvecQC(defvec) & defvec_iid & defvec_eid;
-        missingness.numFailAny_filtered = sum(~defvecAny_filtered);
-        missingness.idFailAny_filtered = idevent(~defvecAny_filtered);
-    end 
-
-    % for roi and external? user input?  
-        %%%%% load GRM %%%%%
+    
+    %%%%% load GRM %%%%%
     if ~isempty(fname_GRM)
-        tic
     	logging('Reading GRM');
+        tGRM = tic;
     	GRM = load(fname_GRM);
         iid_grm = GRM.iid_list; 
         [keep, IA, IB] = intersect(iid_concat, iid_grm, 'stable');
-        defvecGRM = ismember(iid_concat, keep);
-        % missingness
-        missingness.numGRM = sum(~defvecGRM);
-        missingness.idGRM = idevent(~defvecGRM);
-        % filter on GRM
-        iid_concat = iid_concat(defvecGRM);
-        eid_concat = eid_concat(defvecGRM);
-        idevent = idevent(defvecGRM);
-        ymat = ymat(defvecGRM, :);
+        defvec_grm = ismember(iid_concat, keep);
         GRM.GRM = GRM.GRM(IB,IB);
         GRM.iid_list = iid_grm(IB);
-        toc 
+        % missingness
+        missingness.n_fail_grm = sum(~defvec_grm);
+        missingness.id_fail_grm = idevent(~defvec_grm);
+        info.timing.tGRM = toc(tGRM);
     else 
-    	GRM=[];
+    	defvec_grm = true(size(iid_concat));
     end
 
     %%%%% load pregnancy data %%%%%
     if ~isempty(fname_preg)
 	    logging('Reading pregnancy data');
+	    tPreg = tic;
 	    fid = fopen(fname_preg);
 	    varNames = strsplit(fgetl(fid), {' ' '"'});
 	    fclose(fid);
@@ -575,20 +570,46 @@ switch datatype
 	    opts.SelectedVariableNames = [2:5];
 	    preg = readtable(fname_preg, opts);
 	    preg = renamevars(preg,1:width(preg),varNames(2:5));
+	    info.timing.tPreg = toc(tPreg);
     else
-    	preg=[];
+    	defvec_preg = true(size(iid_concat));
+        preg = []; 
     end
 
     %%%%% load home address data %%%%%
     if ~isempty(fname_address)
     	logging('Reading home address data');
+        tAddress = tic;
     	address = readtable(fname_address);
+        info.timing.tAddress = toc(tAddress);
     else
-    	address=[];
+    	defvec_address = true(size(iid_concat));
+        address = [];
     end
 
-    % final sample 
-    fprintf('Final sample size: %d\n', size(ymat, 1));
+    %%%%% filter on all defvecs %%%%%  
+    tFilterAll = tic;
+    defvec = defvec_nan & defvec_corrvec & defvec_qc & ...
+             defvec_iid & defvec_eid & defvec_grm & ...
+             defvec_preg & defvec_address;
+    
+    iid_concat = iid_concat(defvec);
+    eid_concat = eid_concat(defvec);
+    idevent = idevent(defvec);
+    ymat = ymat(defvec, :);
+    info.timing.tFilterAll = toc(tFilterAll);
+
+    % save missingness and final sample size
+    info.missingness = missingness;
+    info.n_obs_ymat = size(ymat, 1);
+    info.n_cols_ymat = size(ymat, 2);
+    
+    % save timing info 
+    info.timing.tOverall = toc(tOverall);
+
+    logging('Final sample for analysis: %d\n', size(ymat, 1));
+	logging('***End***');
+	logging('Elapsed time: %s seconds', info.timing.tOverall);
 end 
 
 
