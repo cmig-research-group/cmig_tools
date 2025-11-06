@@ -1,4 +1,4 @@
-function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missingness] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
+function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, info] = FEMA_intersect_design(designMatrix, ymat, iid_concat, eid_concat, varargin)
     %
     % FEMA_intersect_design intersect imaging data and design matrix - used internally by FEMA_wrapper
     %
@@ -48,6 +48,15 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missingness] = FE
     GRM = p.Results.GRM;
     preg = p.Results.preg;
     address = p.Results.address;
+
+    % info 
+    info.settings.address = ~isempty(address);
+    info.settings.preg = ~isempty(preg);
+    info.settings.GRM = ~isempty(GRM);
+    info.settings.contrasts = contrasts;
+
+    % over timing 
+    tOverall = tic; 
 
     %design matrix must have first four columns: iid, eid, fid, agevec
     % these are NOT used as IVs, which are in columns 5 onwards
@@ -113,13 +122,15 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missingness] = FE
     % how many get dropped from ymat 
     idevent_concat_dropped = setdiff(idevent_concat, idevent);
     idevent_design_dropped = setdiff(idevent_design, idevent);
-    missingness.numDesign = length(idevent_concat_dropped);
-    missingness.idDesign = idevent_concat_dropped;
+    missingness.n_rm_ymat = length(idevent_concat_dropped);
+    missingness.id_rm_ymat = idevent_concat_dropped;
 
     if ~isempty(GRM)
         [keep, IA, IB] = intersect(iid, GRM.iid_list, 'stable');
         GRM.GRM = GRM.GRM(IB, IB);
         GRM.iid_list = keep; 
+        missingness.n_rm_GRM = length(setdiff(GRM.iid_list, keep));
+        missingness.id_rm_GRM = setdiff(GRM.iid_list, keep);
     end
 
     % get final list of pregnancy and address IDs
@@ -142,8 +153,14 @@ function [X, iid, eid, fid, agevec, ymat, GRM, PregID, HomeID, missingness] = FE
         HomeID = [];
     end
 
+    % final info 
+    info.missingness = missingness;
+    info.n_obs = numel(iid);
+    % save timing info 
+    info.timing.tOverall = toc(tOverall);
+
     logging('Final sample for analysis: %d observations', numel(iid));
 	logging('***End***');
-	logging('Elapsed time: %s', datestr(now() - starttime, 'HH:MM:SS'));
+	logging('Elapsed time: %s seconds', info.timing.tOverall);
 
 end

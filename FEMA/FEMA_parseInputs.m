@@ -51,8 +51,8 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     extraArgs{end+1} = 'nperms';
     extraArgs{end+1} = configFile.params.advanced.n_perm;
     % permutation type
-    extraArgs{end+1} = 'permtype';
-    extraArgs{end+1} = configFile.params.advanced.type_perm;
+    extraArgs{end+1} = 'PermType';
+    extraArgs{end+1} = permtype; 
     % covariance 
     extraArgs{end+1} = 'CovType';
     extraArgs{end+1} = configFile.params.advanced.type_cov;
@@ -65,6 +65,13 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     % binning
     extraArgs{end+1} = 'nbins';
     extraArgs{end+1} = configFile.params.advanced.n_bins;
+    % release
+    extraArgs{end+1} = 'release';
+    extraArgs{end+1} = configFile.release;
+    % study
+    extraArgs{end+1} = 'study';
+    extraArgs{end+1} = configFile.study;
+    
 end
 
 function ivnames = get_ivnames(configFile)

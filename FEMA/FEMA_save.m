@@ -1,24 +1,33 @@
-function FEMA_save(outputType, dirOutput, outPrefix, varargin)
+function FEMA_save(outputType, dirOutput, varargin)
 % Function to save different output from FEMA in different format
 
 p = inputParser;
 p.KeepUnmatched = true;
+addRequired(p, 'outName', @(x) iscell(x) || ischar(x));
+addRequired(p, 'dirOutput', @ischar);
 addParameter(p, 'saveDesignMatrix', true, @islogical);
+addParameter(p, 'outPrefix', [], @ischar);
 
 parse(p, varargin{:});
 
-toSave_struct = unMatched;
-toSave_struct_flds = fieldnames(toSave_struct);
-saveDesignMatrix = p.Results.saveDesignMatrix;
 unMatched = p.Unmatched;
+unMatched_flds = fieldnames(unMatched);
+saveDesignMatrix = p.Results.saveDesignMatrix;
+outName = p.Results.outName;
+dirOutput = p.Results.dirOutput;
+if isfield(p.Results, 'outPrefix')
+    outPrefix = p.Results.outPrefix;
+else
+    outPrefix = '';
+end
 % Ensure outputType is specified as lower case
 outputType = lower(outputType);
 
 nii_list = {'.nii', '.nii.gz', 'nifti', 'voxel'}; 
 gii_list = {'.gii', 'gifti', 'vertex'};
 splitLR = true; 
-M_atl     = [0    -1     0   101; 0     0     1  -131; -1     0     0   101; 0     0     0     1];
-M_atl_sub = [0    -2     0   102; 0     0     2  -132; -2     0     0   102; 0     0     0     1];
+M_atl     = [0 -1 0 101; 0 0 1 -131; -1 0 0 101; 0 0 0 1];
+M_atl_sub = [0 -2 0 102; 0 0 2 -132; -2 0 0 102; 0 0 0 1];
     
 % Maybe allow cell type outputType and use if matching to write multiple
 % things in a single call?
@@ -35,9 +44,9 @@ if ismember('.mat', outputType)
                         'FamilyStruct', 'MotherID', 'FatherID', 'HomeID', 'PregID'};
     
     % First: save main (permuted and non-permuted) statistics
-    saveName = fullfile(dirOutput, [outPrefix, '_estimates.mat']);
+    saveName = fullfile(dirOutput, [outName, '_estimates.mat']);
     %toSave   = toSave_estimates(ismember(toSave_estimates, fieldnames(toSave_struct)));
-    toDelete = toSave_struct_flds(~ismember(toSave_struct_flds, toSave_estimates));
+    toDelete = unMatched_flds(~ismember(unMatched_flds, toSave_estimates));
     toSave_struct = rmfield(unMatched, toDelete);
     checkSize = whos('toSave_struct');
     if checkSize.bytes > 2^31
@@ -48,9 +57,9 @@ if ismember('.mat', outputType)
     
     % Second: save filtered design matrix and related variables
     if saveDesignMatrix
-        saveName = fullfile(dirOutput, [outPrefix, '_designMatrix.mat']);
+        saveName = fullfile(dirOutput, [outName, '_designMatrix.mat']);
         toSave   = toSave_design(ismember(toSave_design, fieldnames(toSave_struct)));
-        toDelete = toSave_struct_flds(~ismember(toSave_struct_flds, toSave_design));
+        toDelete = unMatched_flds(~ismember(unMatched_flds, toSave_design));
         toSave_struct = rmfield(unMatched, toDelete);
         checkSize = whos('toSave_struct');
         if checkSize.bytes > 2^31
@@ -62,10 +71,10 @@ if ismember('.mat', outputType)
 end 
 
 if any(ismember(outputType, [nii_list gii_list]))
-    toSave_FFX_NIfTI = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
-    toSave_RFX_NIfTI = {'sig2tvec', 'sig2mat', 'sig2mat_normalised'};
-    toSave_FFX      = toSave_FFX_NIfTI(ismember(toSave_FFX_NIfTI, toSave_struct_flds));
-    toSave_RFX      = toSave_RFX_NIfTI(ismember(toSave_RFX_NIfTI, toSave_struct_flds));
+    toSave_FFX_stats = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
+    toSave_RFX_stats = {'sig2tvec', 'sig2mat', 'sig2mat_normalised'};
+    toSave_FFX      = toSave_FFX_stats(ismember(toSave_FFX_stats, unMatched_flds));
+    toSave_RFX      = toSave_RFX_stats(ismember(toSave_RFX_stats, unMatched_flds));
     
     % Loop over all variables that can be saved, then call writeNIfTI 
     % or writeGIfTI 
@@ -230,10 +239,12 @@ if any(ismember(outputType, [nii_list gii_list]))
 end 
 
 
+if any(ismember(outputType, 'tables'))
+    % do some stuff
+end 
 
-    case {'tables'}
-        % Need to dump regression tables into text/csv files
+if any(ismember(outputType, 'summary'))
+    % do some stuff
+end 
 
-    case {'summary'}
-        % This needs to be a JSON file
 end  
