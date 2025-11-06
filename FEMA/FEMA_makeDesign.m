@@ -346,13 +346,40 @@ if strcmpi('IDs_merge', data_work.Properties.VariableNames)
     IDs_merge = data_work.IDs_merge;
     removevars(data_work, 'IDs_merge');
 else
-    IDs_merge = strcat(data_work.participant_id, {'_'}, data_work.session_id);
+    % Handling the case where session_id is a categorical variable
+    IDs_merge = strcat(data_work.participant_id, {'_'}, cellstr(data_work.session_id));
 end
 
 %% If the user has provided iid_eid, filter data_work
-iid_eid   = strcat(iid, {'_'}, eid);
-[~, ia]   = intersect(IDs_merge, iid_eid);
-data_work = data_work(ia, :);
+% If only iid or only eid provided --> filter on these
+% If both iid and eid provided:
+%   if length(iid) == length(eid) --> concatenate and filter iid_eid
+%   if length(iid) ~= length(eid) --> filter independently and warn the user
+if ~isempty(iid) && ~isempty(eid)
+    if length(iid) == length(eid)
+        iid_eid   = strcat(iid, {'_'}, eid);
+        [~, ia]   = intersect(IDs_merge, iid_eid);
+        data_work = data_work(ia, :);
+    else
+        warning('Length of iid and eid are not the same; filtering separately');
+        [~, ia]   = intersect(data_work.participant_id, iid);
+        data_work = data_work(ia, :);
+
+        [~, ia]   = intersect(data_work.session_id, eid);
+        data_work = data_work(ia, :);
+    end
+else
+    % Filter separately
+    if ~isempty(iid)
+        [~, ia]   = intersect(data_work.participant_id, iid);
+        data_work = data_work(ia, :);
+    end
+
+    if ~isempty(eid)
+        [~, ia]   = intersect(data_work.session_id, eid);
+        data_work = data_work(ia, :);
+    end
+end
 
 %% Determine subject ID
 if isFE
@@ -522,11 +549,11 @@ end
 %% Perform delta computation
 if ~isempty(FFX_deltaTransforms)
     ori_names  = {FFX_deltaTransforms(:).name};
-    [all_cont_variables{count,1}, all_cont_variables{count,2}] = computeDelta(data_work{:,ori_names}, ori_names, data_work.participant_id, data_work.session_id);
+    [all_cont_variables{count,1}, all_cont_variables{count,2}] = computeDelta(data_work{:,ori_names}, ori_names, data_work.iid, data_work.eid);
 
     % Maintain mapping
     names_mapping(count_mapping:count_mapping+length(ori_names)-1, 1) = ori_names;
-    names_mapping(count_mapping:count_mapping+length(ori_names)-1, 2) = all_cont_variables{count,1};
+    names_mapping{count_mapping:count_mapping+length(ori_names)-1, 2} = all_cont_variables{count,1};
     count_mapping = count_mapping + 1;
     count = count + 1;
 end
@@ -585,9 +612,9 @@ if ~isempty(vars_none_transform)
 end
 
 %% Shrink all_cont_variables, if required
-tmp = cellfun(@isempty, all_cont_variables);
+tmp = cellfun(@isempty, all_cont_variables(:,1));
 all_cont_variables(tmp,:) = [];
-    
+
 %% Put all continuous variables together
 if ~isempty(all_cont_variables)
     X_name_continuous = horzcat(all_cont_variables{:,1});
@@ -774,22 +801,22 @@ switch refLevel
         tmp_ref     = setdiff(1:length(tmp_categories), find(ismember(tmp_categories, c{1}), 1));
         expVariable = tmp_dummy(:, tmp_ref);
         colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref))));
+                                             matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref), [], namelengthmax)));
 
     case 'first'
         expVariable = tmp_dummy(:, 2:end);
         colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories(2:end))));
+                                             matlab.lang.makeUniqueStrings(tmp_categories(2:end), [], namelengthmax)));
 
     case 'last'
         expVariable = tmp_dummy(:, 1:end-1);
         colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories(1:end-1))));
+                                             matlab.lang.makeUniqueStrings(tmp_categories(1:end-1), [], namelengthmax)));
 
     case 'none'
         expVariable = tmp_dummy;
         colnames    = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                             matlab.lang.makeUniqueStrings(tmp_categories)));
+                                             matlab.lang.makeUniqueStrings(tmp_categories), [], namelengthmax));
 
     otherwise
         tmp_ref = find(ismember(tmp_categories, refLevel), 1);
@@ -802,7 +829,7 @@ switch refLevel
         end
         expVariable   = tmp_dummy(:, tmp_ref);
         colnames      = strcat(varName, {'_'}, matlab.lang.makeValidName(...
-                                               matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref))));
+                                               matlab.lang.makeUniqueStrings(tmp_categories(tmp_ref), [], namelengthmax)));
 end
 
 % If colnames is a string, convert to cellstr
@@ -811,16 +838,16 @@ if isstring(colnames)
 end
 
 % Return as [1 x n]
-colnames = colnames';
+colnames = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(colnames', [], namelengthmax));
 end
 
 function [outName, outValue] = applyTransforms(data_work, var_names, transformName)
-outName  = strcat(var_names, {'_'}, transformName);
+outName  = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(strcat(var_names, {'_'}, transformName)));
 outValue = doTransformation(data_work{:,var_names}, transformName);
 end
 
 function [outName, outValue] = applyWinsorization(data_work, var_names, lower, upper)
-outName  = strcat(var_names, {'_winsorized'});
+outName  = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(strcat(var_names, {'_winsorized'})));
 outValue = doTransformation(data_work{:,var_names}, 'winsorize', lower, upper);
 end
 
@@ -858,6 +885,7 @@ for v = 1:length(var_names)
     outName(1,count:count+1) = strcat(var_names{v}, {'_baseline', '_delta'});
     count = count + 2;
 end
+outName = matlab.lang.makeValidName(matlab.lang.makeUniqueStrings(outName));
 
 % Loop over every subject in uqSubjects, sort by event ID to find the first
 % real event, then do the diff

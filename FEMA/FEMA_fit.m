@@ -278,8 +278,15 @@ if ~ismember(CovType, {'analytical', 'unstructured'})
 end
 
 % Ensure permType is valid
-if ~ismember(PermType, {'wildbootstrap', 'wildbootstrap-nn'})
-    error(['Unknown resampling scheme specified: ', PermType, '; PermType should be either wildbootstrap or wildbootstrap-nn']);
+if ~isempty(PermType)
+    if strcmpi(PermType, 'none')
+        PermType = [];
+        nperms   = 0;
+    else
+        if ~ismember(PermType, {'wildbootstrap', 'wildbootstrap-nn'})
+            error(['Unknown resampling scheme specified: ', PermType, '; PermType should be either wildbootstrap or wildbootstrap-nn']);
+        end
+    end
 end
 
 % If permutation and unstructured covariance, warn the user
@@ -1159,7 +1166,7 @@ end
 
 zmat    = double(beta_hat) ./ double(beta_se);
 logpmat = -sign(zmat) .* log10(normcdf(-abs(zmat))*2); % Should look for normcdfln function
-
+                 tr       -log10(2 * normcdf(-abs(tStats), 0, 1));
 if ciflag
     sig2mat = cat(3, sig2mat, sig2mat_ci);
 end
