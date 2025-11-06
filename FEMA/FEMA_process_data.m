@@ -42,25 +42,27 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, colnames_imaging, GRM, 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% allow empty inputs to 
+allowEmpty = @(f) @(x) isempty(x) || f(x);
 p = inputParser;
 addRequired(p, 'fstem_imaging', @(x) ischar(x) && ~isempty(x));
 addRequired(p, 'dirname_imaging', @(x) ischar(x) && ~isempty(x));
 addRequired(p, 'datatype', @(x) ischar(x) && ~isempty(x));
-addParameter(p, 'iid', [], @(x) iscell(x) || ischar(x));
-addParameter(p, 'eid', [], @(x) iscell(x) || ischar(x));
-addParameter(p, 'fname_qc', [], @(x) ischar(x));
-addParameter(p, 'qc_var', [], @(x) ischar(x));
+addParameter(p, 'iid', [], allowEmpty(@(x) iscell(x) || ischar(x)));
+addParameter(p, 'eid', [], allowEmpty(@(x) iscell(x) || ischar(x)));
+addParameter(p, 'fname_qc', [], allowEmpty(@(x) ischar(x)));
+addParameter(p, 'qc_var', [], allowEmpty(@(x) ischar(x)));
 addParameter(p, 'ranknorm_wholeSample', false);
 addParameter(p, 'standardize_wholeSample', false);
 addParameter(p, 'wholeSampleTransform', false);
 addParameter(p, 'ico', 5);
-addParameter(p, 'GRM_file', []);
-addParameter(p, 'preg_file', []);
-addParameter(p, 'address_file', []);
+addParameter(p, 'GRM_file', [], allowEmpty(@(x) ischar(x)));
+addParameter(p, 'preg_file', [], allowEmpty(@(x) ischar(x)));
+addParameter(p, 'address_file', [], allowEmpty(@(x) ischar(x)));
 addParameter(p, 'corrvec_thresh', 0.8);
 addParameter(p, 'nframes_min', 375);
-addParameter(p, 'study', [], @(x) ischar(x));
-addParameter(p, 'release', [], @(x) ischar(x));
+addParameter(p, 'study', [], allowEmpty(@(x) ischar(x)));
+addParameter(p, 'release', [], allowEmpty(@(x) ischar(x)));
 
 parse(p, fstem_imaging, dirname_imaging, datatype, varargin{:})
 iid = p.Results.iid;
@@ -80,7 +82,7 @@ nframes_min = p.Results.nframes_min;
 study = p.Results.study;
 release = p.Results.release;
 
-loggin(FEMA_info)
+logging(FEMA_info)
 
 % check if QC file and variable are both provided
 if ~isempty(fname_qc)
@@ -584,6 +586,9 @@ switch datatype
     else
     	address=[];
     end
+
+    % final sample 
+    fprintf('Final sample size: %d\n', size(ymat, 1));
 end 
 
 
