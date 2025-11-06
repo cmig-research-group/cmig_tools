@@ -1,43 +1,44 @@
-function FEMA_save(outputType, dirOutput, outPrefix, saveDesignMatrix, varargin)
+function FEMA_save(outputType, dirOutput, outPrefix, varargin)
 % Function to save different output from FEMA in different format
 
 p = inputParser;
 p.KeepUnmatched = true;
+addParameter(p, 'saveDesignMatrix', true, @islogical);
 
 parse(p, varargin{:});
 
-toSave_struct = p.Unmatched;
+toSave_struct = unMatched;
 toSave_struct_flds = fieldnames(toSave_struct);
-
+saveDesignMatrix = p.Results.saveDesignMatrix;
+unMatched = p.Unmatched;
 % Ensure outputType is specified as lower case
 outputType = lower(outputType);
 
+nii_list = {'.nii', '.nii.gz', 'nifti', 'voxel'}; 
+gii_list = {'.gii', 'gifti', 'vertex'};
+splitLR = true; 
+M_atl     = [0    -1     0   101; 0     0     1  -131; -1     0     0   101; 0     0     0     1];
+M_atl_sub = [0    -2     0   102; 0     0     2  -132; -2     0     0   102; 0     0     0     1];
+    
 % Maybe allow cell type outputType and use if matching to write multiple
 % things in a single call?
-switch(outputType)
-
-    case '.mat'
-
+if ismember('.mat', outputType)
     % All possible things to save for estimates
     toSave_estimates = {'beta_hat', 'beta_se', 'zmat', 'logpmat', 'sig2tvec', 'sig2mat', ...
                         'beta_hat_perm', 'beta_se_perm', 'zmat_perm', 'sig2tvec_perm',   ...
                         'sig2mat_perm', 'logLikvec', 'logLikvec_perm', 'Hessmat',        ...
                         'coeffCovar', 'binvec_save', 'nvec_bins', 'tvec_bins',           ...
-                        'reusableVars', 'contrasts', 'hypValues'};
+                        'residuals_GLS', 'unstructParams', 'contrasts', 'hypValues', 'info', ...
+                        'colnames_model'};
 
-    toSave_design    = {'X', 'fid', 'iid', 'eid', 'agevec', 'FamilyStruct', ...
-                        'MotherID', 'FatherID', 'HomeID', 'PregID'};
-
-    toSave_info  = {'niter', 'contrasts', 'nbins', 'RandomEffects', 'nperms',      ...
-                        'CovType', 'FixedEstType', 'RandomEstType', 'GroupByFamType',  ...
-                        'NonnegFlag', 'SingleOrDouble', 'logLikflag', 'PermType',      ...
-                        'returnReusable', 'doPar', 'numWorkers', 'numThreads', 'hypValues'};
+    toSave_design    = {'designMatrix', 'colnames_model', 'X', 'fid', 'iid', 'eid', 'agevec', ...
+                        'FamilyStruct', 'MotherID', 'FatherID', 'HomeID', 'PregID'};
     
     % First: save main (permuted and non-permuted) statistics
     saveName = fullfile(dirOutput, [outPrefix, '_estimates.mat']);
     %toSave   = toSave_estimates(ismember(toSave_estimates, fieldnames(toSave_struct)));
     toDelete = toSave_struct_flds(~ismember(toSave_struct_flds, toSave_estimates));
-    toSave_struct = rmfield(p.Unmatched, toDelete);
+    toSave_struct = rmfield(unMatched, toDelete);
     checkSize = whos('toSave_struct');
     if checkSize.bytes > 2^31
         save(saveName,  '-struct', 'toSave_struct', '-v7.3');
@@ -48,9 +49,9 @@ switch(outputType)
     % Second: save filtered design matrix and related variables
     if saveDesignMatrix
         saveName = fullfile(dirOutput, [outPrefix, '_designMatrix.mat']);
-        %toSave   = toSave_design(ismember(toSave_design, fieldnames(toSave_struct)));
+        toSave   = toSave_design(ismember(toSave_design, fieldnames(toSave_struct)));
         toDelete = toSave_struct_flds(~ismember(toSave_struct_flds, toSave_design));
-        toSave_struct = rmfield(p.Unmatched, toDelete);
+        toSave_struct = rmfield(unMatched, toDelete);
         checkSize = whos('toSave_struct');
         if checkSize.bytes > 2^31
             save(saveName,  '-struct', 'toSave_struct', '-v7.3');
@@ -58,180 +59,181 @@ switch(outputType)
             save(saveName,  '-struct', 'toSave_struct');
         end
     end
+end 
+
+if any(ismember(outputType, [nii_list gii_list]))
+    toSave_FFX_NIfTI = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
+    toSave_RFX_NIfTI = {'sig2tvec', 'sig2mat', 'sig2mat_normalised'};
+    toSave_FFX      = toSave_FFX_NIfTI(ismember(toSave_FFX_NIfTI, toSave_struct_flds));
+    toSave_RFX      = toSave_RFX_NIfTI(ismember(toSave_RFX_NIfTI, toSave_struct_flds));
     
-    % Third: save info (this does not require v7.3 check)
-    saveName = fullfile(dirOutput, [outPrefix, '_info.mat']);
-    %toSave   = toSave_info(ismember(toSave_info, {tmpInfo(:).name}));
-    toDelete = toSave_struct_flds(~ismember(toSave_struct_flds, toSave_info));
-    toSave_struct = rmfield(p.Unmatched, toDelete);
-    save(saveName,  '-struct', 'toSave_struct');
-
-
-    case {'.nii', '.nii.gz', 'nifti', 'voxel'}
-        % Need to additionally save JSON colnames
-        % Bring in the updated file naming convention
-        toSave_NIfTI = {'beta_hat', 'beta_se', 'zmat', 'logpmat', 'sig2tvec', 'sig2mat', ...
-                        'beta_hat_perm', 'beta_se_perm', 'zmat_perm', 'sig2tvec_perm',   ...
-                        'sig2mat_perm'};
-        toSave       = toSave_NIfTI(ismember(toSave_NIfTI, toSave_struct_flds));
-        mask = p.Unmatched.mask;
-        % Loop over all variables that can be saved, call them a generic
-        % variable, expand to mask (need to ensure this is passed in), and
-        % then call writeNIfTI (need to allow non structure character
-        % input to writeNIfTI): maybe make a different writeNIfTI that only
-        % takes data, output directory and name as inputs?
-        for ff = 1:length(toSave)
-            % Assign to generic variable
-            workVar = p.Unmatched.(toSave{ff});
-
-            M_atl     = [0    -1     0   101; 0     0     1  -131; -1     0     0   101; 0     0     0     1];
-            M_atl_sub = [0    -2     0   102; 0     0     2  -132; -2     0     0   102; 0     0     0     1];
-            % Assign values and call writeNIfTI
-            for j = 1:length(p.Unmatched.colsinterest)
-                jj = p.Unmatched.colsinterest(j);
-                volData = single(fullvol(workVar(jj,:), mask));
-                saveName = fullfile(dirOutput, [outPrefix, '_', toSave{ff}, '_', num2str(jj, '%03d'), '_', p.Unmatched.vars_of_interest{j}, '.nii.gz']);
-                niftiwrite_amd(volData, saveName, M_atl_sub, true);
-            end
+    % Loop over all variables that can be saved, then call writeNIfTI 
+    % or writeGIfTI 
+    for ff = 1:length(toSave_FFX)
+        outPrefix = [outName '_FFX'];
+        statName = toSave_FFX{ff}; 
+        switch statName
+            case 'beta_hat'
+                dispName = 'Beta'; 
+            case 'beta_se'
+                dispName = 'Standard Error';
+            case 'zmat'
+                dispName = 'T statistics';
+            case 'logpmat'
+                dispName = 'Signed -log10(p)';
         end
+        workVar = unMatched.(toSave_FFX{ff});
 
-    case {'.gii', 'gifti', 'vertex'}
-        % Need to call writeGIfTI
-            % Need to additionally save JSON colnames
-        % Bring in the updated file naming convention
-        toSave_GIfTI = {'beta_hat', 'beta_se', 'zmat', 'logpmat', 'sig2tvec', 'sig2mat', ...
-                        'beta_hat_perm', 'beta_se_perm', 'zmat_perm', 'sig2tvec_perm',   ...
-                        'sig2mat_perm'};
-        toSave       = toSave_GIfTI(ismember(toSave_GIfTI, toSave_struct_flds));
-        % Loop over all variables that can be saved, call them a generic
-        % variable, expand to mask (need to ensure this is passed in), and
-        % then call writeNIfTI (need to allow non structure character
-        % input to writeNIfTI): maybe make a different writeNIfTI that only
-        % takes data, output directory and name as inputs?
-        for ff = 1:length(toSave)
-            % Assign to generic variable
-            workVar = p.Unmatched.(toSave{ff});
-            surfData = single(workVar(p.Unmatched.colsinterest,:));
-            basename = [outPrefix, '_', toSave{ff}];
-            colnames_gii = strcat(num2str(p.Unmatched.colsinterest, '%03d'), {'_'}, p.Unmatched.vars_of_interest);
-            % Assign values and call writeGIfTI
-            for j = 1:length(p.Unmatched.colsinterest)
-                jj = p.Unmatched.colsinterest(j);
-                saveName = fullfile(dirOutput, [outPrefix, '_', toSave{ff}, '_', num2str(jj), '_', p.Unmatched.vars_of_interest{j}, '.gii.gz']);
-                writeGIfTI(surfData, [], outDir, basename, colnames_gii);
-            end
+        % Assign values 
+        if ~isfield(unMatched, 'colsinterest')
+            unMatched.colsinterest = 1:size(workVar,1);
+        end 
+        for j = 1:length(unMatched.colsinterest)
+            jj = unMatched.colsinterest(j);
+            
+            if ~isfield(unMatched, 'vars_of_interest')
+                unMatched.vars_of_interest{j} = ['var', num2str(jj)];
+            end 
+
+            if any(ismember(outputType, nii_list))
+                mask = unMatched.mask;
+                saveName_tmp = [outPrefix, '_', toSave_FFX{ff}, '_col', num2str(jj, '%03d'), '_', unMatched.    vars_of_interest{j}, '.nii.gz'];
+                saveName = fullfile(dirOutput, saveName_tmp);
+                saveData = fullvol(workVar(jj,:), mask);
+                niftiwrite_amd(saveData, saveName, M_atl_sub, true);
+            else
+                saveName_tmp = [outPrefix, '_', toSave_FFX{ff}, '_col', num2str(jj, '%03d'), '_', unMatched.    vars_of_interest{j}, '.gii.gz'];
+                saveName = fullfile(dirOutput, saveName_tmp);
+                saveData = workVar(jj,:);
+                writeGIfTI(saveData, [], saveName, [], [], splitLR);
+            end 
+            json.fixed(j).name = unMatched.vars_of_interest{j}; 
+            json.fixed(j).params.(toSave_FFX{ff}).file_name = saveName_tmp; 
+            json.fixed(j).params.(toSave_FFX{ff}).display_name = dispName;
         end
+    end    
+    for ff=1:length(toSave_RFX)
+        outPrefix = 'RFX';
+        if strcmp(toSave_RFX{ff}, 'sig2tvec') 
+            workVar = unMatched.(toSave_RFX{ff});
+            if any(ismember(outputType, nii_list))
+                mask = unMatched.mask;
+                saveData = fullvol(workVar, mask);
+                saveName_tmp = [outPrefix, '_TotVar.nii.gz'];
+                saveName = fullfile(dirOutput, saveName_tmp);
+                niftiwrite_amd(saveData, saveName, M_atl_sub, true);
+            else 
+                saveData = workVar;
+                saveName_tmp = [outPrefix, '_TotVar.gii.gz'];
+                saveName = fullfile(dirOutput, saveName_tmp);
+                writeGIfTI(saveData, [], saveName, [], [], splitLR);
+            end 
+            json.random.total_var.file_name = saveName_tmp;
+            json.random.total_var.display_name = 'Total Variance';
+        elseif  strcmp(toSave_RFX{ff}, 'sig2mat')|| strcmp(toSave_RFX{ff}, 'sig2mat_normalised')
+            workVar = unMatched.(toSave_RFX{ff});
+            dim_workVar = size(workVar);
+            if length(dim_workVar) > 2
+                for rr = 1:dim_workVar(3)
+                    if ~isfield(unMatched, 'RandomEffects')
+                        json.random.sig2mat(rr).name = ['Random Effect ', num2str(rr)];
+                    else
+                        json.random.sig2mat(rr).name = unMatched.RandomEffects{rr};
+                    end
+                    count_var = 1; 
+                    count_corr = 1;
+                    for i1 = 1:dim_workVar(2)
+                        for i2 = 1:i1                            
+                            if i1 == i2
+                                if isnumeric(unMatched.eidOrd)
+                                    eidOrd = num2str(unMatched.eidOrd(i1));
+                                else 
+                                    eidOrd = unMatched.eidOrd{i1};
+                                end 
+                                volName = ['Var_', eidOrd];   
+                                if any(ismember(outputType, nii_list))
+                                    saveName_tmp = [outPrefix, '_', volName, '.nii.gz'];
+                                    saveName = fullfile(dirOutput, saveName_tmp);
+                                    mask = unMatched.mask;
+                                    vecData = squeeze(workVar(i1,i2,rr,:));
+                                    saveData = fullvol(vecData, mask);
+                                    niftiwrite_amd(saveData, saveName, M_atl_sub, true);           
+                                else
+                                    saveName_tmp = [outPrefix, '_', volName, '.gii.gz'];
+                                    saveName = fullfile(dirOutput, saveName_tmp);
+                                    saveData = squeeze(workVar(i1,i2,rr,:));                        
+                                    writeGIfTI(saveData, [], saveName, [], [], splitLR);
+                                end
+                                json.random.sig2mat(rr).variance(count_var).display_name = volName;
+                                json.random.sig2mat(rr).variance(count_var).file_name = saveName_tmp;
+                                count_var = count_var + 1;
+                            else
+                                if isnumeric(unMatched.eidOrd)
+                                    eidOrd1 = num2str(unMatched.eidOrd(i1));
+                                    eidOrd2 = num2str(unMatched.eidOrd(i2));
+                                else
+                                    eidOrd1 = unMatched.eidOrd{i1};
+                                    eidOrd2 = unMatched.eidOrd{i2};
+                                end
+                                volName = ['Corr_', eidOrd2, '-', eidOrd1];  
+                                if any(ismember(outputType, nii_list)) 
+                                    saveName_tmp = [outPrefix, '_', volName, '.nii.gz']; 
+                                    saveName = fullfile(dirOutput, saveName_tmp);
+                                    mask = unMatched.mask;
+                                    vecData = squeeze(workVar(i1,i2,rr,:));
+                                    saveData = fullvol(vecData, mask);
+                                    niftiwrite_amd(saveData, saveName, M_atl_sub, true);                                 
+                                else
+                                    saveName_tmp = [outPrefix, '_', volName, '.gii.gz'];
+                                    saveName = fullfile(dirOutput, saveName_tmp);  
+                                    saveData = squeeze(workVar(i1,i2,rr,:));                        
+                                    writeGIfTI(saveData, [], saveName, [], [], splitLR);
+                                end
+                                json.random.sig2mat(rr).correlation(count_corr).display_name = volName;
+                                json.random.sig2mat(rr).correlation(count_corr).file_name = saveName_tmp;
+                                count_corr = count_corr + 1;
+                            end  
+                        end
+                    end
+                end
+            else
+                for rr = 1:dim_workVar(1)
+                    if ~isfield(unMatched, 'RandomEffects')
+                        json.random.sig2mat(rr).name = ['RFX_', num2str(rr, '%02d')];
+                    else
+                        json.random.sig2mat(rr).name = unMatched.RandomEffects{rr};
+                    end
+                    volName = ['Var'];
+                    json.random.sig2mat(rr).variance.display_name = volName;
+                    if any(ismember(outputType, nii_list))
+                        vecData = workVar(rr,:);
+                        saveData = fullvol(vecData, mask);
+                        saveName_tmp = [outPrefix, '_', volName, '.nii.gz']; 
+                        saveName = fullfile(dirOutput, saveName_tmp);
+                        niftiwrite_amd(saveData, saveName, M_atl_sub, true);
+                    else 
+                        saveName_tmp = [outPrefix, '_', volName, '.gii.gz'];
+                        saveName = fullfile(dirOutput, saveName_tmp);  
+                        saveData = workVar(rr,:);                        
+                        writeGIfTI(saveData, [], saveName, [], [], splitLR);
+                    end
+                    json.random.sig2mat(rr).variance.file_name = saveName_tmp;
+                end
+            end
+        end 
+    end
+    fname_json = fullfile(dirOutput, 'FEMA_NIfTI_mapping.json');
+    tmp = jsonencode(json, PrettyPrint=true); 
+    fid = fopen(fname_json, 'w');
+    fprintf(fid, tmp);
+    fclose(fid);
+end 
+
+
 
     case {'tables'}
         % Need to dump regression tables into text/csv files
 
     case {'summary'}
         % This needs to be a JSON file
-
-
-    %write column names to json for DEAP
-    fname_col = sprintf('%s/FEMA_results_colnames.json',dirname_out{des});
-    out = struct('colnames_model',{colnames_model},'RandomEffects',{RandomEffects});
-    jsonStr = jsonencode(out);
-    fid = fopen(fname_col,'w');
-    fprintf(fid,'%s\n',jsonStr);
-    fclose(fid);
-
-
-        % =========================================================================
-        % Write VERTEX results
-        % =========================================================================
-%    elseif strcmpi(datatype, 'vertex')
-%
-%        if contains(outputFormat,'mat')
-%
-%            if nperms>0 & tfce==0
-%                save(fpath_out,base_variables_to_save{:},'zmat_perm','beta_hat_perm','colnames_interest','colsinterest',%'-v7.3');
-%            elseif nperms>0 & tfce==1
-%                save(fpath_out,base_variables_to_save{:},'zmat_perm','beta_hat_perm','tfce_perm','colnames_interest',%'colsinterest','-v7.3');
-%            elseif nperms==0
-%                save(fpath_out,base_variables_to_save{:},'-v7.3');
-%            end
-%
-%            logging('Results written to %s',fpath_out);
-%        end
-%
-%        if contains(outputFormat, 'nifti') %FIXME: these are much smaller, so haven't added the same optimization as %for voxelwise
-%
-%            randomFields = {'sig2tvec', 'sig2mat'};
-%
-%            results = struct('beta_hat',beta_hat,'beta_se',beta_se,'zmat',zmat,'logpmat',logpmat,'sig2tvec',sig2tvec,%'sig2mat',sig2mat);
-%            % Write out in FreeSurfer curv format, with naming consistent with volumes
-%            fieldnamelist = setdiff(fieldnames(results),randomFields);
-%            icnum = ico+1;
-%            load(fullfile(fileparts(fileparts(which('FEMA_wrapper'))), 'showSurf', 'SurfView_surfs.mat'), 'icsurfs');
-%            % load('~/matlab/cache/SurfView_surfs.mat'); % this does not include white
-%            S = struct;
-%            S.nverts = 2*size(icsurfs{icnum}.vertices,1);
-%            S.nfaces = 2*size(icsurfs{icnum}.faces,1);
-%            S.faces = cat(1,icsurfs{icnum}.faces,icsurfs{icnum}.faces+size(icsurfs{icnum}.vertices,1));
-%            % parse IVs
-%            if isempty(ivnames)
-%                excludeCol = strmatch('mri_info_',colnames_model);
-%                nCol = length(colnames_model);
-%                ivCol = setdiff(1:nCol, excludeCol);
-%            else
-%                [~,ivCol,~] = intersect(colnames_model,ivnames);
-%            end
-%            if length(ivCol) < 1, error('No IVs found! Not writing nifti.'), end
-%            % write out the fixed effects
-%            for fi = 1:length(fieldnamelist)
-%                fieldname = fieldnamelist{fi};
-%                vol_nifti = results.(fieldname);
-%                for iv = ivCol(:)'
-%                    colname = sprintf('FE%02d',iv);
-%                    valvec = vol_nifti(iv,:);
-%                    fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,%fieldname,colname);
-%                    fs_write_curv(fname_out,valvec,S.nfaces);
-%                    fprintf(1,'file %s written\n',fname_out);
-%                end
-%            end
-%            % write out the random effects
-%            fieldnamelist = randomFields;
-%            for fi = 1:length(fieldnamelist)
-%                fieldname = fieldnamelist{fi};
-%                vol_nifti = results.(fieldname);
-%                for iv = 1:size(vol_nifti,4)
-%                    colname = sprintf('RE%02d',iv);
-%                    valvec = vol_nifti(iv,:);
-%                    fname_out = sprintf('%s/FEMA_results_vertexwise_%s_%s_%s.fsvals',dirname_out{1},fstem_imaging,%fieldname,colname);
-%                    fs_write_curv(fname_out,valvec,S.nfaces);
-%                    fprintf(1,'file %s written\n',fname_out);
-%                end
-%            end
-%
-%        end
-%
-%    elseif strcmpi(datatype, 'corrmat')
-%
-%        if 0
-%            figure; im = reshape(beta_hat(1,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap%(blueblackred); axis equal tight;
-%            figure; im = reshape(beta_hat(2,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap%(blueblackred); axis equal tight;
-%            figure; im = reshape(zmat(1,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); %axis equal tight;
-%            figure; im = reshape(zmat(2,:),dims(2:end)); imagesc(im,max(abs(im(:)))*[-1 1]); colormap(blueblackred); %axis equal tight;
-%        end
-%        %beta_hat = reshape(beta_hat,[size(beta_hat,1) dims(2:end)]);
-%        %beta_se = reshape(beta_se,[size(beta_hat,1) dims(2:end)]);
-%        %zmat = reshape(zmat,[size(beta_hat,1) dims(2:end)]);
-%        %logpmat = reshape(logpmat,[size(beta_hat,1) dims(2:end)]);
-%        %sig2tvec = reshape(sig2tvec,[size(sig2tvec,1) dims(2:end)]);
-%        %sig2mat = reshape(sig2mat,[size(sig2mat,1) dims(2:end)]);
-%
-%        if nperms>0
-%            save(fpath_out,base_variables_to_save{:},'colnames_imaging','zmat_perm','beta_hat_perm','colnames_interest',%'colsinterest','-v7.3');
-%        else
-%            save(fpath_out,base_variables_to_save{:},'colnames_imaging','-v7.3');
-%        end
-%        logging('Results written to %s',fpath_out);
-%
-%    end
-%
-%    if ~isempty(fpath_out)
-%        fpaths_out = cat(2,fpaths_out,fpath_out);
-%    end
-end
+end  

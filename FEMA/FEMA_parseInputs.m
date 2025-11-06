@@ -27,7 +27,7 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     extraArgs = {};
     % outPrefix
     extraArgs{end+1} = 'outPrefix';
-    extraArgs{end+1} = configFile.params.id;
+    extraArgs{end+1} = configFile.id;
     % transformY 
     if isfield(configFile.params.dependent, 'transform') 
         extraArgs{end+1} = 'transformY';
@@ -60,7 +60,7 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     extraArgs{end+1} = 'FixedEstType';
     extraArgs{end+1} = upper(configFile.params.advanced.type_fixed_est);
     % precision
-    extraArgs{end+1} = 'SingleOrDouble';
+    extraArgs{end+1} = 'precision';
     extraArgs{end+1} = configFile.params.advanced.precision;
     % binning
     extraArgs{end+1} = 'nbins';
