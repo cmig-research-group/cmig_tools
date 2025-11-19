@@ -25,8 +25,8 @@ jobs:
           personal_token: ${{ secrets.GH_CMIG_TOKEN }} # this token need to access both source and destination repo
           src_path: /.
           dst_path: /
-          # to add more exclude patterns, use | to separate, e.g "'*+(github/workflows/|admin/|abc.txt)*'"
-          exclude: "'*+(github/workflows/)*'"
+          # to add more exclude patterns, use | to separate, e.g "'*+(.github/workflows/|admin/|abc.txt)*'"
+          exclude: "'*+(.github/workflows/)*'"
           dst_owner: cmig-research-group
           dst_repo_name: cmig_tools
           dst_branch: ${{ github.ref_name }}
