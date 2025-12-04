@@ -1,0 +1,12 @@
+# Placeholder for CI workflow - will be implemented in development branch
+name: Continuous CMIG Tools Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  matlab-ci:
+    runs-on: self-hosted
+    if: false
+    steps:
+      - run: echo "Placeholder workflow"
