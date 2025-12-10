@@ -1,10 +1,21 @@
 function vol_out = subsample_volume(vol_in,ds1,ds2,ds3)
 
-if ~exist('ds1','var'), ds1 = 2; end
-if ~exist('ds2','var'), ds2 = 2; end
-if ~exist('ds3','var'), ds3 = 2; end
+fprintf(1,'subsample_volume()\n');
+whos
+
+if exist('ds1','var') && exist('ds2','var') && exist('ds3','var')
+  disp([ds1 ds2 ds3])
+end
+
+if ~exist('ds1','var') || isempty(ds1), ds1 = 2; end
+if ~exist('ds2','var') || isempty(ds2), ds2 = 2; end
+if ~exist('ds3','var') || isempty(ds3), ds3 = 2; end
+
+disp([ds1 ds2 ds3])
 
 ssfacts = [ds1 ds2 ds3];
+
+fprintf(1,'ssfacts = [%s]\n',num2str(ssfacts,'%d '));
 
 if isstruct(vol_in)
   if ~all(ssfacts==1)
@@ -15,9 +26,17 @@ if isstruct(vol_in)
     M_out(1:3,4) =  M_out(1:3,4) - (r0_out(1:3)-r0_in(1:3)); % Adjust M_out to make coordinate of first voxel consistent
     vol_out = ctx_mgh2ctx(tmp_out,M_out);
   else % No subsampling needed
+    fprintf(1,'No subsampling needed\n');
     vol_out = vol_in;
   end
 else
   vol_out = vol_in(1:ssfacts(1):end,1:ssfacts(2):end,1:ssfacts(3):end,:);
 end
 
+if isstruct(vol_out)
+  disp(vol_in)
+  disp(vol_out)
+else
+  disp(size(vol_in));
+  disp(size(vol_out));
+end
