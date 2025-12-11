@@ -25,6 +25,8 @@ function [ res, out, err ] = jsystem( cmd, shell, dir )
 %   will be prefixed to the PATH enviroment variable of the process running
 %   the command. Example: global jsystem_path; jsystem_path = {'/foo', '/bar/baz'};
 
+% https://github.com/avivrosenberg/matlab-jsystem
+
 %% Platform-specific initialization
 if (ispc)
     DEFAULT_SHELL = 'cmd.exe /c';
