@@ -3,15 +3,15 @@ function vol_out = subsample_volume(vol_in,ds1,ds2,ds3)
 fprintf(1,'subsample_volume()\n');
 whos
 
-if exist('ds1','var') && exist('ds2','var') && exist('ds3','var')
-  disp([ds1 ds2 ds3])
-end
+%if exist('ds1','var') && exist('ds2','var') && exist('ds3','var')
+%  disp([ds1 ds2 ds3])
+%end
 
 if ~exist('ds1','var') || isempty(ds1), ds1 = 2; end
 if ~exist('ds2','var') || isempty(ds2), ds2 = 2; end
 if ~exist('ds3','var') || isempty(ds3), ds3 = 2; end
 
-disp([ds1 ds2 ds3])
+%disp([ds1 ds2 ds3])
 
 ssfacts = [ds1 ds2 ds3];
 
@@ -33,10 +33,10 @@ else
   vol_out = vol_in(1:ssfacts(1):end,1:ssfacts(2):end,1:ssfacts(3):end,:);
 end
 
-if isstruct(vol_out)
-  disp(vol_in)
-  disp(vol_out)
-else
-  disp(size(vol_in));
-  disp(size(vol_out));
-end
+%if isstruct(vol_out)
+%  disp(vol_in)
+%  disp(vol_out)
+%else
+%  disp(size(vol_in));
+%  disp(size(vol_out));
+%end
