@@ -1,7 +1,7 @@
 function vol_out = subsample_volume(vol_in,ds1,ds2,ds3)
 
-fprintf(1,'subsample_volume()\n');
-whos
+%fprintf(1,'subsample_volume()\n');
+%whos
 
 %if exist('ds1','var') && exist('ds2','var') && exist('ds3','var')
 %  disp([ds1 ds2 ds3])
@@ -15,7 +15,7 @@ if ~exist('ds3','var') || isempty(ds3), ds3 = 2; end
 
 ssfacts = [ds1 ds2 ds3];
 
-fprintf(1,'ssfacts = [%s]\n',num2str(ssfacts,'%d '));
+%fprintf(1,'ssfacts = [%s]\n',num2str(ssfacts,'%d '));
 
 if isstruct(vol_in)
   if ~all(ssfacts==1)
