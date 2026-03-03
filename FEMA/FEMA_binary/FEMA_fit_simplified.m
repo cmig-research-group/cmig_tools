@@ -20,25 +20,22 @@ subvec1     = FamilyStruct.subvec1;
 subvec2     = FamilyStruct.subvec2;
 
 
-LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ mean(ymat_res.^2,1); % use normalized residuals
-% LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:);
-sig2mat  = NaN(size(Ss,2), size(ymat_res, 2));
-theta_cov = cell(size(ymat_res, 2));
+% LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ mean(ymat_res.^2,1); % use normalized residuals
+LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:);
+sig2mat  = NaN(size(Ss,2));
 
 % heterogeneity variance is considered, showed as E ~ N(0, diag(W)^{-1}).
 M           = FamilyStruct.M;
 subvec_e    = find(M(:,end)); % diagonal position of variance matrix for y 
-LHS(subvec_e,:)  = LHS(subvec_e,:) - M(subvec_e,end) .*  W_1 / sig2tvec;
+LHS(subvec_e,:)  = LHS(subvec_e,:) - M(subvec_e,end) .*  W_1;
  
-% no loop
-for coli=1:size(ymat_res, 2)
 
-    % Use new version of lsqnonneg_amd to enfoce non-negative variances
-    sig2mat_tmp     = lsqnonneg_amd3(M(:,1:end-1),LHS(:,coli));
-    sig2mat(:,coli) = [sig2mat_tmp ; 1/sig2tvec] * sig2tvec;
+% Use new version of lsqnonneg_amd to enfoce non-negative variances
+sig2mat_tmp     = lsqnonneg_amd3(M(:,1:end-1),LHS);
+% sig2mat = [sig2mat_tmp ; 1/sig2tvec] * sig2tvec;
+sig2mat = [sig2mat_tmp ; 1];
 
 
-end
 
 %% Using maximum likelihood solution
 % if MLflag % Phenotypes should be pre-normalized! -- now, scale is all over the place
