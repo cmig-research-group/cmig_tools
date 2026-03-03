@@ -39,7 +39,7 @@ betaLow     = -0.2;
 betaHigh    = 0.2;
 
 %% Data generation
-rng(20260131, 'twister'); %0128
+rng(20260301, 'twister'); %0128
 
 allSeeds = randi(999999, size(gridVals,1), nRepeats);
 
@@ -145,7 +145,7 @@ end
 
 
 
-% Iterate through the folder
+%% Iterate through the folder
 
 if isempty(gcp('nocreate'))
     parpool('local');
@@ -168,13 +168,13 @@ for M = [5, 10, 20]
         
         
 
-        parfor  r = 1:nRepeats
+        for  r = 1:nRepeats
 
             beta = zeros(nsamples, nXvars);
             beta_hat_sum = zeros(nsamples, nXvars);
             sig2mat_sum = zeros(nsamples, length(RandomEffects));
 
-            for i = 1:nsamples
+            parfor i = 1:nsamples
 
                 DatDir = fullfile(saveDir, sprintf("N%d_M%d_V%d",[N,M,V]));
                 fileName = fullfile(DatDir, sprintf('dat_%d-%d.mat',[r,i]));
@@ -196,13 +196,14 @@ for M = [5, 10, 20]
                  sig2tvec,      sig2mat,        ~,           ~,                    ...
                  beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,        ...
                  sig2mat_perm,             ~,              ~,           ~] =                               ...
-                        FEMA_fit_binary(X, iid, eid, fid, agevec, y_binary, niter, ones(1,nXvars),    ...
+                        FEMA_fit_binary(X(:,2:end), iid, eid, fid, agevec, y_binary, niter, ones(1,nXvars),    ...
                                       [], 'RandomEffects', {'S','E'}, 'returnReusable', true,           ...
                                 'RandomEstType','MoM');
             
                 beta(i,:) = loadDat.data.beta';
                 beta_hat_sum(i,:) = beta_hat;
                 sig2mat_sum(i,:) = sig2mat;
+
 
             end
 
