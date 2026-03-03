@@ -122,7 +122,8 @@ addParamValue(p,'FamilyStruct',{}); % Avoids recomputing family strucutre et al
 addParamValue(p,'returnReusable',false); % Additionally returns a few useful variables
 addParamValue(p,'synthstruct',''); % True / synthesized random effects
 addParamValue(p,'MaxIter',200); % Maximum iteration numbers
-addParamValue(p,'tol',1e-4); % tolerance set for both fixed and random effects - Line 448   
+addParamValue(p,'tol',1e-4); % tolerance set for both fixed and random effects - Line 448
+addParamValue(p,"AddIntercept",true); % default add intercept
 
 parse(p,varargin{:})
 
@@ -144,6 +145,7 @@ returnReusable       = p.Results.returnReusable;
 synthstruct          = p.Results.synthstruct;
 MaxIter              = p.Results.MaxIter;
 tol                  = p.Results.tol;
+AddIntercept         = p.Results.AddIntercept;
 
 % Grouping by family type is only supported for RandomEffects 'F' 'S' 'E'
 if ~isempty(setdiff(RandomEffects,{'F' 'S' 'E'}))
@@ -186,13 +188,13 @@ end
 
 % permutation initialization
 if nperms>0
-    beta_hat_perm = zeros(size(X,2),size(ymat,2),nperms);
-    beta_se_perm = zeros(size(X,2),size(ymat,2),nperms);
-    zmat_perm = zeros(size(X,2),size(ymat,2),nperms);
-    sig2tvec_perm = zeros(size(X,2),size(ymat,2),nperms);
-    sig2mat_perm = zeros(length(RandomEffects), size(ymat,2), nperms);
+    beta_hat_perm = zeros(size(X,2),nperms);
+    beta_se_perm = zeros(size(X,2),nperms);
+    zmat_perm = zeros(size(X,2),nperms);
+    sig2tvec_perm = zeros(1,nperms);
+    sig2mat_perm = zeros(length(RandomEffects),nperms);
     if logLikflag
-        logLikvec_perm = zeros(size(X,2),size(ymat,2),nperms);
+        logLikvec_perm = zeros(1,nperms);
     else
         logLikvec_perm = [];
     end
@@ -353,6 +355,12 @@ end
 % Randombeta                              = cell(1, size(ymat,2));
 
 
+if AddIntercept
+    if ~all(X(:,1)==1)
+        X = [ones(nobs,1), X];
+    end
+end
+
 for permi = 0:nperms
     if permi == 0
         ymat_current = ymat;
@@ -378,14 +386,14 @@ for permi = 0:nperms
         Hessmat = [];
     end
     
-    beta_hat_current = zeros(size(X,2), size(ymat_current,2), class(ymat_current));
+    beta_hat_current = zeros(size(X,2), 1, class(ymat_current));
     [beta_se_current, zmat_current] = deal(zeros(size(beta_hat_current), class(ymat_current)));
-    [betacon_hat_current, betacon_se_current] = deal(zeros(size(contrasts,1), size(ymat_current,2), class(ymat_current)));
+    % [betacon_hat_current, betacon_se_current] = deal(zeros(size(contrasts,1), 1, class(ymat_current)));
     
     %% Initialization
     % record should be deleted after
-    % beta_record = zeros(MaxIter , size(X,2)); % used for convergence check
-    % sigmat_record = zeros(MaxIter, length(RandomEffects));
+    beta_record = zeros(MaxIter , size(X,2)); % used for convergence check
+    sigmat_record = zeros(MaxIter, length(RandomEffects));
     deviance_record = zeros(MaxIter, 1);
 
     iter = 1;
@@ -422,7 +430,7 @@ for permi = 0:nperms
                                 "FamilyStruct", FamilyStruct, "NonnegFlag", NonnegFlag);
         
             % GLS updating fixed effects estimates
-            [allWsTerms, beta_hat_current, ~, ~] = FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
+            [allWsTerms, beta_hat_current, beta_cov_current] = FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
                                                     clusterinfo, nfamtypes, famtypevec, ...
                                                     "GroupByFamType", GroupByFamType, "useLSQ", useLSQ);
             
@@ -437,40 +445,42 @@ for permi = 0:nperms
         
         else % for iter>0
             step = 1;
-            previous_deviance = deviance_record(iter-1,:); 
+            previous_deviance = deviance_record(iter-1,:);
+
+            % record old state
             u_old = u;
             u_update_old = u_update;
             p_old = p;
             beta_old = beta_hat_current;
+            beta_cov_old = beta_cov_current;
             sig2mat_old = sig2mat_current;
             sig2tvec_old = sig2tvec_current;
             allWsTerms_old = allWsTerms;
-            
-    
+              
             W = p .* (1 - p);
-
-            sigma = sum(sig2mat_current(1:end-1));
-            h = 2 * sigma.*W./(1+sigma.*W);
-            vif = 1 - 2 * (1+h/2) .* h.*(2*p-1).^2 ./(1-(2*p-1).^2);
-
-            W = W .* vif;
             W_1 = 1 ./ W;
+
+            % Firth penalization
+            U = (allWsTerms * X) * beta_cov_current;
+            h_diag = sum(U .* X, 2);
+            bias_adj = h_diag .* (0.5 - p);
 
             % Line searching
             while true
 
-                u = u_update_old + step * (ymat_current - p_old) ./ (p_old .* (1-p_old));
+                u = u_update_old + step * (ymat_current - p_old + bias_adj) ./ (p_old .* (1-p_old));
     
                 % reupdate the beta_hat and sig2mat
-                [~, beta_hat_current, beta_se_current, beta_cov] = FEMA_GLS(u, X, W_1, sig2mat_old, RandomEffects, ...
+                [~, beta_hat_current, beta_cov_current] = FEMA_GLS(u, X, W_1, sig2mat_old, RandomEffects, ...
                                                clusterinfo, nfamtypes, famtypevec, "allWsTerms", allWsTerms, ...
                                                "GroupByFamType", GroupByFamType, "useLSQ", useLSQ);
+
                 u_res = u - (X * beta_hat_current);
                 sig2tvec_current = sum(u_res.^2,1)/(size(u_res, 1) - size(X, 2)); 
                 [~, sig2mat_current] = FEMA_fit_simplified(X, iid, eid, fid, u_res, sig2tvec_current, pihatmat, W_1,  ...
                                                    "MLflag", MLflag, "FamilyStruct", FamilyStruct, "NonnegFlag", NonnegFlag);
     
-                [allWsTerms, ~, ~, ~] = FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
+                [allWsTerms, ~, ~] = FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
                                                 clusterinfo, nfamtypes, famtypevec, ...
                                                 "GroupByFamType", GroupByFamType, "useLSQ", useLSQ, ...
                                                 'GLSflag',false);
@@ -480,7 +490,9 @@ for permi = 0:nperms
                                                            sig2mat_current, allWsTerms, ...
                                                            RandomEffects, RandomVar, ymat_current);
     
-                if all(new_deviance < previous_deviance)
+                % if all(new_deviance < previous_deviance)
+                if all(new_deviance < previous_deviance - 1e-3 * 2 * step * sum((ymat_current - p_old).^2 ./ (p_old .* (1-p_old)),1))
+                % if true
                     % accept current step
                     deviance_record(iter,:) = new_deviance;
                     break;
@@ -489,15 +501,17 @@ for permi = 0:nperms
     
                     step = step * 0.5;
     
-                    if step < 1e-5
+                    if step < 1e-2
                         % take the (t-1) state
                         u = u_old;
                         u_update = u_update_old;
                         p = p_old;
                         beta_hat_current = beta_old;
+                        beta_cov_current = beta_cov_old;
                         sig2mat_current = sig2mat_old;
-                        sig2tvec = sig2tvec_old;
+                        sig2tvec_current = sig2tvec_old;
                         allWsTerms = allWsTerms_old;
+                        
                         deviance_record(iter,:) = previous_deviance;
                         break;
                     end
@@ -511,8 +525,8 @@ for permi = 0:nperms
                 converged = true;
             end
     
-            % beta_record(iter,:) = beta_hat_current(:,1);
-            % sigmat_record(iter,:) = sig2mat_current;
+            beta_record(iter,:) = beta_hat_current(:,1);
+            sigmat_record(iter,:) = sig2mat_current;
         
         end
         
@@ -526,30 +540,30 @@ for permi = 0:nperms
     %     fprintf('Maximum iterations (%d) reached.\n', MaxIter);
     % end
 
-    % post-hoc adjustment
-    % Pearson' chi-square statistics
+    % Degree of freedom from random effects
     sigma2_total = sum(sig2mat_current(1:end-1));
-    Phi = sum((ymat_current - p).^2 ./ (p .* (1-p))) / (nobs - size(X,2));
-
-    % Relative information offered by random effects
     W = p .* (1-p);
-    eta_marginal = X * beta_hat_current; 
-    p_marginal = 1 ./ (1 + exp(-eta_marginal));
-    W_marginal = p_marginal .* (1 - p_marginal);
-    Info_Ratio = sum(W) / sum(W_marginal);
+    [G, ~] = findgroups(fid);
+    W_sum = splitapply(@sum, W', G)';
+    h_edf = sum(sigma2_total * W_sum ./ (sigma2_total * W_sum + 1));
 
-    Phi_corrected = Phi * Info_Ratio;
-    beta_se_current = beta_se_current / sqrt(Phi_corrected);
+
+    % sandwich estimates of beta_se
+    S0 = X' * diag(1 ./ W) * X;
+    V1 = iXtX * S0 * iXtX;
+    V2 = sigma2_total * iXtX;
+    beta_se_robust = sqrt(diag(V1 + V2) * nobs / (nobs-size(X,2)-h_edf));
 
 
     % z-statistics
-    zmat_current = double(beta_hat_current) ./ double(beta_se_current);
+    zmat_current = double(beta_hat_current) ./ double(beta_se_robust);
     logpmat_current = -log10(normcdf(-abs(zmat_current))*2);
 
+    % plot_qq_gwas(logpmat_current(3:end));
 
     if permi == 0
         beta_hat = beta_hat_current;
-        beta_se = beta_se_current;
+        beta_se = beta_se_robust;
         zmat = zmat_current;
         logpmat = logpmat_current;
         sig2tvec = sig2tvec_current;
@@ -559,7 +573,7 @@ for permi = 0:nperms
         end
     else
         beta_hat_perm(:,:,permi) = beta_hat_current;
-        beta_se_perm(:,:,permi) = beta_se_current;
+        beta_se_perm(:,:,permi) = beta_se_robust;
         zmat_perm(:,:,permi) = zmat_current;
         sig2tvec_perm(:,:,permi) = sig2tvec_current;
         sig2mat_perm(:,:,permi) = sig2mat_current;
@@ -575,5 +589,4 @@ for permi = 0:nperms
 end
 
 end
-
 
