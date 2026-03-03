@@ -21,7 +21,7 @@ betaHigh         = 0.2;
 
 
 %% Parameter Settings
-Prevalance = [0.5; 0.4; 0.3; 0.2; 0.1; 0.05];
+Prevalance = [0.5; 0.4; 0.3; 0.2; 0.1];
 
 var_FFX = 0.6;
 var_subject = 0.4;
@@ -35,7 +35,7 @@ end
 
 %% Data generation - Using the same X structure in different simulation settings?
 
-rng(20260205, 'twister'); % N 260203 0201 0131 G 250822
+rng(20260224, 'twister'); % N 260203 0201 0131 G 250822
 
 allSeeds = randi(999999, size(Prevalance,1)+1, nRepeats);
 
@@ -171,7 +171,7 @@ SaveResultDir = "F:/Research/Project/FEMA_binary/Code/Simulation_3/FEMA_binary";
 
 tic
 
-for P = [5,10,20,30,40,50]
+for P = [50,40,30,20,10]
 
     FEMAb_results = zeros(nRepeats, nXvars*2+1);
 
@@ -209,7 +209,7 @@ for P = [5,10,20,30,40,50]
              sig2tvec,      sig2mat,        ~,           ~,                    ...
              beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,        ...
              sig2mat_perm,             ~,              ~,           ~] =                               ...
-                    FEMA_fit_binary(X, iid, eid, fid, agevec, y_binary, niter, ones(1,nXvars),    ...
+                    FEMA_fit_binary(X(:,2:end), iid, eid, fid, agevec, y_binary, niter, ones(1,nXvars),    ...
                                   [], 'RandomEffects', {'S','E'}, 'returnReusable', true,           ...
                             'RandomEstType','MoM');
         
