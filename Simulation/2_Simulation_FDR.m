@@ -34,7 +34,7 @@ gridVals = [all_members(:), all_subject(:)];
 
 %% Data generation - Using the different X in different simulation settings
 
-rng(20260128, 'twister');
+rng(20260212, 'twister');
 
 allSeeds = randi(999999, size(gridVals,1), nRepeats);
 
@@ -132,7 +132,7 @@ end
 SaveResultDir = "F:/Research/Project/FEMA_binary/Code/Simulation_2";
 
 N = 10000;
-for M = [5, 10, 20]
+for M = [5,10,20]
     for V = [1,4,7]
 
         FEMAb_results = zeros(nRepeats, nXvars+1);
@@ -167,8 +167,8 @@ for M = [5, 10, 20]
                             'RandomEstType','MoM');
 
             % plot_qq_gwas(logpmat);
- 
-            FEMAb_results(i, :) = [i, logpmat'];
+
+            FEMAb_results(i, :) = [i, logpmat(2:end)'];
         
             % display(i);
         
@@ -183,7 +183,7 @@ for M = [5, 10, 20]
 end
 
 %% Q-Q plot
-FEMAb_results = readmatrix(fullfile(SaveResultDir,"N10000_M20_V7.txt"));
+FEMAb_results = readmatrix(fullfile(SaveResultDir,"N10000_M5_V7.txt"));
 hasInf = any(isinf(FEMAb_results(1:nRepeats, 2:end)), 'all');
 if hasInf
     hasInfRows = any(isinf(FEMAb_results), 2);
