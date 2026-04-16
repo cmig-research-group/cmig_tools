@@ -1,5 +1,8 @@
 *.m~
 *.asv
 *.swp
+*.csv
+*.parquet
+*.tsv
 DEAP/
 .ipynb_checkpoints/
