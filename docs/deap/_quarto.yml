@@ -1,0 +1,34 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "FEMA analysis in DEAP"
+  description: "User guide for running Fast Enrichment Modeling of Associations (FEMA) in the Data Exploration and Analysis Portal (DEAP)."
+  navbar:
+    left:
+      - text: Home
+        file: index.qmd
+      - text: User guide
+        file: fema-deap-analysis.qmd
+      - text: Technical appendix
+        file: technical-appendix.qmd
+    right:
+      - icon: link-45deg
+        href: https://docs.abcdstudy.org/latest/tools/tools.html
+        text: "ABCD tools"
+      - icon: link-45deg
+        href: https://data.abcdstudy.org/reports/deap-docs/
+        text: "DEAP docs (ABCD)"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    number-depth: 3
+    link-external-newwindow: true
+    css: styles.css
+
+lang: en

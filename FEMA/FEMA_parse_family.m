@@ -50,6 +50,14 @@ parse(p,varargin{:})
 SingleOrDouble = p.Results.SingleOrDouble;
 RandomEffects = p.Results.RandomEffects;
 
+% Check if F,E or S,E model
+if all(ismember(RandomEffects, {'F', 'E'}))
+    iid = fid;
+end
+if all(ismember(RandomEffects, {'S', 'E'}))
+    fid = iid;
+end
+
 [iid_list, IA_subj, IC_subj] = unique(iid, 'stable'); nsubj = length(iid_list); nobs = length(iid);
 [fid_list, IA_fam, IC_fam]   = unique(fid, 'stable'); nfam = length(fid_list);
 

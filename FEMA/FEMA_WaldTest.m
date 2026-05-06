@@ -1,4 +1,4 @@
-function [W, p, logp, LB_hat, LB_SE, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
+function [W, logp, LB_hat, LB_SE, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
 % Function to compute multivariate Wald test given a set of parameters
 %% Inputs:
 % L:            numeric (vector or matrix) or cell type containing weights 
@@ -40,20 +40,14 @@ function [W, p, logp, LB_hat, LB_SE, df, L] = FEMA_WaldTest(L, beta_hat, coeffCo
 % W:            [k x v] vector of Wald statistics, where k is the number of
 %               cells in the input L; if L was numeric, F is scalar
 %
-% p:            [k x v] vector of p values, where k is the number of cells
-%               in the input L; if L was numeric, p is scalar; this is the
-%               p value under F or chi-squared distribution testing the
-%               null hypothesis that the linear combination of coefficients
-%               are equal to the hypothesised value (or zero)
-%
 % logp:         [k x v] vector of log10 p values, where k is the number of
 %               cells in the input L; if L was numeric, logp is scalar;
 %               this is the log10 p value under F or chi-squared
 %               distribution testing the null hypothesis that the linear
 %               combination of coefficients are equal to the hypothesised
-%               value (or zero); note that p values smaller than realmin
-%               (2.2251e-308) are truncated to realmin and a warning
-%               messsage is shown
+%               value (or zero); note that p values smaller than
+%               realmin (2.2251e-308) are truncated to zero, so -log10(p)
+%               value will be infinity and a warning messsage will be shown
 % 
 % LB_hat:       [k x 1] cell type where k is the number of cells in the
 %               input L; this is the product of L and beta_hat (meaningful
@@ -82,8 +76,7 @@ function [W, p, logp, LB_hat, LB_SE, df, L] = FEMA_WaldTest(L, beta_hat, coeffCo
 % 
 % For univariate contrasts, sqrt(W) = LB_hat./LB_SE
 % 
-% N.B.: the p values (or -log10(p) values) returned from FEMA_WaldTest are
-% unsigned
+% N.B.: the -log10(p) values returned from FEMA_WaldTest are unsigned
 % 
 %% Reference:
 % Fitzmaurice, G. M., Laird, N. M., & Ware, J. H. (2011). Applied 
@@ -188,7 +181,16 @@ for cc = 1:numCells
 
     % Current weights - validated and padded
     L{cc}       = validateContrast(L{cc}, numX);
-    currWeights = L{cc};
+
+    % Find indexing
+    [r,c] = find(L{cc});
+
+    % Now subset beta_hat and coeffCovar
+    tmp_beta_hat   = beta_hat(r,:);
+    tmp_coeffCovar = coeffCovar(r,r,:);
+
+    % Subset the weights
+    currWeights = L{cc}(r,c);
 
     % Numerator degree of freedom = number of linearly independent rows
     % df(cc,1) = size(currWeights, 1);
@@ -196,7 +198,7 @@ for cc = 1:numCells
 
     for yy = 1:numY
         % Linear combination of beta
-        LB = currWeights * beta_hat(:,yy);
+        LB = currWeights * tmp_beta_hat(:,yy);
     
         % Difference from hypothesised mean
         LB = LB - hypValue(cc);
@@ -206,7 +208,7 @@ for cc = 1:numCells
     
         % Calculate W2 = (L * B)' * inv{L * Cov * L'} * (L * B)
         % W2 = LB' * ((L * coeffCovar(:,:,yy) * L') \ eye(numX)) * LB;
-        innerTerm = (currWeights * coeffCovar(:,:,yy) * currWeights');
+        innerTerm = (currWeights * tmp_coeffCovar(:,:,yy) * currWeights');
 
         LB_SE{cc,1}(:,yy) = sqrt(diag(innerTerm));
 
@@ -230,9 +232,10 @@ end
 % Calculate -log10 p-values
 if any(p < realmin)
     warning(['One or more p values are smaller than ', num2str(realmin), ...
-             '; truncating them to ', num2str(realmin)]);
+             '; -log10(p) values will be infinite']);
 end
-logp = -log10(max(realmin, p));
+% logp = -log10(max(realmin, p));
+logp = -log10(p);
 
 function L = validateContrast(L, numX)
 % Function that validates and pads a contrast

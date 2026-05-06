@@ -220,7 +220,14 @@ for des=1:length(fname_design)
 
     for repi = 1:nrep
         fprintf(1,'repi=%d/%d (%s)\n',repi,nrep,datestr(now));
-        fcvind = crossvalind('Kfold',length(fidlist),k); 
+
+        % Replacing use of crossvalind with cvparition
+        % fcvind = crossvalind('Kfold',length(fidlist),k);
+        c = cvpartition(length(fidlist),'KFold',k);
+        fcvind = zeros(size(fidlist));
+        for i = 1:length(fidlist)
+            fcvind(i) = c.TestSize > 0 & any(test(c,i));
+        end
         cvind = NaN(size(fid));
         for ki = 1:k
             cvind(ismember(fid,fidlist(fcvind==ki))) = ki;

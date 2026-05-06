@@ -1,0 +1,4 @@
+/* Slight readability tweaks; default Quarto theme handles most styling. */
+main .content {
+  max-width: 52rem;
+}

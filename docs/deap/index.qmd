@@ -1,0 +1,47 @@
+---
+title: "FEMA analysis in DEAP"
+subtitle: "Documentation overview"
+date: last-modified
+author: CMIG Tools
+toc: false
+---
+
+This site is a **user guide** for running **FEMA** (Fast Enrichment Modeling of Associations) analyses in the **DEAP** (Data Exploration and Analysis Portal) web interface. DEAP supports secure exploration and analysis of study data (including ABCD and related resources, depending on your access).
+
+::: {.callout-warning}
+## Interface labels may change
+Button names, sidebar labels, and menu paths in DEAP can change between releases. If something in this guide does not match your screen, use the equivalent control in the current UI or consult the latest [DEAP documentation from the ABCD Study](https://data.abcdstudy.org/reports/deap-docs/) and [ABCD Data Documentation — Tools](https://docs.abcdstudy.org/latest/tools/tools.html).
+:::
+
+## Who this is for
+
+Researchers who want to:
+
+- Specify a **linear mixed effects** model on **imaging outcomes** (voxelwise or vertexwise maps, with additional modalities evolving over time).
+- Use **FEMA** as the analysis engine inside DEAP.
+- **View results** in DEAP’s surface and volumetric viewers.
+
+## Prerequisites
+
+- Access to **DEAP** and an appropriate **dataset** (assembled in DEAP or selected from available data products).
+- Familiarity with basic mixed-model concepts: **fixed effects** (covariates and predictors), **random effects** (e.g., family, subject), and **which coefficients you care about** for inference.
+
+## Contents
+
+| Document | Description |
+|----------|-------------|
+| [User guide](fema-deap-analysis.qmd) | Step-by-step: choose a dataset, specify a FEMA model, run the analysis, interpret layers in the surface and voxel viewers. |
+| [Technical appendix](technical-appendix.qmd) | How job JSON maps to this codebase (`FEMA_parse_JSON`, `FEMA_wrapper`), for integrators and developers. |
+
+## Related resources
+
+- [ABCD Study — DEAP documentation (report)](https://data.abcdstudy.org/reports/deap-docs/)
+- [ABCD Data Documentation — Data tools](https://docs.abcdstudy.org/latest/tools/tools.html)
+- [ABCD Study — Data Sharing](https://abcdstudy.org/scientists/data-sharing/)
+
+Source material for the user guide narrative is aligned with the internal tutorial PDF `testing/deap_analysis_tutorial.pdf` in this repository.
+
+::: {.callout-tip}
+## Build this documentation locally
+Install [Quarto](https://quarto.org/docs/get-started/), then from the `docs/deap` directory run `quarto render`. HTML output is written to `docs/deap/_site/`.
+:::
