@@ -1,4 +1,7 @@
 
+ FEMA_wrapper can be called either as:
+   FEMA_wrapper(fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, ...)
+   FEMA_wrapper('config', fname_json, 'data', fname_data, 'output', dirname_out)
  Wrapper function to run whole FEMA pipeline:
      1) To load and process imaging data (FEMA_process_data)
      2) To intersect with design matrices (FEMA_intersect_design)
@@ -9,7 +12,10 @@
 
  INPUTS
    fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
-   fname_design <cell>        :  cell array with path to file with design matrix saved (readable by readtable) --> if want to batch can add multiple filepaths as separate rows within fname_design as a cell array
+   fname_design <cell>        :  cell array with path to file with design matrix file: 
+                                 this can either be a csv, txt or parquet file of the complete design matrix
+                                 created to the FEMA specifications or it can a JSON config file to be passed to 
+                                 FEMA_makeDesign to create a design matrix. 
    dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include separate output directory as rows within dirname_out as a cell array
    dirname_imaging <char>     :  path to imaging data directory
    datatype <char>            :  'voxel','vertex','external', 'corrmat'
@@ -18,10 +24,9 @@
  Optional input arguments:
    contrasts <num> OR <path>  :  contrast matrix, or path to file containing contrast matrix (readable by readtable)
    ico <num>                  :  ico-number for vertexwise analyses (0-based, default 5)
-   ranknorm <boolean>         :  rank normalise imaging data (default 0)
-   varnorm <boolean>          :  variance normalise imaging data (default 0)
+   transformY <string>        :  transformation to apply to Y (default 'none')
    output <string>            :  'mat' (default) or 'nifti' or 'deap' or concatenations to write multiple formats.
-   ivnames <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
+   vars_of_interest <string>           :  comma-separated list of IVs to write [this is used only for DEAP]
    RandomEffects <cell>       :  list of random effects to estimate (default {'F','S','E'}):
                                    family relatedness (F)
                                    subject - required for longitudinal analyses (S)
@@ -38,16 +43,9 @@
    FixedEstType <char>        :  input for FEMA_fit - default 'GLS' --> other option: 'OLS'
    GroupByFamType <boolean>   :  input for FEMA_fit - default true
    NonnegFlag <blooean>       :  input for FEMA_fit - default true - non-negativity constraint on random effects estimation
-   SingleOrDouble <char>      :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
+   precision <char>           :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
    logLikflag <boolean>       :  input for FEMA_fit - default 0
-   permtype <char>            :  input for FEMA_fit - options:
+   PermType <char>            :  input for FEMA_fit - options:
                                    'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation
                                    'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
    tfce <num>                 :  default 0 --> if 1 will run TFCE
-   colsinterest <num>         :  used to specify IVs of interest in design matrix (cols in X) for resampling output and tfce (default 1, i.e. 1st column of X) - only used if nperms>0
-
- OUTPUTS
-   fpaths_out                 :  results will be saved here in the specified format
-   All other outputs are optional if user wants results to be output in the MATLAB workspace
-   All permutation outputs will be empty is nperms==0
-

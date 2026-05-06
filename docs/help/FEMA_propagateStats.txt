@@ -1,0 +1,16 @@
+ FEMA_propagateStats - Propagate ROI-based statistics to voxel/vertex space
+
+ Syntax:  vol_stat = FEMA_propagateStats(roi_stat, roi_atlas, parc_name)
+
+ Required inputs:
+    roi_stat  - matrix containing ROI-based statistics
+    parc_name - tabulated data parcellation name, currently supporting 
+               'aseg' (Freesurfer subcortical segmentation) or 'at' (AtlasTrack) for voxelxwise data
+               'aparc' /'dsk' (Desikan-Killiany) or 'aparc.a2009s'/ 'dst' (Destrieux) for vertexwise data
+   ymat_names - cell array of roi names for each column in roi_stat
+ Optional inputs:
+    'outdim' - output dimensions, if roi_atlas is volumetrix, whether to output vol_stat as 3D or 2D matrix
+               Default is '2D'
+ Outputs:
+    vol_stat - matrix containing voxel/vertex-based statistics
+

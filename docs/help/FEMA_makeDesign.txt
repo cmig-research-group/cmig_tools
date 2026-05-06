@@ -1,0 +1,97 @@
+ Function that makes FEMA-compatible design matrix for ABCD data
+ Inputs:
+ configFile:       character       full path to a configuration file
+                                   (see example configuration file in the
+                                   recipe folder), can either be a JSON or 
+                                   text file saved with the extension '.config'
+  
+ Optional inputs (name-pair values): 
+ iid:              cell / char     individual IDs for all observations
+                                   that need to be retained OR full path
+                                   to a csv file with no header that has
+                                   individual IDs that need to be retained
+ 
+ eid:              cell / char     event IDs for all observations that
+                                   need to be retained OR full path to a
+                                   csv file with no header that has event
+                                   IDs that need to be retained
+ 
+ dataFile:         character       full path to a .csv/.tsv/.parquet/
+                                   file that has the variables specified
+                                   in configFile to read in / additional
+                                   variables to be included in the design matrix
+                                       - if .csv/.tsv/.parquet, the columns should be named as (in order):
+                                           * participant_id: the individual ID for every observation
+                                           * session_id:     the event ID for every observation
+                                           * column 3 onwards should be the variables to include
+                                           * if the `familyIDvar` specified in configFile exists, 
+                                             in the dataFile, this is respected; otherwise, an attempt
+                                             is made to read the family ID from the demographics table
+                                           * if a column named `agevec` exists, it is not 
+                                             considered to be a part of the design matrix
+ 
+                                   N.B: if agevec is missing in dataFile,
+                                   it is assumed to be "0" throughout
+                                   (since it is not directly used for analysis)
+ 
+ dirTabulated:     character       full path to where the ABCD 6.0 onwards
+                                   tabulated data is saved
+ 
+ dropMissing:      logical         true or false indicating if missing
+                                   values in any of the variables should
+                                   lead to that observation being deleted
+                                   from the design matrix or not (default:
+                                   true)
+ 
+ isFE:             logical         true or false indicating if the
+                                   RandomEffects model type is F and E (in
+                                   which case iid = fid)
+ 
+ isSE:             logical         true or false indicating if the
+                                   RandomEffects model type is S and E (in
+                                   which case fid = iid)
+ 
+ outDir:           character       full path to where the design matrix
+                                   should be written out
+ 
+ outName:          character       name of the design matrix (if not
+                                   specified, defaults to:
+                                   DesignMatrix-yyyyMMMdd-HHmmSS
+ 
+ outType:          character/cell  one or more additional output formats
+                                   for the design matrix:
+                                       * 'csv'
+                                       * 'mat'
+                                       * 'compiled' | 'standalone'
+
+ Output(s):
+ designMatrix:     table           the created design matrix with the
+                                   first four columns being:
+                                       * fid
+                                       * iid
+                                       * eid
+                                       * agevec
+ 
+ vars_of_interest  cell            list of fixed effects which are of
+                                   interest: the names of these variables
+                                   correspond to the variable names in the
+                                   design matrix
+ 
+ info:             structure       structure containing information on
+                                   timing, missingness, and various settings
+ 
+ To Dos
+ Need additional checks for when this function will be called in compiled mode
+ How to handle non-standard family IDs? For example, scanner ID?
+ Need to read data if anything specified in configFile is not found in
+ dataFile
+ dataFile specification for mat file is really complicated - not currently
+ handled (see end of file)
+ Currently using session_id for sorting of events which is not a
+ generalisable solution as session_id may be incorrectly sorted (if
+ non-numeric); need to incorporate age-based sorting OR allow user to
+ specify another flag for sorting of events for delta computation
+ DP: 
+ i think we always should save an output file so writeDesignMat = true and 
+     if no output directory is given either save to pwd or ~ 
+

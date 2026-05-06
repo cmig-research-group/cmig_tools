@@ -38,7 +38,6 @@ load(fullfile(dirData, fileData));
 % specific age entry on that row
 age = data.age;
 
-
 % Sex: dummy coding using sex == 0 as reference level
 sex = double(data.sex == 1);
 
@@ -132,10 +131,9 @@ end
 
 %% FEMA settings
 RandomEffects   = {'F', 'A', 'S', 'E'};
-returnReusable  = true;
+returnResiduals = true;
 contrasts       = [];
 nbins           = 0;
-niter           = 1;
 CovType         = 'unstructured';
 
 %% GWAS-specific settings
@@ -144,27 +142,29 @@ CovType         = 'unstructured';
 % size (good for reduced RAM usage but may take more time) while a large
 % number means smaller number of chunks (but more RAM usage); we have found
 % 5000 SNPs to be a reasonable balance
-chunkSize       = 5000;
+chunkSize = 5000;
 
 % How should the genome be split? By SNPs or by chromosome?
-splitBy         = 'snp';
+splitBy = 'snp';
 
 % Ensuring double precision for evaluation; change to single precision if
 % the RAM usage is too high
-SingleOrDouble  = 'double';
+precision = 'double';
 
 %% Start timer
 tinit = tic;
 
-%% FEMA
-[beta_hat,      beta_se,        zmat,        logpmat,                   ...
- sig2tvec,      sig2mat,        Hessmat,     logLikvec,                 ...
- beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,             ...
- sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,                 ...
- tvec_bins,     FamilyStruct,   coeffCovar,  reusableVars] =            ...
- FEMA_fit(X, IID, eid, FID, age, phenotypes, niter, contrasts, nbins,   ...
-          GRM, 'RandomEffects', RandomEffects, 'CovType', CovType,      ...
-          'returnReusable', returnReusable, 'SingleOrDouble', SingleOrDouble);
+%% Run FEMA without using genetics
+[beta_hat,      beta_se,        zmat,        logpmat,               ...
+ sig2tvec,      sig2mat,        Hessmat,     logLikvec,             ...
+ beta_hat_perm, beta_se_perm,   zmat_perm,   sig2tvec_perm,         ...
+ sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,             ...
+ tvec_bins,     FamilyStruct,   coeffCovar,  unstructParams,        ...
+ residuals_GLS, info] = FEMA_fit(X, IID, eid, FID, age, phenotypes, ...
+                                 contrasts, nbins, GRM,             ...
+                                 'RandomEffects', RandomEffects,    ...
+                                 'CovType', CovType,                ...
+                                 'returnResiduals', returnResiduals, 'precision', precision);
 
 %% Get some info about genetics
 [~, Chr, SNPID, BP, check, errMsg, genInfo] = ...
@@ -176,7 +176,7 @@ end
 %% Compile some variables
 [allWsTerms, tCompile] = FEMA_compileTerms(FamilyStruct.clusterinfo, binvec_save,            ...
                                            sig2mat, RandomEffects, FamilyStruct.famtypevec,  ...
-                                           reusableVars.GroupByFamType, CovType, SingleOrDouble, reusableVars.visitnum);
+                                           reusableVars.GroupByFamType, CovType, precision, reusableVars.visitnum);
 
 %% Divide chromosome into chunks
 [splitInfo, timing] = divideSNPs(fullfile(dirGenetics, filePLINK), splitBy, ...
@@ -199,20 +199,20 @@ local.NumThreads = 2;
 pool = local.parpool(32, 'IdleTimeout', 240);
 
 %% Run FEMA GWAS
-% Take residuals from step 1
-ymat_res_gls = reusableVars.ymat_res_gls;
+% The residuals from running FEMA above are the new (residualized)
+% phenotype(s) for performing GWAS
 
-% Adding interceptt to the basis functions to capture the longitudinal main
+% Adding intercept to the basis functions to capture the longitudinal main
 % effect of the SNPs: these functions interact with every SNP
-bfSNP        = [intercept, basisFunction];
+bfSNP = [intercept, basisFunction];
 
 % Execute each chunk in parallel - switch to regular for loop if you do not
 % want parallel computing; output is saved in outDir
 parfor parts = 1:length(splitInfo)
     t1 = tic;
-    FEMA_fit_GWAS(splitInfo{parts}, ymat_res_gls, binvec_save, X, allWsTerms, ...
+    FEMA_fit_GWAS(splitInfo{parts}, residuals_GLS, binvec_save, X, allWsTerms, ...
                   'outDir', dirOutput, 'outName', splitInfo{parts}.outName,   ...
-                  'bfSNP', bfSNP, 'doCoeffCovar', true, 'SingleOrDouble', SingleOrDouble);
+                  'bfSNP', bfSNP, 'doCoeffCovar', true, 'SingleOrDouble', precision);
 
     % Also display progress
     disp(['Finished: ', num2str(parts, '%04d'), ' in ', num2str(toc(t1), '%.2f'), 's']);
@@ -223,13 +223,16 @@ tend = toc(tinit);
 
 %% Delete pool and clear some RAM
 delete(pool);
-clear local splitInfo Chr SNPID BP ymat_res_gls
+clear local splitInfo Chr SNPID BP residuals_GLS
 
 %% Save results 
 % GWAS results are already saved by each chunk
 tmp = whos;
 if sum([tmp.bytes]) > 2^31
-    save(fullfile(dirOutput, 'allVars.mat'), '-v7.3');
+    % Using uncompressed mat files for speed up; disable that flag if the
+    % files are too large (but beware that saving/reading compressed v7.3
+    % files takes a while!
+    save(fullfile(dirOutput, 'allVars.mat'), '-v7.3', '-nocompression');
 else
     save(fullfile(dirOutput, 'allVars.mat'));
 end
@@ -240,4 +243,43 @@ end
 cleanUp = false;
 FEMA_gatherGWAS(dirOutput, [], cleanUp, dirOutput);
 
-%% Take a look at FEMA_convert_splines for charting SNP effect over time
+%% SNP effect over time
+% Now calculate the weighted combination of SNP effects to get trajectories
+% of SNP effect and its derivative (which represents the rate of change of
+% the SNP effect over time)
+
+% Ideally, you should compute these for a handful of SNPs that might be of
+% interest; for example, SNPs identified as significant in the GWAS;
+% otherwise, this will take a long time and a lot of space. The solution
+% below is for all SNPs
+
+% First load the summarty statistics from above; if you specified a
+% filename above, replace FEMA_GWAS_Aggregate with that
+GWASResults = load(fullfile(dirOutput, 'FEMA_GWAS_Aggregate.mat'), 'beta_hat', 'coeffCovar');
+
+% Which columns of beta_hat correspond to the basis functions? The first
+% column is the intercept; if you changed this above (bfSNP), edit
+% accordingly
+colnums_bf       = 2:size(bfSNP,2);
+colnum_intercept = 1;
+
+% Loop over every phenotype
+for y = 1:size(phenotypes,2)
+    t1             = tic;
+    tmp_beta_hat   = squeeze(GWASResults.beta_hat(:,:,y))';
+    tmp_coeffCovar = permute(squeeze(GWASResults.coeffCovar(:,:,:,y)), [2, 3, 1]);
+
+    % Call FEMA_convert_splines
+    [snp_beta_bf, snp_SE_bf, snp_Z_bf, snp_beta_dbf, snp_SE_dbf, snp_Z_dbf] = ...
+     FEMA_convert_splines(basisSubset, Xvars, tmp_beta_hat, tmp_coeffCovar,   ...
+                          colnums_bf, colnum_intercept);
+
+    % Save: can skip saving Z scores since that is beta./SE
+    save(fullfile(dirOutput, ['SNPEffect-', num2str(y, '%02d'), '.mat']),     ...
+         'snp_beta_bf', 'snpSE_bf', 'snp_Z_bf', 'snp_beta_dbf', 'snp_SE_dbf', ...
+         'snp_Z_dbf', 'Xvars', '-v7.3', '-nocompression');
+    clear snp_beta_bf snp_beta_bf snpSE_bf snp_beta_dbf snp_SE_dbf;
+
+    % Update user
+    disp(['Saved trajecory: ', num2str(y), ' in ', num2str(toc(t1)), 's']);
+end

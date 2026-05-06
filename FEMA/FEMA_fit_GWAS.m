@@ -113,7 +113,10 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, coeffCovar, err
 %                               functions) for m SNPs, v phenotypes, and l
 %                               weights specified in L
 %
-% Wald_p:           [m x v x l] p value associated with omnibus Wald test
+% Wald_p:           [m x v x l] -log10 p value associated with omnibus Wald
+%                               test; if p value is less than realmin
+%                               (2.2251e-308), then the value will be
+%                               infinite
 %
 % coeffCovar:   [m x q x q x v] coefficient covariance for every SNP for q
 %                               basis functions and v phenotypes; not

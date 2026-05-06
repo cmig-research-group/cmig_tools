@@ -22,7 +22,7 @@
  valvec:           vector of values for which basis functions need to be
                    created (for example, age / time)
 
- knots:            vector of values which serve as knots
+ knots:            vector of values which serve as knots OR 'quartiles'
 
  splineType:       character; one of the following:
                        * 'nsk'   (natural cubic splines with unit heights at knots)

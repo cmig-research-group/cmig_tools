@@ -1,0 +1,61 @@
+---
+title: "Technical appendix"
+subtitle: "JSON jobs, FEMA parsing, and DEAP-oriented outputs"
+date: last-modified
+author: CMIG Tools
+toc: true
+number-sections: true
+---
+
+This appendix is for **developers** and **integrators** who connect DEAP-style job specifications to the MATLAB **FEMA** codebase in this repository. Portal users can ignore this page.
+
+## Job JSON and `FEMA_parse_JSON` {#sec-parse-json}
+
+DEAP analysis jobs can be represented as **JSON** files. The function `FEMA/FEMA_parse_JSON.m` (path relative to the **repository root**) reads a JSON specification and extracts:
+
+- Names and structure of **fixed effects** (categorical references, splines, winsorization, interactions, global transforms, etc.).
+- **Random effects** (`params.random` in the JSON).
+- Optional **genetic PCs** (`n_gpcs` and related fields).
+
+The parser expects the file shape produced for FEMA (see example below). Field names and nesting follow the implementation in `FEMA_parse_JSON.m`.
+
+## Example specification {#sec-example-spec}
+
+`testing/test_spec20.json` illustrates a **GLMM**-style job with:
+
+- `params.fixed.vars` — array of fixed-effect definitions (`type_var`, `of_interest`, splines, reference levels, …).
+- `params.fixed.n_gpcs` — number of genetic PCs to include.
+- `params.random` — for example `["F","S","E"]` for family, subject, and error.
+- `params.advanced` — fitting details (bins, permutation type, precision, fixed-effect estimator, …).
+- `params.dependent` — outcome descriptor (`type_data`, file name, transforms).
+- `params.query` — SQL (or equivalent) selecting columns aligned with the design; production DEAP builds this from the UI.
+
+Paths inside example JSON files may point to internal data locations; **do not** treat those as portable for end users.
+
+## `FEMA_wrapper` and DEAP-oriented outputs {#sec-fema-wrapper}
+
+`FEMA/FEMA_wrapper.m` runs the full pipeline: load imaging data, intersect with the design, fit mixed models, and save outputs.
+
+Relevant optional arguments for DEAP-style workflows include:
+
+- `output` — may include `'mat'`, `'nifti'`, **`'deap'`**, or concatenations (for example `'matnifti'`), depending on deployment.
+- `vars_of_interest` — comma-separated list of IV names controlling what is written for **DEAP** consumption (see file header comments in `FEMA_wrapper.m`).
+
+MATLAB help text for the wrapper is also mirrored under `docs/help/FEMA_wrapper.txt`.
+
+`FEMA/writeDEAP.m` writes voxelwise results to **binary mosaic** formats for DEAP (invoked from higher-level wrappers in some pipelines).
+
+## DEAP parallel MATLAB entry points {#sec-deap-folder}
+
+The `DEAP/` directory contains MATLAB functions used in **parallel / worker** deployments, for example:
+
+- `DEAP/FEMA_DEAP_wrapper.m` — orchestrates jobs and assembles worker output.
+- `DEAP/FEMA_DEAP_worker.m` — worker-side fitting.
+- `DEAP/FEMA_DEAP_client.m`, `DEAP/FEMA_DEAP_server.m` — TCP-based coordination in some configurations.
+- `DEAP/FEMA_DEAP_init.m`, `DEAP/FEMA_DEAP_gencache.m` — initialization and cache generation.
+
+These are **internal pipeline** components. You do not need them to use the DEAP web portal interactively.
+
+## R note
+
+`cmig_tools_utils/r/makeDesign_DEAP.R` implements an alternate path that reads JSON with a **different** top-level schema (`fixed_effects` vs `fixed` in FEMA’s MATLAB parser). When wiring jobs, confirm which path your deployment uses.

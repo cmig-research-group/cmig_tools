@@ -11,7 +11,7 @@ function writeNIFTI(results, dirname_out, fstem_imaging, ivnames, colnames_model
 % 7/2021 added 'ivnames' input--comma separated list of IVs. Also will write an individual .mat
 
 % These should be saved along with volinfo, and passed along to this function; hardcode for now
-M_atl = [0    -1     0   101; 0     0     1  -131; -1     0     0   101; 0     0     0     1];
+M_atl     = [0    -1     0   101; 0     0     1  -131; -1     0     0   101; 0     0     0     1];
 M_atl_sub = [0    -2     0   102; 0     0     2  -132; -2     0     0   102; 0     0     0     1];
 
 randomFields = {'sig2tvec', 'sig2mat'};

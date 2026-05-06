@@ -1,0 +1,2 @@
+ Function that reads an annotation file from Freesurfer and returns
+ concatenated list of cData

@@ -1,1 +1,6 @@
- Calculate min and max
+  If user wants symmetric colour limits, set to the largest value
+ if cLim_range
+     max_all = max(abs(cal_min), abs(cal_max));
+     cal_min = -max_all;
+     cal_max = max_all;
+ end

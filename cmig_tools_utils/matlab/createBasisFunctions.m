@@ -1,4 +1,4 @@
-function [basisFunction, basisSubset, Xvars, bfRank, settings, timing] =             ...
+function [basisFunction, basisSubset, Xvars, bfRank, settings, timing] =      ...
           createBasisFunctions(valvec,     knots,      splineType, Xpowers,   ...
                                method,     outDir,     minMax,     intercept, ...
                                optCommand, optAppend,  cleanUp,    instance)
@@ -26,7 +26,7 @@ function [basisFunction, basisSubset, Xvars, bfRank, settings, timing] =        
 % valvec:           vector of values for which basis functions need to be
 %                   created (for example, age / time)
 %
-% knots:            vector of values which serve as knots
+% knots:            vector of values which serve as knots OR 'quartiles'
 %
 % splineType:       character; one of the following:
 %                       * 'nsk'   (natural cubic splines with unit heights at knots)
@@ -148,13 +148,21 @@ end
 if ~exist('knots', 'var') || isempty(knots)
     createKnots = true;
 else
-    % Ensure a n x 1 vector
-    try
-        knots = reshape(knots, length(knots), 1);
-        createKnots = false;
-    catch
-        sz  = size(knots);
-        error(['Expected a vector for knots but found: ', num2str(sz(1)), ' x ', num2str(sz(2))]);
+    if ~isnumeric(knots)
+        if strcmpi(knots, 'quartiles')
+            createKnots = true;
+        else
+            error('Unknown knots specified; either provide a vector of values or set to quartiles');
+        end
+    else
+        % Ensure a n x 1 vector
+        try
+            knots = reshape(knots, length(knots), 1);
+            createKnots = false;
+        catch
+            sz  = size(knots);
+            error(['Expected a vector for knots but found: ', num2str(sz(1)), ' x ', num2str(sz(2))]);
+        end
     end
 end
 
