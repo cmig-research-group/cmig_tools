@@ -736,8 +736,10 @@ if any(ismember(outputType, {'tables', 'external'}))
 
     % Prepare fixed effects part of the formula
     unMatched.colnames_model = rowvec(unMatched.colnames_model);
-    ffx_formula = [strcat(unMatched.colnames_model(1:length(unMatched.colnames_model)-1), {' + '}), ...
-                          unMatched.colnames_model(end)];
+    %ffx_formula = [strcat(unMatched.colnames_model(1:length(unMatched.colnames_model)-1), {' + '}), ...
+    %                      unMatched.colnames_model(end)];
+    ffx_formula = [strcat(unMatched.FFX_conceptMapping(1:size(unMatched.FFX_conceptMapping, 1)-1,1)', {' + '}), ...
+                          unMatched.FFX_conceptMapping(end,1)];
     ffx_formula = horzcat(ffx_formula{:});
 
     % Prepare random effects part of the formula
@@ -938,8 +940,11 @@ if any(ismember(outputType, {'tables', 'external'}))
     % display_random.totVar = 'Total variance';
 
     unMatched.colnames_model = rowvec(unMatched.colnames_model);
-    ffx_formula = [strcat(unMatched.colnames_model(1:length(unMatched.colnames_model)-1), {' + '}), ...
-                          unMatched.colnames_model(end)];
+    %ffx_formula = [strcat(unMatched.colnames_model(1:length(unMatched.colnames_model)-1), {' + '}), ...
+    %                      unMatched.colnames_model(end)];
+    ffx_formula = [strcat(unMatched.FFX_conceptMapping(1:size(unMatched.FFX_conceptMapping, 1)-1,1)', {' + '}), ...
+                          unMatched.FFX_conceptMapping(end,1)];
+    
     ffx_formula = horzcat(ffx_formula{:});
 
     % Prepare random effects part of the formula
