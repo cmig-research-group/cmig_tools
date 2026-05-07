@@ -108,7 +108,7 @@ missingness = [];
 
 %%%%% load data %%%%%
 switch datatype
-    case 'voxel'
+    case {'voxel', 'voxelwise'}
         %Load voxelwise imaging data
 		logging('Reading voxelwise %s imaging data',fstem_imaging);
 		tLoadData = tic; 
@@ -159,7 +159,7 @@ switch datatype
         
         info.timing.tLoadData = toc(tLoadData);
         
-	case 'vertex'
+	case {'vertex', 'vertexwise'}
 		% Read in vertexwise imaging data
 		logging('Reading vertexwise %s imaging data',fstem_imaging);
 		tLoadData = tic;
@@ -325,7 +325,7 @@ switch datatype
                 roidat.session_id = cellstr(roidat.session_id);
             case {'.csv' '.tsv' '.txt'}
                 opts = detectImportOptions(fname_roi, 'FileType', 'text');
-                roidat = readtable(fname_roi, opts, 'FileType', 'text', 'ReadVariableNames', false);
+                roidat = readtable(fname_roi, opts);
             otherwise
                 error('Unsupported file format for ROI data: %s. Must be .parquet, .csv, .tsv, or .txt', ext_roi);
         end 

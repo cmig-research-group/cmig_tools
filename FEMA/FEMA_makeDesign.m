@@ -4,8 +4,14 @@ function [designMatrix, vars_of_interest, splines_of_interest, FFX_conceptMappin
 %% Inputs:
 % configFile:       character       full path to a configuration file
 %                                   (see example configuration file in the
-%                                   recipe folder), can either be a JSON or 
-%                                   text file saved with the extension '.config'
+%                                   recipe folder): '.json', '.config' text,
+%                                   or non-DEAP '.toml' (see FEMA_createInputJSON).
+%  
+%                                   If configFile is '.toml', FEMA_readToml builds job JSON and a
+%                                   merged parquet (designOnly=true so [dependent] may be omitted),
+%                                   then configFile becomes that JSON path and varargin receives
+%                                   dataFile, default outDir / study, optional params.makeDesign,
+%                                   plus any name-values you pass (iid, eid, outName, ...).
 %  
 %% Optional inputs (name-pair values): 
 % iid:              cell / char     individual IDs for all observations
@@ -18,20 +24,14 @@ function [designMatrix, vars_of_interest, splines_of_interest, FFX_conceptMappin
 %                                   csv file with no header that has event
 %                                   IDs that need to be retained
 % 
-% dataFile:         character       full path to a .csv/.tsv/.parquet/
-%                                   file that has the variables specified
-%                                   in configFile to read in / additional
-%                                   variables to be included in the design matrix
-%                                       - if .csv/.tsv/.parquet, the columns should be named as (in order):
-%                                           * participant_id: the individual ID for every observation
-%                                           * session_id:     the event ID for every observation
-%                                           * column 3 onwards should be the variables to include
-%                                           * if the `familyIDvar` specified in configFile exists, 
-%                                             in the dataFile, this is respected; otherwise, an attempt
-%                                             is made to read the family ID from the demographics table
-%                                           * if a column named `agevec` exists, it is not 
-%                                             considered to be a part of the design matrix
-% 
+% dataFile:         character       (JSON / .config configs only) full path to a
+%                                   .csv/.tsv/.parquet with model columns. Required
+%                                   when configFile is JSON. Not used when configFile
+%                                   is .toml (tabular data are always merged from the
+%                                   TOML into a parquet; passing 'dataFile' with .toml
+%                                   is deprecated and ignored with a warning).
+%                                       - Columns: participant_id, session_id, then covariates;
+%                                         see recipe examples for details.
 %                                   N.B: if agevec is missing in dataFile,
 %                                   it is assumed to be "0" throughout
 %                                   (since it is not directly used for analysis)
@@ -57,6 +57,9 @@ function [designMatrix, vars_of_interest, splines_of_interest, FFX_conceptMappin
 %                                       * 'csv'
 %                                       * 'mat'
 %                                       * 'compiled' | 'standalone'
+%
+% Other options (iid, eid, outName, dropMissing, ...) are plain MATLAB name-values:
+%   FEMA_makeDesign('cfg.toml', 'outName', 'mydesign')
 %
 %% Output(s):
 % designMatrix:     table           the created design matrix with the
@@ -105,6 +108,59 @@ else
     if ~exist(configFile, 'file')
         error(['Unable to find: ', configFile]);
     end
+end
+
+%% Non-DEAP .toml → FEMA_readToml(..., 'designOnly', true) → JSON + merged parquet
+[~, ~, tmp_ext_cfg] = fileparts(configFile);
+if strcmpi(tmp_ext_cfg, '.toml')
+    idx_df = find(strcmpi(varargin, 'dataFile'), 1);
+    if ~isempty(idx_df)
+        warning('FEMA_makeDesign:DeprecatedDataFileWithToml', ...
+            ['The ''dataFile'' name-value pair is deprecated when configFile is .toml ', ...
+             '(tabular data are always merged from the TOML); ignoring it.']);
+        if numel(varargin) >= idx_df + 1
+            varargin = [varargin(1:idx_df-1), varargin(idx_df+2:end)];
+        else
+            varargin = varargin(1:idx_df-1);
+        end
+    end
+    [configFile, fname_data_toml, ~, ~] = FEMA_readToml(configFile, 'designOnly', true);
+    varargin = [varargin, {'dataFile', fname_data_toml}];
+    tmp_cfg = jsondecode(fileread(configFile));
+    dirname_out_toml = tmp_cfg.dirname_out;
+    study_toml = '';
+    if isfield(tmp_cfg, 'study')
+        study_toml = tmp_cfg.study;
+        if isstring(study_toml)
+            study_toml = char(study_toml);
+        end
+    end
+    has_outDir = false;
+    has_study  = false;
+    for ka = 1:2:numel(varargin) - 1
+        ak = varargin{ka};
+        if ~(ischar(ak) || isstring(ak))
+            continue
+        end
+        ak = char(ak);
+        if strcmpi(ak, 'outDir')
+            has_outDir = true;
+        elseif strcmpi(ak, 'study')
+            has_study = true;
+        end
+    end
+    if ~has_outDir
+        varargin = [varargin, {'outDir', dirname_out_toml}];
+    end
+    if ~isempty(study_toml) && ~has_study
+        varargin = [varargin, {'study', study_toml}];
+    end
+end
+
+% Optional params.makeDesign from job JSON (same file FEMA_readToml wrote); explicit varargin wins
+[~, ~, cfg_ext_merge] = fileparts(configFile);
+if strcmpi(cfg_ext_merge, '.json')
+    varargin = FEMA_mergeArgs(configFile, varargin);
 end
 
 %% Parse optional inputs

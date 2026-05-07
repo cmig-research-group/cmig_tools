@@ -7,12 +7,12 @@ website:
   description: "User guide for running Fast Enrichment Modeling of Associations (FEMA) in the Data Exploration and Analysis Portal (DEAP)."
   navbar:
     left:
-      - text: Home
-        file: index.qmd
-      - text: User guide
-        file: fema-deap-analysis.qmd
-      - text: Technical appendix
-        file: technical-appendix.qmd
+      - text: Overview
+        file: overview.qmd
+      - text: Model specification
+        file: model-specification.qmd
+      - text: Results visualization
+        file: brain-viewers.qmd
     right:
       - icon: link-45deg
         href: https://docs.abcdstudy.org/latest/tools/tools.html
@@ -26,7 +26,7 @@ format:
     theme: cosmo
     toc: true
     toc-depth: 3
-    number-sections: true
+    number-sections: false
     number-depth: 3
     link-external-newwindow: true
     css: styles.css
