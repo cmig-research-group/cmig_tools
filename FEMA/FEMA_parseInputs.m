@@ -21,7 +21,9 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     % Extract required parameters
     datatype = strrep(configFile.params.dependent.type_data, 'wise', ''); 
     fstem_imaging = configFile.params.dependent.name;
-    if isfield(configFile.params.dependent, 'dir_data')
+    if strcmpi(datatype, 'external') && ~isempty(dataFile)
+        dirname_imaging = dataFile;
+    elseif isfield(configFile.params.dependent, 'dir_data')
         dirname_imaging = configFile.params.dependent.dir_data;
     else
         dirname_imaging = dataFile;
@@ -89,7 +91,7 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
     % release
     extraArgs{end+1} = 'release';
     extraArgs{end+1} = configFile.release;
-    
+
     % study
     extraArgs{end+1} = 'study';
     extraArgs{end+1} = configFile.study;
@@ -108,6 +110,18 @@ function [fstem_imaging, config_design, dirname_out, dirname_imaging, datatype, 
         extraArgs{end+1} = 'numWorkers';
         extraArgs{end+1} = configFile.params.advanced.numWorkers;
     end
+
+    % wrapper_args — extra FEMA_wrapper options written by FEMA_createInputJSON
+    % from the [options] section of a non-DEAP TOML config.  Each field is
+    % forwarded as a name-value pair so it reaches the FEMA_wrapper inputParser.
+    if isfield(configFile.params, 'wrapper_args')
+        ff = fieldnames(configFile.params.wrapper_args);
+        for k = 1:numel(ff)
+            extraArgs{end+1} = ff{k};
+            extraArgs{end+1} = configFile.params.wrapper_args.(ff{k});
+        end
+    end
+
 end
 
 function ivnames = get_ivnames(configFile)

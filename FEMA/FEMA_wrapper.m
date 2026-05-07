@@ -6,6 +6,7 @@ function [beta_hat, beta_se, zmat, logpmat, sig2tvec, sig2mat, Hessmat, logLikve
 % FEMA_wrapper can be called either as:
 %   FEMA_wrapper(fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, ...)
 %   FEMA_wrapper('config', fname_json, 'data', fname_data, 'output', dirname_out)
+%   FEMA_wrapper('toml', fname_toml)   [non-DEAP: all parameters in TOML config]
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
 %     2) To intersect with design matrices (FEMA_intersect_design)
@@ -77,6 +78,26 @@ logging('***Start***');
 disp(FEMA_info);
 tStart = tic;
 rng shuffle %Set random number generator so different every time
+
+%% ---- non-DEAP TOML entry point ----
+% When called as FEMA_wrapper('toml', fname_toml), convert the TOML config
+% to a job-spec JSON and load tabular data, then fall through to the
+% standard 'config'/'data'/'output' path below.
+idx_toml = find(strcmpi(varargin, 'toml'), 1);
+if ~isempty(idx_toml)
+    fname_toml = varargin{idx_toml + 1};
+
+    % Check that the TOML file exists
+    if ~exist(fname_toml, 'file')
+        error('TOML file %s does not exist.', fname_toml);
+    end
+
+    [fname_json, fname_data, dirname_out_val, ~] = FEMA_readToml(fname_toml);
+
+    % Reconstruct varargin as the standard config-mode call
+    varargin = {'config', fname_json, 'data', fname_data, 'output', dirname_out_val};
+end
+%% ---- end non-DEAP TOML entry point ----
 
 %PARSING INPUTS
 % check for required params
@@ -579,7 +600,7 @@ for des=1:n_desmat % loop if multiple design matrices
     
     % check roi atlas type if datatype is 'roi' - should proably do this earlier
     if strcmpi(datatype, 'roi')
-        roi_atlas_match = regexp(fstem_imaging, '(?<=__)(at|aseg|dsk|dst)(?=$|\.)', 'match');
+        roi_atlas_match = regexp(fstem_imaging, '(?<=__)(at|aseg|dsk|dst||gp)(?=$|\.)', 'match');
         if ~isempty(roi_atlas_match)
             roi_atlas = roi_atlas_match{1};
         else
@@ -651,6 +672,5 @@ end % looping over desmat
 logging('***Done*** (%0.2f seconds)', toc(tStart));
 % logging('***Done*** (%0.2f seconds)',(endtime-starttime)*3600*24);
 
-end 
-
+end
 

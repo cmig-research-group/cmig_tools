@@ -95,7 +95,7 @@ if any(ismember(outputType, {'mat', 'corrmat', 'external'}))
     tSaveMat = tic; 
     toSave_estimates = {'beta_hat', 'beta_se', 'zmat', 'logpmat', 'sig2tvec', 'sig2mat', ...
                         'beta_hat_perm', 'beta_se_perm', 'zmat_perm', 'sig2tvec_perm',   ...
-                        'sig2mat_perm', 'Wald', 'p_Wald', 'logp_Wald', 'logLikvec',      ...
+                        'sig2mat_perm', 'Wald', 'logp_Wald', 'logLikvec',      ...
                         'logLikvec_perm', 'Hessmat', 'coeffCovar', 'binvec_save',        ...
                         'nvec_bins', 'tvec_bins', 'residuals_GLS', 'unstructParams',     ...
                         'contrasts', 'hypValues', 'info', 'colnames_model'};
@@ -220,7 +220,7 @@ if any(ismember(outputType, [nii_list gii_list]))
     tSaveImages = tic;
     toSave_FFX_stats  = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
     toSave_RFX_stats  = {'sig2tvec', 'sig2mat', 'sig2mat_normalized'};
-    toSave_Wald_stats = {'Wald', 'p_Wald', 'logp_Wald'};
+    toSave_Wald_stats = {'Wald', 'logp_Wald'};
     toSave_FFX        = toSave_FFX_stats(ismember(toSave_FFX_stats,   unMatched_flds));
     toSave_RFX        = toSave_RFX_stats(ismember(toSave_RFX_stats,   unMatched_flds));    
     toSave_Wald       = toSave_Wald_stats(ismember(toSave_Wald_stats, unMatched_flds) & ...
@@ -467,7 +467,7 @@ if any(ismember(outputType, {'corrmat'}))
     tSaveCorr         = tic;
     toSave_FFX_stats  = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
     toSave_RFX_stats  = {'sig2tvec', 'sig2mat', 'sig2mat_normalized'};
-    toSave_Wald_stats = {'Wald', 'p_Wald', 'logp_Wald'};
+    toSave_Wald_stats = {'Wald', 'logp_Wald'};
     toSave_FFX        = toSave_FFX_stats(ismember(toSave_FFX_stats,   unMatched_flds));
     toSave_RFX        = toSave_RFX_stats(ismember(toSave_RFX_stats,   unMatched_flds));    
     toSave_Wald       = toSave_Wald_stats(ismember(toSave_Wald_stats, unMatched_flds) & ...
@@ -1268,7 +1268,7 @@ if any(ismember(outputType, {'roi'}))
     % Prepare statistics to save
     toSave_FFX_stats  = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
     toSave_RFX_stats  = {'sig2tvec', 'sig2mat', 'sig2mat_normalized'};
-    toSave_Wald_stats = {'Wald', 'p_Wald', 'logp_Wald'};
+    toSave_Wald_stats = {'Wald', 'logp_Wald'};
     toSave_FFX        = toSave_FFX_stats(ismember(toSave_FFX_stats,   unMatched_flds));
     toSave_RFX        = toSave_RFX_stats(ismember(toSave_RFX_stats,   unMatched_flds));    
     toSave_Wald       = toSave_Wald_stats(ismember(toSave_Wald_stats, unMatched_flds) & ...
