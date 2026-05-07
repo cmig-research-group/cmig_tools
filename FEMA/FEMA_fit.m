@@ -941,14 +941,14 @@ for permi = 0:nperms
                 % Initialize parallel pool
                 pool = gcp('nocreate');
                 if isempty(pool)
-                    tInit            = tic;
-                    delPool          = true;
-                    local            = parcluster('local');
-                    local.NumThreads = numThreads;
-                    pool             = local.parpool(numWorkers);
-                    info.tCreatePool = toc(tInit);
+                    tInitPool               = tic;
+                    delPool                 = true;
+                    local                   = parcluster('local');
+                    local.NumThreads        = numThreads;
+                    pool                    = local.parpool(numWorkers);
+                    info.timing.tCreatePool = toc(tInitPool);
                 else
-                    delPool          = false;
+                    delPool = false;
                 end
 
                 % Go over phenotypes
@@ -963,10 +963,10 @@ for permi = 0:nperms
 
                 % Delete parallel pool
                 if delPool
-                    tInit = tic;
+                    tInitDelPool = tic;
                     delete(pool);
                     clear local;
-                    info.tDeletePool = toc(tInit);
+                    info.timing.tDeletePool = toc(tInitDelPool);
                 end
             else
                 for yy = 1:num_y
