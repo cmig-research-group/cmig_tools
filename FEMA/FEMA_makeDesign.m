@@ -56,6 +56,7 @@ function [designMatrix, vars_of_interest, splines_of_interest, FFX_conceptMappin
 %                                   for the design matrix:
 %                                       * 'csv'
 %                                       * 'mat'
+%                                       * 'parquet'
 %                                       * 'compiled' | 'standalone'
 %
 % Other options (iid, eid, outName, dropMissing, ...) are plain MATLAB name-values:
@@ -80,18 +81,10 @@ function [designMatrix, vars_of_interest, splines_of_interest, FFX_conceptMappin
 %% To Dos
 % Need additional checks for when this function will be called in compiled mode
 % How to handle non-standard family IDs? For example, scanner ID?
-% Need to read data if anything specified in configFile is not found in
-% dataFile
-% dataFile specification for mat file is really complicated - not currently
-% handled (see end of file)
 % Currently using session_id for sorting of events which is not a
 % generalisable solution as session_id may be incorrectly sorted (if
 % non-numeric); need to incorporate age-based sorting OR allow user to
 % specify another flag for sorting of events for delta computation
-% DP: 
-% i think we always should save an output file so writeDesignMat = true and 
-%     if no output directory is given either save to pwd or ~ 
-%
 
 %% Check mandatory inputs
 tInit  = tic;
@@ -111,7 +104,10 @@ else
 end
 
 %% Non-DEAP .toml → FEMA_readToml(..., 'designOnly', true) → JSON + merged parquet
+tNonDEAP = tic;
 [~, ~, tmp_ext_cfg] = fileparts(configFile);
+dirname_out_toml = '';
+study_toml = '';
 if strcmpi(tmp_ext_cfg, '.toml')
     idx_df = find(strcmpi(varargin, 'dataFile'), 1);
     if ~isempty(idx_df)
@@ -124,17 +120,31 @@ if strcmpi(tmp_ext_cfg, '.toml')
             varargin = varargin(1:idx_df-1);
         end
     end
-    [configFile, fname_data_toml, ~, ~] = FEMA_readToml(configFile, 'designOnly', true);
+    [configFile, fname_data_toml, ~, ~, rtTim] = FEMA_readToml(configFile, 'designOnly', true);
+    info.timing.tNonDEAPCreateInputJSON = rtTim.tCreateInputJSON;
+    info.timing.tNonDEAPLoadDataDir = rtTim.tLoadDataDir;
+    info.timing.tNonDEAPReadTomlTotal = rtTim.tReadTomlTotal;
     varargin = [varargin, {'dataFile', fname_data_toml}];
     tmp_cfg = jsondecode(fileread(configFile));
     dirname_out_toml = tmp_cfg.dirname_out;
-    study_toml = '';
     if isfield(tmp_cfg, 'study')
         study_toml = tmp_cfg.study;
         if isstring(study_toml)
             study_toml = char(study_toml);
         end
     end
+end
+
+% Optional params.makeDesign from job JSON (same file FEMA_readToml wrote); explicit varargin wins
+tMergeArgs = tic;
+[~, ~, cfg_ext_merge] = fileparts(configFile);
+if strcmpi(cfg_ext_merge, '.json')
+    varargin = FEMA_mergeArgs(configFile, varargin);
+end
+
+% Apply TOML-level defaults after params.makeDesign merge so [makeDesign]
+% can override [output]/top-level defaults.
+if strcmpi(tmp_ext_cfg, '.toml')
     has_outDir = false;
     has_study  = false;
     for ka = 1:2:numel(varargin) - 1
@@ -149,19 +159,15 @@ if strcmpi(tmp_ext_cfg, '.toml')
             has_study = true;
         end
     end
-    if ~has_outDir
+    if ~has_outDir && ~isempty(dirname_out_toml)
         varargin = [varargin, {'outDir', dirname_out_toml}];
     end
     if ~isempty(study_toml) && ~has_study
         varargin = [varargin, {'study', study_toml}];
     end
 end
-
-% Optional params.makeDesign from job JSON (same file FEMA_readToml wrote); explicit varargin wins
-[~, ~, cfg_ext_merge] = fileparts(configFile);
-if strcmpi(cfg_ext_merge, '.json')
-    varargin = FEMA_mergeArgs(configFile, varargin);
-end
+info.timing.tNonDEAPMergeArgs = toc(tMergeArgs);
+info.timing.tNonDEAPPrep = toc(tNonDEAP);
 
 %% Parse optional inputs
 p = inputParser;
@@ -170,37 +176,42 @@ addParameter(p, 'eid',          '');
 addParameter(p, 'dataFile',     '');
 addParameter(p, 'dirTabulated', '');
 addParameter(p, 'dropMissing',  true);
-addParameter(p, 'outDir',       pwd);
+addParameter(p, 'outDir',       '');
 addParameter(p, 'outName',      '');
-addParameter(p, 'outType',      '');
+addParameter(p, 'writeDesignMat', false);
+addParameter(p, 'outType',      '', @validateOutTypeInput);
 addParameter(p, 'study',        '');
 addParameter(p, 'fname_fam',    '');
 
 parse(p, varargin{:})
-iid          = p.Results.iid;
-eid          = p.Results.eid;
-dataFile     = p.Results.dataFile;
-dirTabulated = p.Results.dirTabulated;
-dropMissing  = p.Results.dropMissing;
-outDir       = p.Results.outDir;
-outName      = p.Results.outName;
-outType      = p.Results.outType;
-study        = p.Results.study;
-fname_fam    = p.Results.fname_fam;
+iid            = p.Results.iid;
+eid            = p.Results.eid;
+dataFile       = p.Results.dataFile;
+dirTabulated   = p.Results.dirTabulated;
+dropMissing    = p.Results.dropMissing;
+outDir         = p.Results.outDir;
+outName        = p.Results.outName;
+outType        = p.Results.outType;
+study          = p.Results.study;
+fname_fam      = p.Results.fname_fam;
+writeDesignMat = p.Results.writeDesignMat;
 
-%% Make some decision based on inputs
-if isempty(outName)
-    writeDesignMat = false;
-else
-    if ~exist(outDir, 'dir')
-        mkdir(outDir);
-        writeDesignMat = true;
-    end
-end
-
+%% Detemine if design matrix should be written out
+writeDesignMat = writeDesignMat || ~isempty(outName) || ~isempty(outDir) || ~isempty(outType);
 if writeDesignMat
     if isempty(outName)
-        outName = ['DesignMatrix-', char(datetime('now', 'Format', 'yyyyMMMdd-HHmmSS'))];
+        outName = 'FEMA_designMatrix';
+    end
+    if isempty(outDir)
+        outDir = pwd;
+    end
+    if ~exist(outDir, 'dir')
+        mkdir(outDir);
+    end
+    if isempty(outType)
+        outType = {'mat'};
+    else
+        outType = normalizeOutTypeInput(outType);
     end
 end
 
@@ -246,6 +257,29 @@ end
 
 %% Determine subject ID
 subjectIDvar = 'participant_id';
+
+%% Check if iid and eid are provided if cell or file path 
+if ~isempty(iid)
+    if ischar(iid) || isstring(iid)
+        if ~exist(iid, 'file')
+            error(['Unable to find iid file: ', iid]);
+        else 
+            iid = readtable(iid, 'FileType', 'text', 'ReadVariableNames', false);
+            iid = table2cell(iid); % convert to cell 
+        end
+    end
+end
+
+if ~isempty(eid)
+    if ischar(eid) || isstring(eid)
+        if ~exist(eid, 'file')
+            error(['Unable to find eid file: ', eid]);
+        else 
+            eid = readtable(eid, 'FileType', 'text', 'ReadVariableNames', false);
+            eid = table2cell(eid); % convert to cell 
+        end
+    end
+end
 
 %% Determine if tables need to be read
 % If the input configuration file was a JSON file, dataFile should exist
@@ -330,88 +364,88 @@ else
     end
 end
 
-if readTabulated
-    if isempty(dirTabulated)
-        error(['Please provide a full path to where the ABCD tabulated data is located ', ...
-               'OR provide a full path to a saved dataFile']);
-    else
-        if ~exist(dirTabulated, 'dir')
-            error(['Unable to find: ', dirTabulated]);
-        end
-    end
-end
+%if readTabulated
+%    if isempty(dirTabulated)
+%        error(['Please provide a full path to where the ABCD tabulated data is located ', ...
+%               'OR provide a full path to a saved dataFile']);
+%    else
+%        if ~exist(dirTabulated, 'dir')
+%            error(['Unable to find: ', dirTabulated]);
+%        end
+%    end
+%end
 
-%% Read data if required
-if readTabulated
-    tTabulated = tic;
-    logging('Reading tabulated data file(s)');
-    if ~isempty(vars_toRead)
-
-        % Make a list of tables to read
-        temp_tabNames = cellfun(@(x) x{1,1}, cellfun(@(x) strsplit(x, '__'), ...
-                                temp_FFXNames, 'UniformOutput', false),      ...
-                                'UniformOutput', false);
-        tables_toRead = fullfile(dirTabulated, strcat(unique(temp_tabNames), 'stable'), '.parquet');
-
-        % Make sure these tables exist
-        chk_tables = not(cellfun(@(x) exist(x, 'file'), tables_toRead));
-        if any(chk_tables)
-            disp('Following tables could not be found: ');
-            disp(tables_toRead(chk_tables));
-            error('Cannot proceed with making design matrix as one or more tables could not be found');
-        end
-    end
-
-    %% Read static and dynamic tables and put them together
-    data_stc  = parquetread(fullfile(dirTabulated, 'ab_g_stc.parquet'));
-    data_dyn  = parquetread(fullfile(dirTabulated, 'ab_g_dyn.parquet'));
-    data_demo = outerjoin(data_dyn, data_stc, 'Keys', 'participant_id', 'MergeKeys', true);
-
-    % Mandatory variables in data_demo to retain
-    vars_always_retain = {'participant_id', 'session_id', 'ab_g_dyn__visit_age'};
-
-    %% Put IDs together for merging
-    % Only use iid_eid so that it is easier to join with other tables
-    % Make sure to use participant_id for iid instead of subjectIDvar
-    data_demo.IDs_merge = strcat(data_demo.participant_id, {'_'}, data_demo.session_id);
-
-    %% Are there variables that we need from these two tables?
-    tmp_demo_tab_locs = ismember(temp_tabNames, {'ab_g_stc', 'ab_g_dyn'});
-    vars_demographics = temp_FFXNames(tmp_demo_tab_locs);
-
-    % Subset demo
-    data_demo = data_demo(:, [vars_always_retain, vars_demographics]);
-
-    % What are the remaining tables?
-    temp_tabNames = temp_tabNames(~tmp_demo_tab_locs);
-    temp_FFXNames = temp_FFXNames(~tmp_demo_tab_locs);
-    tables_toRead = tables_toRead(~tmp_demo_tab_locs);
-
-    % Loop over remaining tables - innerjoin with data_demo; innerjoin will
-    % keep dropping individuals who are not found across the board
-    % Use participant_id and session_id for merging
-    tables_toLoop = unique(temp_tabNames, 'stable');
-    vars_toRead   = {'participant_id', 'session_id'};
-    for tab = 1:length(tables_toLoop)
-        % Which table to read?
-        temp = parquetinfo(tables_toRead{tab});
-
-        % Do we have all the variables in the table?
-        tmp_chk = ismember(temp_FFXNames{tab}, temp.VariableNames);
-        if sum(tmp_chk) ~= length(temp_FFXNames{tab})
-            wch = strcat(temp_FFXNames{tab}(~tmp_chk), {', '});
-            wch = horzcat(wch{:});
-            error(['Could not find the following variables in table ', ...
-                   tables_toRead{tab}, ': ', wch(1:end-2)]);
-        else
-            temp = parquetread(tables_toRead{tab}, 'SelectedVariableNames', ...
-                               [vars_toRead, temp_FFXNames{tab}]);
-            temp.IDs_merge = strcat(temp.participant_id,  {'_'}, temp.session_id);
-            data_demo = innerjoin(data_demo, temp, 'Keys', 'IDs_merge', 'MergeKeys', true);
-        end
-    end
-    info.timing.tReadTabulated = toc(tTabulated);
-end
+%%% Read data if required
+%if readTabulated
+%    tTabulated = tic;
+%    logging('Reading tabulated data file(s)');
+%    if ~isempty(vars_toRead)
+%
+%        % Make a list of tables to read
+%        temp_tabNames = cellfun(@(x) x{1,1}, cellfun(@(x) strsplit(x, '__'), ...
+%                                temp_FFXNames, 'UniformOutput', false),      ...
+%                                'UniformOutput', false);
+%        tables_toRead = fullfile(dirTabulated, strcat(unique(temp_tabNames), 'stable'), '.parquet');
+%
+%        % Make sure these tables exist
+%        chk_tables = not(cellfun(@(x) exist(x, 'file'), tables_toRead));
+%        if any(chk_tables)
+%            disp('Following tables could not be found: ');
+%            disp(tables_toRead(chk_tables));
+%            error('Cannot proceed with making design matrix as one or more tables could not be found');
+%        end
+%    end
+%
+%    %% Read static and dynamic tables and put them together
+%    data_stc  = parquetread(fullfile(dirTabulated, 'ab_g_stc.parquet'));
+%    data_dyn  = parquetread(fullfile(dirTabulated, 'ab_g_dyn.parquet'));
+%    data_demo = outerjoin(data_dyn, data_stc, 'Keys', 'participant_id', 'MergeKeys', true);
+%
+%    % Mandatory variables in data_demo to retain
+%    vars_always_retain = {'participant_id', 'session_id', 'ab_g_dyn__visit_age'};
+%
+%    %% Put IDs together for merging
+%    % Only use iid_eid so that it is easier to join with other tables
+%    % Make sure to use participant_id for iid instead of subjectIDvar
+%    data_demo.IDs_merge = strcat(data_demo.participant_id, {'_'}, data_demo.session_id);
+%
+%    %% Are there variables that we need from these two tables?
+%    tmp_demo_tab_locs = ismember(temp_tabNames, {'ab_g_stc', 'ab_g_dyn'});
+%    vars_demographics = temp_FFXNames(tmp_demo_tab_locs);
+%
+%    % Subset demo
+%    data_demo = data_demo(:, [vars_always_retain, vars_demographics]);
+%
+%    % What are the remaining tables?
+%    temp_tabNames = temp_tabNames(~tmp_demo_tab_locs);
+%    temp_FFXNames = temp_FFXNames(~tmp_demo_tab_locs);
+%    tables_toRead = tables_toRead(~tmp_demo_tab_locs);
+%
+%    % Loop over remaining tables - innerjoin with data_demo; innerjoin will
+%    % keep dropping individuals who are not found across the board
+%    % Use participant_id and session_id for merging
+%    tables_toLoop = unique(temp_tabNames, 'stable');
+%    vars_toRead   = {'participant_id', 'session_id'};
+%    for tab = 1:length(tables_toLoop)
+%        % Which table to read?
+%        temp = parquetinfo(tables_toRead{tab});
+%
+%        % Do we have all the variables in the table?
+%        tmp_chk = ismember(temp_FFXNames{tab}, temp.VariableNames);
+%        if sum(tmp_chk) ~= length(temp_FFXNames{tab})
+%            wch = strcat(temp_FFXNames{tab}(~tmp_chk), {', '});
+%            wch = horzcat(wch{:});
+%            error(['Could not find the following variables in table ', ...
+%                   tables_toRead{tab}, ': ', wch(1:end-2)]);
+%        else
+%            temp = parquetread(tables_toRead{tab}, 'SelectedVariableNames', ...
+%                               [vars_toRead, temp_FFXNames{tab}]);
+%            temp.IDs_merge = strcat(temp.participant_id,  {'_'}, temp.session_id);
+%            data_demo = innerjoin(data_demo, temp, 'Keys', 'IDs_merge', 'MergeKeys', true);
+%        end
+%    end
+%    info.timing.tReadTabulated = toc(tTabulated);
+%end
 
 %% Merge data_demo with dataFile: make data_work table
 if exist('data_demo', 'var') && exist('data', 'var')
@@ -449,24 +483,24 @@ if ~isempty(iid) && ~isempty(eid)
     else
         warning('Length of iid and eid are not the same; filtering separately');
         logging('Filtering based on IID');
-        [~, ia]   = intersect(data_work.participant_id, iid);
+        ia        = ismember(data_work.participant_id, iid);
         data_work = data_work(ia, :);
 
         logging('Filtering based on EID');
-        [~, ia]   = intersect(data_work.session_id, eid);
+        ia        = ismember(data_work.session_id, eid);
         data_work = data_work(ia, :);
     end
 else
     % Filter separately
     if ~isempty(iid)
         logging('Filtering based on IID');
-        [~, ia]   = intersect(data_work.participant_id, iid);
+        ia        = ismember(data_work.participant_id, iid);
         data_work = data_work(ia, :);
     end
 
     if ~isempty(eid)
         logging('Filtering based on EID');
-        [~, ia]   = intersect(data_work.session_id, eid);
+        ia        = ismember(data_work.session_id, eid);
         data_work = data_work(ia, :);
     end
 end
@@ -1203,6 +1237,24 @@ for ii = 1:size(FFX_conceptMapping, 1)
     end
 end
 
+if writeDesignMat
+    for kOut = 1:numel(outType)
+        switch outType{kOut}
+            case 'mat'
+                fname_out = fullfile(outDir, [outName, '.mat']);
+                save(fname_out, 'designMatrix');
+            case 'parquet'
+                fname_out = fullfile(outDir, [outName, '.parquet']);
+                parquetwrite(fname_out, designMatrix);
+            case 'csv'
+                fname_out = fullfile(outDir, [outName, '.csv']);
+                writetable(designMatrix, fname_out);
+            case {'compiled', 'standalone'}
+                % Export handled by compiled/standalone branches elsewhere.
+        end
+    end
+end
+
 info.timing.tOverall = toc(tInit);
 logging('Finished making design matrix');
 end
@@ -1289,6 +1341,50 @@ colnames = matlab.lang.makeUniqueStrings(colnames, currNameSet, namelengthmax);
 % colnames = matlab.lang.makeUniqueStrings(colnames, colnames, namelengthmax);
 end
 
+function tf = validateOutTypeInput(outType)
+try
+    normalizeOutTypeInput(outType);
+    tf = true;
+catch
+    tf = false;
+end
+end
+
+function outTypeList = normalizeOutTypeInput(outType)
+allowed = {'mat', 'csv', 'parquet', 'compiled', 'standalone'};
+if isempty(outType)
+    outTypeList = {};
+    return
+end
+
+if ischar(outType) || (isstring(outType) && isscalar(outType))
+    outTypeCell = {char(outType)};
+elseif isstring(outType)
+    outTypeCell = cellstr(outType(:));
+elseif iscell(outType)
+    outTypeCell = outType;
+else
+    error('outType must be char, string, or cell array of these.');
+end
+
+outTypeList = cell(1, numel(outTypeCell));
+for k = 1:numel(outTypeCell)
+    v = outTypeCell{k};
+    if isstring(v) && isscalar(v)
+        v = char(v);
+    end
+    if ~ischar(v)
+        error('outType entries must be character vectors or strings.');
+    end
+    v = lower(strtrim(v));
+    if ~ismember(v, allowed)
+        error('Unsupported outType "%s".', v);
+    end
+    outTypeList{k} = v;
+end
+
+outTypeList = unique(outTypeList, 'stable');
+end
 
 function [outName, outValue] = applyTransforms(data_work, var_names, transformName, currNameSet)
 outName  = matlab.lang.makeValidName(strcat(var_names, {'_'}, transformName));

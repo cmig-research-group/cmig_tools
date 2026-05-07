@@ -62,6 +62,8 @@ function [beta_hat, beta_se, zmat, logpmat, sig2tvec, sig2mat, Hessmat, logLikve
 % OUTPUTS
 %   All  outputs are optional if user wants results to be output in the MATLAB workspace
 %   All permutation outputs will be empty is nperms==0
+%   With FEMA_wrapper('toml', fname_toml), info.timing includes tNonDEAPCreateInputJSON,
+%   tNonDEAPLoadDataDir, and tNonDEAPReadTomlTotal (seconds), matching FEMA_makeDesign naming.
 %
 % See LICENSE.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -79,6 +81,8 @@ disp(FEMA_info);
 tStart = tic;
 rng shuffle %Set random number generator so different every time
 
+tReadToml = []; % struct from FEMA_readToml when entry point is 'toml'
+
 %% ---- non-DEAP TOML entry point ----
 % When called as FEMA_wrapper('toml', fname_toml), convert the TOML config
 % to a job-spec JSON and load tabular data, then fall through to the
@@ -92,8 +96,8 @@ if ~isempty(idx_toml)
         error('TOML file %s does not exist.', fname_toml);
     end
 
-    [fname_json, fname_data, dirname_out_val, ~] = FEMA_readToml(fname_toml);
-
+    [fname_json, fname_data, dirname_out_val, ~, tReadToml] = FEMA_readToml(fname_toml);
+    
     % Reconstruct varargin as the standard config-mode call
     varargin = {'config', fname_json, 'data', fname_data, 'output', dirname_out_val};
 end
@@ -576,6 +580,9 @@ for des=1:n_desmat % loop if multiple design matrices
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % collate info data 
+    if ~isempty(tReadToml)
+        info.readToml.timing = tReadToml;
+    end
     info.FEMA_process_data = info_process_data; 
     info.FEMA_makeDesign = info_makeDesign;
     info.FEMA_intersect_design = info_intersect_design;

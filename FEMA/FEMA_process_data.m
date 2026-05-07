@@ -24,11 +24,11 @@ function [ymat, iid_concat, eid_concat, ivec_mask, mask, GRM, preg, address, inf
 % 
 % OUTPUTS
 %	 ymat						:	matrix of imaging data (n x v)
-%	 iid_concat					:	src_subject_id
-%	 eid_concat					:	eventname
+%	 iid_concat					:	participant_id
+%	 eid_concat					:	session_id
 %	 ivec_mask					:	vector mask for voxelwise data (155179x1) --> not yet available for vertexwise
 %	 mask						:	volume mask mask for voxelwise data (100x100x130) --> not yet available for vertexwise
-%	 ymat_names			:	imaging column labels for external data inputs
+%	 ymat_names			        :	imaging column labels for external data inputs
 %	 GRM						:	intersected genetic relatedness matrix
 %
 
@@ -637,9 +637,9 @@ if sum(defvec) == 0
     error('No observations left in the data table; please check variables for missingness');
 end
 
-iid_concat = iid_concat(defvec);
-eid_concat = eid_concat(defvec);
-idevent = idevent(defvec);
+iid_concat = cellstr(iid_concat(defvec));
+eid_concat = cellstr(eid_concat(defvec));
+idevent = cellstr(idevent(defvec));
 ymat = ymat(defvec, :);
 info.timing.tFilterAll = toc(tFilterAll);
 
