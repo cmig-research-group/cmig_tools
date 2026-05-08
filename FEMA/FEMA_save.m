@@ -1261,7 +1261,7 @@ if any(ismember(outputType, {'roi'}))
                 error('Unknown ROI atlas: %s. No mapping to tabulated names.', roi_atlas);
         end
     
-        % remove lh, rh  and all from ymat_names
+        % remove "lh", "rh"  and "all" from ymat_names
         idx_rm = find(ismember(ymat_names, {'lh', 'rh', 'all'}));
         ymat_names(idx_rm) = [];
         ymat_codes(idx_rm) = [];

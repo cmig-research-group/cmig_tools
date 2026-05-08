@@ -57,67 +57,84 @@ function roi2atlas = roi2FreesurferAtlas(icoNum, fname_out, varargin)
                 error('Unknown parcellation name: %s', parc_name);
         end
         
-        data  = read_fs_annot(dirname_fs, icoNum, annot, splitLR);
-                
-        % roicodes, roinames, roirgb
-        roicodes = data.labels.key;
-        roinames = data.labels.name;
-        roirgb = data.labels.rgba;
-
-        % create logical matrix of roi vertices
-        nroi = length(roicodes); % assuming both hemispheres have same number of rois
-        numVertices = numIcoVertices(icoNum)*2; % this is for a single hemisphere
-        roimat = false(nroi, numVertices);
-        % left comes first 
-        for r = 1:nroi
-            % check key and name is same for both hemispheres
-            roi_code = roicodes(r);
-            roi_name = roinames{r};
-            %find vertices
-            idx = find(data.cdata == roi_code);
-            roimat(r, idx) = true;
+        data  = read_fs_annot(dirname_fs, icoNum, annot, splitLR); 
+        if splitLR & length(data) ~= 2
+            error('splitLR is true but data does not contain left and right hemispheres');
         end
-        %add 'lh', 'rh' and 'all' as rois to match tabulated data
-        roicodes(end+1) = -1; % all lh
-        roicodes(end+1) = -2; % all rh
-        roicodes(end+1) = -3; % all vertices
-        roinames{end+1} = 'lh';
-        roinames{end+1} = 'rh';
-        roinames{end+1} = 'all';
-        roimat(end+1, 1:numVertices/2) = true; % all lh
-        roimat(end+1, numVertices/2+1:end) = true; % all rh
-        roimat(end+1, :) = true; % all vertices
+
+        for d = 1:length(data)
+            dataIn = data(d);
+            % roicodes, roinames, roirgb
+            roicodes = dataIn.labels.key;
+            roinames = dataIn.labels.name;
+            roirgb = dataIn.labels.rgba;
+
+            % create logical matrix of roi vertices
+            nroi = length(roicodes); % 
+            if splitLR
+                numVertices = numIcoVertices(icoNum);
+            else
+                numVertices = numIcoVertices(icoNum)*2;
+            end
+            roimat = false(nroi, numVertices);
+            % left comes first 
+            for r = 1:nroi
+                roi_code = roicodes(r);
+                %find vertices
+                idx = find(dataIn.cdata == roi_code);
+                roimat(r, idx) = true;
+            end
+            % ignore for now 
+            %%add 'lh', 'rh' and 'all' as rois to match tabulated data
+            %roicodes(end+1) = -1; % all lh
+            %roicodes(end+1) = -2; % all rh
+            %roicodes(end+1) = -3; % all vertices
+            %roinames{end+1} = 'lh';
+            %roinames{end+1} = 'rh';
+            %roinames{end+1} = 'all';
+            %roimat(end+1, 1:numVertices/2) = true; % all lh
+            %roimat(end+1, numVertices/2+1:end) = true; % all rh
+            %roimat(end+1, :) = true; % all vertices
         
 
-        % Store in output structure with parcellation name as field
-        if splitLR
-            % find left and right hemisphere roicodes, roinames, roirgb
-            idx_rh = find(contains(roinames, 'rh'));
-            idx_lh = find(contains(roinames, 'lh'));
-            idx_other = setdiff(1:length(roinames), [idx_lh; idx_rh]);
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roimat_lh = roimat(idx_lh, 1:numVertices/2);
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roimat_rh = roimat(idx_rh, numVertices/2+1:end);
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roinames_lh = roinames(idx_lh); 
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roinames_rh = roinames(idx_rh);
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roicodes_lh = roicodes(idx_lh);
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roicodes_rh = roicodes(idx_rh);
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).numVertices_lh = numVertices/2;
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).numVertices_rh = numVertices/2;
-        else 
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roimat = roimat;
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roinames = roinames;
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).roicodes = roicodes;
-            roi2atlas.(matlab.lang.makeValidName(parc_name)).numVertices = numVertices;
+            % Store in output structure with parcellation name as field
+            if splitLR
+                % check if lh or rh from roinames
+                idx_lh = find(contains(roinames, '_lh'));
+                idx_rh = find(contains(roinames, '_rh'));
+                if isempty(idx_lh)
+                    hemi = '_rh';
+                elseif isempty(idx_rh)
+                    hemi = '_lh';
+                else
+                    error('Left and right hemispheres are mixed in roinames');
+                end
+            else 
+                hemi = '';
+            end 
+
+            % make valid name for parcellation 
+            parc_name_valid = matlab.lang.makeValidName(parc_name);
+            roimat_hemi = ['roimat_', hemi];
+            roinames_hemi = ['roinames', hemi];
+            roicodes_hemi = ['roicodes', hemi];
+            numVertices_hemi = ['numVertices', hemi];
+
+            roi2atlas.(parc_name_valid).(roimat_hemi) = roimat;
+            roi2atlas.(parc_name_valid).(roinames_hemi) = roinames;
+            roi2atlas.(parc_name_valid).(roicodes_hemi) = roicodes;
+            roi2atlas.(parc_name_valid).(numVertices_hemi) = numVertices;
+
+            % make sure that all roinames, codes have the same length
+            roi2atlas.(parc_name_valid).(roicodes_hemi) = reshape(roi2atlas.(parc_name_valid).(roicodes_hemi), length(roi2atlas.(parc_name_valid).(roicodes_hemi)), 1);
+            roi2atlas.(parc_name_valid).(roinames_hemi) = reshape(roi2atlas.(parc_name_valid).(roinames_hemi), length(roi2atlas.(parc_name_valid).(roinames_hemi)), 1);
         end 
-        roi2atlas.(matlab.lang.makeValidName(parc_name)).icoNum = icoNum;
-        roi2atlas.(matlab.lang.makeValidName(parc_name)).splitLR = splitLR;
-
-        % make sure that all roinames, codes have the same length
-        roi2atlas.(matlab.lang.makeValidName(parc_name)).roicodes = reshape(roi2atlas.(matlab.lang.makeValidName(parc_name)).roicodes, length(roi2atlas.(matlab.lang.makeValidName(parc_name)).roicodes), 1);
-        roi2atlas.(matlab.lang.makeValidName(parc_name)).roinames = reshape(roi2atlas.(matlab.lang.makeValidName(parc_name)).roinames, length(roi2atlas.(matlab.lang.makeValidName(parc_name)).roinames), 1);
-
+        
+        % add icoNum and splitLR to the output structure
+        roi2atlas.(parc_name_valid).icoNum = icoNum;
+        roi2atlas.(parc_name_valid).splitLR = splitLR;
     end
-    
+     
     % save output structure
     if save_flag
         save(fname_out, 'roi2atlas');
