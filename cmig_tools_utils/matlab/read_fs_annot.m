@@ -1,4 +1,4 @@
-function out_struct = read_fs_annot(dirFreesurfer, icoNum, fname, splitLR)
+function out_struct = read_fs_annot(dirFreesurfer, icoNum, fname, splitLR, offset)
 % Function that reads an annotation file from Freesurfer and returns
 % concatenated list of cData
 
@@ -11,6 +11,14 @@ if ~exist('icoNum', 'var') || isempty(icoNum)
 else
     if icoNum < 5
         error('Supported ico numbers for atlas files are: 5, 6, and 7');
+    end
+end
+
+if ~exist('offset', 'var') || isempty(offset)
+    offset = false;
+else
+    if ~islogical(offset)
+        error('offset should be either true or false');
     end
 end
 
@@ -65,15 +73,19 @@ cd(tmp);
 
 % Append some integer constant for right hemisphere to maintain unique
 % separate mapping: this is not the most robust solution
-maxVal = max(unique(lh_mapping));
-if maxVal < 100
-    toAdd = 100;
-else
-    if maxVal < 1000
-        toAdd = 1000;
+if offset
+    maxVal = max(unique(lh_mapping));
+    if maxVal < 100
+        toAdd = 100;
     else
-        toAdd = 10000;
+        if maxVal < 1000
+            toAdd = 1000;
+        else
+            toAdd = 10000;
+        end
     end
+else
+    toAdd = 0;
 end
 
 % Find the location of unknown
