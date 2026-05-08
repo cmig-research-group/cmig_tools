@@ -1246,7 +1246,7 @@ if any(ismember(outputType, {'roi'}))
     if any(ismember({'at', 'aseg', 'dsk', 'dst', 'aparc', 'aparc_a2009s'}, roi_atlas))
         tSaveROI = tic;
         
-        json_roi = struct('fixed', [], 'random', [], 'atlas', atlas2tabNames(roi_atlas, 'atlas2tab'));
+        json_roi = struct('fixed', [], 'random', [], 'atlas', atlas2tabNames(roi_atlas, 'tab2atlas'));
         % map ymat_names to tabulated names
         switch roi_atlas
             case {'aseg'}
@@ -1424,7 +1424,7 @@ if any(ismember(outputType, {'roi'}))
                 end 
             end
         end
-        % save json_roi_rfx
+        % save json_roi
         if ~isempty(outPrefix)
             outName = [outPrefix, 'FFX_RFX_ROI_all.json'];
         else
