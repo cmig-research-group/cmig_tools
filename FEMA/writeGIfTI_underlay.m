@@ -1,4 +1,4 @@
-function writeGIfTI_underlay(icoNum, underlay, dirFreesurfer, outName, splitLR)
+function writeGIfTI_underlay(icoNum, underlay, dirFreesurfer, outName, splitLR, offset)
 % Function that writes out GIfTI file(s) given a set of inputs
 % Requires the GIfTI toolbox: https://github.com/gllmflndn/gifti to be on
 % path such that the function 'gifti' is callable
@@ -40,6 +40,10 @@ function writeGIfTI_underlay(icoNum, underlay, dirFreesurfer, outName, splitLR)
 %                           hemisphere files or an overall file 
 %                           (default: true)
 % 
+% offset:       logical     optional argument that determines if the right
+%                           hemisphere labels will be offset by a constant
+%                           value (default: false)
+% 
 %% Notes:
 % Currently, this function sources all the files from the relevant
 % fsaverage folders and saves them as GIfTI files
@@ -54,8 +58,6 @@ function writeGIfTI_underlay(icoNum, underlay, dirFreesurfer, outName, splitLR)
 %   * icoNum == 2, 162 vertices, 320 faces
 %   * icoNum == 3, 642 vertices, 1280 faces
 %   * icoNum == 4, 2562 vertices, 5120 faces
-% 
-% Inflated surfaces need to be fixed
 % 
 %% References:
 % https://brainder.org/2016/05/31/downsampling-decimating-a-brain-surface/
@@ -133,6 +135,14 @@ else
     end
 end
 
+if ~exist('offset', 'var') || isempty(offset)
+    offset = false;
+else
+    if ~islogical(offset)
+        error('offset should be either true or false');
+    end
+end
+
 %% Check for GIfTI toolbox
 if ~exist('gifti.m', 'file')
     tmp_gifti_dir = fullfile(fileparts(fileparts(which('writeGIfTI'))), 'gifti_toolbox');
@@ -150,7 +160,7 @@ if ismember(underlay, {'aparc', 'aparc.a2009s', 'yeo17', 'yeo7'})
     switch underlay
         case 'aparc'
             fname = 'aparc';
-            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            Data = read_fs_annot(dirFreesurfer, icoNum, fname, splitLR, offset);
             if splitLR
                 leftData  = Data(1);
                 rightData = Data(2);
@@ -158,7 +168,7 @@ if ismember(underlay, {'aparc', 'aparc.a2009s', 'yeo17', 'yeo7'})
 
         case 'aparc.a2009s'
             fname = 'aparc.a2009s';
-            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            Data = read_fs_annot(dirFreesurfer, icoNum, fname, splitLR, offset);
             if splitLR
                 leftData  = Data(1);
                 rightData = Data(2);
@@ -166,7 +176,7 @@ if ismember(underlay, {'aparc', 'aparc.a2009s', 'yeo17', 'yeo7'})
 
         case 'yeo17'
             fname = 'Yeo2011_17Networks_N1000';
-            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            Data = read_fs_annot(dirFreesurfer, icoNum, fname, splitLR, offset);
             if splitLR
                 leftData  = Data(1);
                 rightData = Data(2);
@@ -174,7 +184,7 @@ if ismember(underlay, {'aparc', 'aparc.a2009s', 'yeo17', 'yeo7'})
             
         case 'yeo7'
             fname = 'Yeo2011_7Networks_N1000';
-            Data  = read_annotations(dirFreesurfer, icoNum, fname, splitLR);
+            Data = read_fs_annot(dirFreesurfer, icoNum, fname, splitLR, offset);
             if splitLR
                 leftData  = Data(1);
                 rightData = Data(2);
@@ -231,6 +241,14 @@ else
             left_faces      = left_gii.faces;
             right_faces     = right_gii.faces; % + size(left_gii.vertices,1);
             if ~splitLR
+                % In this case, force a space between left and right
+                % hemispheres - say 10mm
+                xOffset = max(left_gii.vertices(:,1)) - min(right_gii.vertices(:,1)) + 10;
+
+                % Move the right hemisphere vertices
+                right_vertices(:,1) = right_vertices(:,1) + xOffset;
+
+                % Merge
                 allVertices = [left_vertices; right_vertices];
                 allFaces    = [left_faces; right_faces + size(left_gii.vertices,1)];
             end
@@ -256,144 +274,40 @@ if ismember(underlay, {'pial', 'white', 'inflated'})
     end
 else
     if splitLR
-        res = gifti(struct('cdata', leftData.cdata, 'labels', leftData.labels));
+        res = gifti(prepAtlasData(leftData, 'CortexLeft'));
         save(res, [outName, '_lh'], 'GZipBase64Binary');
 
-        res = gifti(struct('cdata', rightData.cdata, 'labels', rightData.labels));
+        res = gifti(prepAtlasData(rightData, 'CortexLeft'));
         save(res, [outName, '_rh'], 'GZipBase64Binary');
     else
-        res = gifti(struct('cdata', Data.cdata, 'labels', Data.labels));
+        % res = gifti(struct('data', Data.cdata, 'label', Data.labels));
+        res = gifti(prepAtlasData(Data, 'Cortex'));
         save(res, outName, 'GZipBase64Binary');
     end
 end
 end
 
-function out_struct = read_annotations(dirFreesurfer, icoNum, fname, splitLR)
-% Function that reads an annotation file from Freesurfer and returns
-% concatenated list of cData
+function s = prepAtlasData(data, metaDataValue)
 
-if ~exist('splitLR', 'var') || isempty(splitLR)
-    splitLR = false;
-end
+s.metadata   = struct('name',{},'value',{});
+s.label.name = data.labels.name';
+s.label.key  = int32(data.labels.key');
+s.label.rgba = data.labels.rgba;
 
-if ~exist('icoNum', 'var') || isempty(icoNum)
-    icoNum = 5;
-else
-    if icoNum < 5
-        error('Supported ico numbers for atlas files are: 5, 6, and 7');
-    end
-end
+% Set everything but unknown to opaque
+s.label.rgba(~strcmpi(data.labels.name, 'unknown'),4) = 1;
 
-% Determine fsaverage folder name
-switch icoNum
-    case 3
-        fsaverage_name = 'fsaverage3';
-    case 4
-        fsaverage_name = 'fsaverage4';
-    case 5
-        fsaverage_name = 'fsaverage5';
-    case 6
-        fsaverage_name = 'fsaverage6';
-    case 7
-        fsaverage_name = 'fsaverage';
-end
-
-% Path to annotation files and path to script file
-dir_annotations = fullfile(dirFreesurfer, 'subjects', fsaverage_name, 'label');
-dir_script      = fullfile(dirFreesurfer, 'matlab');
-fname_script    = 'read_annotation.m';
-
-% Left and right hemisphere names
-fname_lh = ['lh.', fname, '.annot'];
-fname_rh = ['rh.', fname, '.annot'];
-
-% Make sure that annotation files and read_annotation file exist
-if ~exist(fullfile(dir_annotations, fname_lh), 'file') || ...
-   ~exist(fullfile(dir_annotations, fname_rh), 'file')
-    error(['Unable to find ', fname, ' in: ', dir_annotations]);
-else
-    if ~exist(fullfile(dir_script, fname_script), 'file')
-        error(['Unable to find ', fname_script, ' in: ', dir_script]);
-    end
-end
-
-% Load annotation files
-tmp = pwd;
-cd(dir_script);
-[lh_vertices, lh_label, lh_colortable] = read_annotation(fullfile(dir_annotations, fname_lh)); %#ok<ASGLU>
-[rh_vertices, rh_label, rh_colortable] = read_annotation(fullfile(dir_annotations, fname_rh)); %#ok<ASGLU>
-cd(tmp);
-
-% What is the "index" of mapping of *_label to entries in
-% *_colortable.table(:,5)?
-[~, lh_mapping] = ismember(lh_label, lh_colortable.table(:,5));
-[~, rh_mapping] = ismember(rh_label, rh_colortable.table(:,5));
-
-% % Extract names
-% lh_names = lh_colortable.struct_names(lh_mapping);
-% rh_names = rh_colortable.struct_names(rh_mapping);
-
-% Append some integer constant for right hemisphere to maintain unique
-% separate mapping: this is not the most robust solution
-maxVal = max(unique(lh_mapping));
-if maxVal < 100
-    toAdd = 100;
-else
-    if maxVal < 1000
-        toAdd = 1000;
-    else
-        toAdd = 10000;
-    end
-end
-
-% Find the location of unknown
-lh_loc_unknown = strcmpi(lh_colortable.struct_names, 'unknown');
-rh_loc_unknown = strcmpi(rh_colortable.struct_names, 'unknown');
-
-% Get keys
-lh_keys = unique(lh_mapping);
-rh_keys = unique(rh_mapping);
-
-% Check if medial wall is missing in the keys
-if length(lh_keys) ~= length(lh_colortable.struct_names)
-    wch = reshape(setdiff(1:length(lh_colortable.struct_names), lh_keys), [], 1);
-
-    % Append wch
-    lh_keys = sort([lh_keys; wch]);
-end
-
-% Repeat for the right hemisphere
-if length(rh_keys) ~= length(rh_colortable.struct_names)
-    wch = reshape(setdiff(1:length(rh_colortable.struct_names), rh_keys), [], 1);
-
-    % Append wch
-    rh_keys = sort([rh_keys; wch]);
-end
-
-% Add a constant to rh
-rh_keys(~rh_loc_unknown) = rh_keys(~rh_loc_unknown) + toAdd;
-
-% Append lh and rh to ROI names
-lh_colortable.struct_names(~lh_loc_unknown) = strcat(lh_colortable.struct_names(~lh_loc_unknown), {'_lh'});
-rh_colortable.struct_names(~rh_loc_unknown) = strcat(rh_colortable.struct_names(~rh_loc_unknown), {'_rh'});
-
-% Create a labels table
-if splitLR
-    left_struct.labels.name  = lh_colortable.struct_names;
-    left_struct.labels.key   = lh_keys;
-    left_struct.labels.rgba  = lh_colortable.table(:,1:4);
-    left_struct.cdata        = lh_mapping;
-    
-    right_struct.labels.name = rh_colortable.struct_names;
-    right_struct.labels.key  = rh_keys;
-    right_struct.labels.rgba = rh_colortable.table(:,1:4);
-    right_struct.cdata       = rh_mapping;
-
-    out_struct = [left_struct; right_struct];
-else
-    out_struct.labels.name = [lh_colortable.struct_names; rh_colortable.struct_names(~rh_loc_unknown)];
-    out_struct.labels.key  = [lh_keys; rh_keys(~rh_loc_unknown)];
-    out_struct.labels.rgba = [lh_colortable.table(:,1:4); rh_colortable.table(~rh_loc_unknown,1:4)];
-    out_struct.cdata       = [lh_mapping; rh_mapping];
-end
+% Update data fields
+s.data{1}.metadata                      = struct('name', {'AnatomicalStructurePrimary'}, ...
+                                                 'value', {metaDataValue});
+s.data{1}.space                         = [];
+s.data{1}.attributes.Intent             = 'NIFTI_INTENT_LABEL';
+s.data{1}.attributes.DataType           = 'NIFTI_TYPE_INT32';
+s.data{1}.attributes.ArrayIndexingOrder = 'ColumnMajorOrder';
+s.data{1}.attributes.Dim                = numel(data.cdata);
+s.data{1}.attributes.Encoding           = 'GZipBase64Binary';
+s.data{1}.attributes.Endian             = 'LittleEndian';
+s.data{1}.attributes.ExternalFileName   = '';
+s.data{1}.attributes.ExternalFileOffset = '';
+s.data{1}.data                          = int32(data.cdata);
 end
