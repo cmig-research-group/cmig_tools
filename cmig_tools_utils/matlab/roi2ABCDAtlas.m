@@ -84,3 +84,8 @@ function roi2atlas = roi2ABCDAtlas(fname_atlas, fname_out, varargin)
         roi2atlas.(parc_name).roinames = reshape(roi2atlas.(parc_name).roinames, length(roi2atlas.(parc_name).roinames), 1);
         roi2atlas.(parc_name).roirgb = reshape(roi2atlas.(parc_name).roirgb, length(roi2atlas.(parc_name).roirgb), 3);
     end
+
+    if save_flag
+        save(fname_out, 'roi2atlas');
+    end
+end 
