@@ -607,7 +607,7 @@ for des=1:n_desmat % loop if multiple design matrices
     
     % check roi atlas type if datatype is 'roi' - should proably do this earlier
     if strcmpi(datatype, 'roi')
-        roi_atlas_match = regexp(fstem_imaging, '(?<=__)(at|aseg|dsk|dst||gp)(?=$|\.)', 'match');
+        roi_atlas_match = regexp(fstem_imaging, '(?<=__)(at|aseg|dsk|dst|gp)(?=$|\.)', 'match');
         if ~isempty(roi_atlas_match)
             roi_atlas = roi_atlas_match{1};
         else

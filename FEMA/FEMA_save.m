@@ -1242,211 +1242,216 @@ if ismember('FFX_conceptMapping', unMatched_flds)
 end
 
 if any(ismember(outputType, {'roi'}))
-    tSaveROI = tic;
     roi_atlas = unMatched.roi_atlas;
-    json_roi = struct('fixed', [], 'random', [], 'atlas', atlas2tabNames(roi_atlas, 'atlas2tab'));
-    % map ymat_names to tabulated names
-    switch roi_atlas
-        case {'aseg'}
-            [ymat_names ymat_codes] = aseg2tabroinames(unMatched.ymat_names, 'tab2atlas');
-        case {'at'}
-            [ymat_names ymat_codes] = fiber2tabroinames(unMatched.ymat_names, 'tab2atlas');
-        case {'dsk', 'aparc'}
-            [ymat_names ymat_codes] = aparc2tabroinames(unMatched.ymat_names, 'tab2atlas');
-        case {'dst', 'aparc_a2009s'}
-            [ymat_names ymat_codes] = aparc2009s2tabroinames(unMatched.ymat_names, 'tab2atlas');
-        otherwise
-            error('Unknown ROI atlas: %s', roi_atlas);
-    end
-
-    % remove lh, rh  and all from ymat_names
-    idx_rm = find(ismember(ymat_names, {'lh', 'rh', 'all'}));
-    ymat_names(idx_rm) = [];
-    ymat_codes(idx_rm) = [];
-
-    % get indices of left and right hemisphere (should this be a function?)
-    isLeft = ~cellfun(@isempty, regexp(lower(ymat_names), '(^|[_\.-])(lh|left|l)([_\.-]|$)', 'once'));
-    isRight = ~cellfun(@isempty, regexp(lower(ymat_names), '(^|[_\.-])(rh|right|r)([_\.-]|$)', 'once'));
-    idxLeft = find(isLeft);
-    idxRight = find(isRight);
-
-    % Prepare statistics to save
-    toSave_FFX_stats  = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
-    toSave_RFX_stats  = {'sig2tvec', 'sig2mat', 'sig2mat_normalized'};
-    toSave_Wald_stats = {'Wald', 'logp_Wald'};
-    toSave_FFX        = toSave_FFX_stats(ismember(toSave_FFX_stats,   unMatched_flds));
-    toSave_RFX        = toSave_RFX_stats(ismember(toSave_RFX_stats,   unMatched_flds));    
-    toSave_Wald       = toSave_Wald_stats(ismember(toSave_Wald_stats, unMatched_flds) & ...
-                        ~cellfun(@(x) isempty(unMatched.(x)), toSave_Wald_stats));
-
-    % Fixed effects
-    if ~isempty(toSave_FFX)
-        if ~isfield(unMatched, 'colsinterest')
-            unMatched.colsinterest = 1:size(unMatched.(toSave_FFX{1}),1);
-        end 
-        if ~isfield(unMatched, 'vars_of_interest')
-            % Generate vars_of_interest once
-            % unMatched.vars_of_interest{j} = ['var', num2str(jj)];
-            unMatched.vars_of_interest = strrep(strcat({'var'}, num2str(colvec(unMatched.colsinterest))), ' ', '');
-        end       
-        % save out one json for each fixed effect
-        for j = 1:length(unMatched.colsinterest)
-            jj = unMatched.colsinterest(j);
-            saveName_tmp = [outName, '_col', num2str(jj, '%03d'), '_', unMatched.vars_of_interest{j}, '.json'];
-            saveName = fullfile(dirOutput, saveName_tmp);
-
-            for ff = 1:length(toSave_FFX)
-                workVar = unMatched.(toSave_FFX{ff});
-                statName = toSave_FFX{ff};
-                dispName = dispNameStat(statName);
-                saveData = workVar(jj,:);
-                value_range = saveDataRange(saveData);
-
-                % data to save
-                json_roi.fixed(j).name = unMatched.vars_of_interest{j};
-                json_roi.fixed(j).params.(toSave_FFX{ff}).display_name = dispName;
-                json_roi.fixed(j).params.(toSave_FFX{ff}).value_range = value_range;
-                json_roi.fixed(j).params.(toSave_FFX{ff}).values.left = roiDataStruct(saveData, ymat_codes, idxLeft);
-                json_roi.fixed(j).params.(toSave_FFX{ff}).values.right = roiDataStruct(saveData, ymat_codes, idxRight);
-            end 
-        end 
-    end
-
-    % Save Wald test
-    if ~isempty(toSave_Wald)
-        nFFX = length(json_roi.fixed);
-        for j = 1:size(unMatched.splines_of_interest, 1)
-            saveName_tmp = [outName, '_', unMatched.splines_of_interest{j,2}, '.json'];
-            saveName = fullfile(dirOutput, saveName_tmp);
-
-            for ff = 1:length(toSave_Wald)
-                workVar = unMatched.(toSave_Wald{ff});
-                statName = toSave_Wald{ff};
-                dispName = dispNameStat(statName);
-                saveData = workVar(j,:);
-                value_range = saveDataRange(saveData);
-                % data to save
-                %json_fileTracker.fixed.roi(j).params.(statName).display_name = dispName;
-                %json_fileTracker.fixed.roi(j).params.(statName).value_range = value_range;
-                json_roi.fixed(nFFX+j).name = unMatched.splines_of_interest{j,2};
-                json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).display_name = dispName;
-                json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).value_range = value_range;
-                json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).values.left = roiDataStruct(saveData, ymat_codes, idxLeft);
-                json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).values.right = roiDataStruct(saveData, ymat_codes, idxRight);
-            end 
-        end 
-    end
-    
-    if ~isempty(toSave_RFX)
-        if ~isempty(outPrefix)
-            outName = [outPrefix, '_RFX'];
-        else
-            outName = 'RFX';
+    if any(ismember({'at', 'aseg', 'dsk', 'dst', 'aparc', 'aparc_a2009s'}, roi_atlas))
+        tSaveROI = tic;
+        
+        json_roi = struct('fixed', [], 'random', [], 'atlas', atlas2tabNames(roi_atlas, 'atlas2tab'));
+        % map ymat_names to tabulated names
+        switch roi_atlas
+            case {'aseg'}
+                [ymat_names ymat_codes] = aseg2tabroinames(unMatched.ymat_names, 'tab2atlas');
+            case {'at'}
+                [ymat_names ymat_codes] = fiber2tabroinames(unMatched.ymat_names, 'tab2atlas');
+            case {'dsk', 'aparc'}
+                [ymat_names ymat_codes] = aparc2tabroinames(unMatched.ymat_names, 'tab2atlas');
+            case {'dst', 'aparc_a2009s'}
+                [ymat_names ymat_codes] = aparc2009s2tabroinames(unMatched.ymat_names, 'tab2atlas');
+            otherwise
+                error('Unknown ROI atlas: %s. No mapping to tabulated names.', roi_atlas);
         end
-        saveName_tmp = [outName, '_all.json'];
-        saveName = fullfile(dirOutput, saveName_tmp);
-
-        for ff = 1:length(toSave_RFX)
-            if strcmp(toSave_RFX{ff}, 'sig2tvec') 
-                statName = toSave_RFX{ff};
-                dispName = dispNameStat(statName);
-                workVar = unMatched.(toSave_RFX{ff});
-                value_range = saveDataRange(workVar);
-
-                json_roi.random(1).name = dispName;
-                json_roi.random(1).params.display_name = dispName;
-                json_roi.random(1).params.value_range = value_range;
-
-                json_roi.random(1).params.values.left = roiDataStruct(workVar, ymat_codes, idxLeft);
-                json_roi.random(1).params.values.right = roiDataStruct(workVar, ymat_codes, idxRight);
-
-            elseif  strcmp(toSave_RFX{ff}, 'sig2mat') || strcmp(toSave_RFX{ff}, 'sig2mat_normalized')
-                statName = toSave_RFX{ff};
-                if isempty(unMatched.unstructParams) 
-                    dispName = dispNameStat(statName);                    
-                    workVar = unMatched.(toSave_RFX{ff});
-                    dim_workVar = size(workVar);
-                    for rr = 1:dim_workVar(1)
-                        vecData = workVar(rr, :);
-                        value_range = saveDataRange(vecData);
-                        json_roi.random(rr+1).name = RandomEffects_name{rr};
-                        json_roi.random(rr+1).params.variance.display_name = dispName;
-                        json_roi.random(rr+1).params.variance.value_range = value_range;
-                        json_roi.random(rr+1).params.variance.values.left = roiDataStruct(vecData, ymat_codes, idxLeft);
-                        json_roi.random(rr+1).params.variance.values.right = roiDataStruct(vecData, ymat_codes, idxRight);
-                    end
-                else 
-                    workVar = unMatched.(toSave_RFX{ff});
-                    dim_workVar = size(workVar);
-                    for rr = 1:dim_workVar(3)
-                        for i1 = 1:dim_workVar(2)
-                            for i2 = 1:i1   
-                                vecData = reshape(squeeze(workVar(i1,i2,rr,:)), 1, []);     
-                                if i1 == i2
-                                    if isnumeric(eidOrd_all)
-                                        eidOrd = num2str(eidOrd_all(i1));
-                                    else 
-                                        eidOrd = eidOrd_all{i1};
-                                    end 
-                                    dispName = ['Variance ', RandomEffects{rr}, '_', eidOrd];
-                                    volName = ['Var_', RandomEffects{rr}, '_', eidOrd];
-                                    volName = matlab.lang.makeValidName(volName);
-                                    value_range = saveDataRange(vecData);
-                                    json_roi.random(rr+1).name =  RandomEffects_name{rr}; 
-                                    json_roi.random(rr+1).params.(volName).display_name = dispName;
-                                    json_roi.random(rr+1).params.(volName).value_range = value_range;
-                                    json_roi.random(rr+1).params.(volName).values.left = roiDataStruct(vecData, ymat_codes, idxLeft);
-                                    json_roi.random(rr+1).params.(volName).values.right = roiDataStruct(vecData, ymat_codes, idxRight);
-                                else                                
-                                    if isnumeric(eidOrd_all)
-                                        eidOrd1 = num2str(eidOrd_all(i1));
-                                        eidOrd2 = num2str(eidOrd_all(i2));
-                                    else
-                                        eidOrd1 = eidOrd_all{i1};
-                                        eidOrd2 = eidOrd_all{i2};
-                                    end
-                                    dispName = ['Correlation ', RandomEffects{rr}, '_', eidOrd2, '-', eidOrd1];
-                                    volName = ['Corr_', RandomEffects{rr}, '_', eidOrd2, '-', eidOrd1];
-                                    volName = matlab.lang.makeValidName(volName);
-                                    value_range = saveDataRange(vecData);
-                                    json_roi.random(rr+1).name = RandomEffects_name{rr};
-                                    json_roi.random(rr+1).params.(volName).display_name = dispName;
-                                    json_roi.random(rr+1).params.(volName).value_range = value_range;
-                                    json_roi.random(rr+1).params.(volName).values.left = roiDataStruct(vecData, ymat_codes, idxLeft);
-                                    json_roi.random(rr+1).params.(volName).values.right = roiDataStruct(vecData, ymat_codes, idxRight);
-                                end  
-                            end
-                        end
-                    end
+    
+        % remove lh, rh  and all from ymat_names
+        idx_rm = find(ismember(ymat_names, {'lh', 'rh', 'all'}));
+        ymat_names(idx_rm) = [];
+        ymat_codes(idx_rm) = [];
+    
+        % get indices of left and right hemisphere (should this be a function?)
+        isLeft = ~cellfun(@isempty, regexp(lower(ymat_names), '(^|[_\.-])(lh|left|l)([_\.-]|$)', 'once'));
+        isRight = ~cellfun(@isempty, regexp(lower(ymat_names), '(^|[_\.-])(rh|right|r)([_\.-]|$)', 'once'));
+        idxLeft = find(isLeft);
+        idxRight = find(isRight);
+    
+        % Prepare statistics to save
+        toSave_FFX_stats  = {'beta_hat', 'beta_se', 'zmat', 'logpmat'};
+        toSave_RFX_stats  = {'sig2tvec', 'sig2mat', 'sig2mat_normalized'};
+        toSave_Wald_stats = {'Wald', 'logp_Wald'};
+        toSave_FFX        = toSave_FFX_stats(ismember(toSave_FFX_stats,   unMatched_flds));
+        toSave_RFX        = toSave_RFX_stats(ismember(toSave_RFX_stats,   unMatched_flds));    
+        toSave_Wald       = toSave_Wald_stats(ismember(toSave_Wald_stats, unMatched_flds) & ...
+                            ~cellfun(@(x) isempty(unMatched.(x)), toSave_Wald_stats));
+    
+        % Fixed effects
+        if ~isempty(toSave_FFX)
+            if ~isfield(unMatched, 'colsinterest')
+                unMatched.colsinterest = 1:size(unMatched.(toSave_FFX{1}),1);
+            end 
+            if ~isfield(unMatched, 'vars_of_interest')
+                % Generate vars_of_interest once
+                % unMatched.vars_of_interest{j} = ['var', num2str(jj)];
+                unMatched.vars_of_interest = strrep(strcat({'var'}, num2str(colvec(unMatched.colsinterest))), ' ', '');
+            end       
+            % save out one json for each fixed effect
+            for j = 1:length(unMatched.colsinterest)
+                jj = unMatched.colsinterest(j);
+                saveName_tmp = [outName, '_col', num2str(jj, '%03d'), '_', unMatched.vars_of_interest{j}, '.json'];
+                saveName = fullfile(dirOutput, saveName_tmp);
+    
+                for ff = 1:length(toSave_FFX)
+                    workVar = unMatched.(toSave_FFX{ff});
+                    statName = toSave_FFX{ff};
+                    dispName = dispNameStat(statName);
+                    saveData = workVar(jj,:);
+                    value_range = saveDataRange(saveData);
+    
+                    % data to save
+                    json_roi.fixed(j).name = unMatched.vars_of_interest{j};
+                    json_roi.fixed(j).params.(toSave_FFX{ff}).display_name = dispName;
+                    json_roi.fixed(j).params.(toSave_FFX{ff}).value_range = value_range;
+                    json_roi.fixed(j).params.(toSave_FFX{ff}).values.left = roiDataStruct(saveData, ymat_codes, idxLeft);
+                    json_roi.fixed(j).params.(toSave_FFX{ff}).values.right = roiDataStruct(saveData, ymat_codes, idxRight);
                 end 
             end 
         end
-    end
-    % save json_roi_rfx
-    if ~isempty(outPrefix)
-        outName = [outPrefix, 'FFX_RFX_ROI_all.json'];
+    
+        % Save Wald test
+        if ~isempty(toSave_Wald)
+            nFFX = length(json_roi.fixed);
+            for j = 1:size(unMatched.splines_of_interest, 1)
+                saveName_tmp = [outName, '_', unMatched.splines_of_interest{j,2}, '.json'];
+                saveName = fullfile(dirOutput, saveName_tmp);
+    
+                for ff = 1:length(toSave_Wald)
+                    workVar = unMatched.(toSave_Wald{ff});
+                    statName = toSave_Wald{ff};
+                    dispName = dispNameStat(statName);
+                    saveData = workVar(j,:);
+                    value_range = saveDataRange(saveData);
+                    % data to save
+                    %json_fileTracker.fixed.roi(j).params.(statName).display_name = dispName;
+                    %json_fileTracker.fixed.roi(j).params.(statName).value_range = value_range;
+                    json_roi.fixed(nFFX+j).name = unMatched.splines_of_interest{j,2};
+                    json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).display_name = dispName;
+                    json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).value_range = value_range;
+                    json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).values.left = roiDataStruct(saveData, ymat_codes, idxLeft);
+                    json_roi.fixed(nFFX+j).params.(toSave_Wald{ff}).values.right = roiDataStruct(saveData, ymat_codes, idxRight);
+                end 
+            end 
+        end
+        
+        if ~isempty(toSave_RFX)
+            if ~isempty(outPrefix)
+                outName = [outPrefix, '_RFX'];
+            else
+                outName = 'RFX';
+            end
+            saveName_tmp = [outName, '_all.json'];
+            saveName = fullfile(dirOutput, saveName_tmp);
+    
+            for ff = 1:length(toSave_RFX)
+                if strcmp(toSave_RFX{ff}, 'sig2tvec') 
+                    statName = toSave_RFX{ff};
+                    dispName = dispNameStat(statName);
+                    workVar = unMatched.(toSave_RFX{ff});
+                    value_range = saveDataRange(workVar);
+    
+                    json_roi.random(1).name = dispName;
+                    json_roi.random(1).params.display_name = dispName;
+                    json_roi.random(1).params.value_range = value_range;
+    
+                    json_roi.random(1).params.values.left = roiDataStruct(workVar, ymat_codes, idxLeft);
+                    json_roi.random(1).params.values.right = roiDataStruct(workVar, ymat_codes, idxRight);
+    
+                elseif  strcmp(toSave_RFX{ff}, 'sig2mat') || strcmp(toSave_RFX{ff}, 'sig2mat_normalized')
+                    statName = toSave_RFX{ff};
+                    if isempty(unMatched.unstructParams) 
+                        dispName = dispNameStat(statName);                    
+                        workVar = unMatched.(toSave_RFX{ff});
+                        dim_workVar = size(workVar);
+                        for rr = 1:dim_workVar(1)
+                            vecData = workVar(rr, :);
+                            value_range = saveDataRange(vecData);
+                            json_roi.random(rr+1).name = RandomEffects_name{rr};
+                            json_roi.random(rr+1).params.variance.display_name = dispName;
+                            json_roi.random(rr+1).params.variance.value_range = value_range;
+                            json_roi.random(rr+1).params.variance.values.left = roiDataStruct(vecData, ymat_codes, idxLeft);
+                            json_roi.random(rr+1).params.variance.values.right = roiDataStruct(vecData, ymat_codes, idxRight);
+                        end
+                    else 
+                        workVar = unMatched.(toSave_RFX{ff});
+                        dim_workVar = size(workVar);
+                        for rr = 1:dim_workVar(3)
+                            for i1 = 1:dim_workVar(2)
+                                for i2 = 1:i1   
+                                    vecData = reshape(squeeze(workVar(i1,i2,rr,:)), 1, []);     
+                                    if i1 == i2
+                                        if isnumeric(eidOrd_all)
+                                            eidOrd = num2str(eidOrd_all(i1));
+                                        else 
+                                            eidOrd = eidOrd_all{i1};
+                                        end 
+                                        dispName = ['Variance ', RandomEffects{rr}, '_', eidOrd];
+                                        volName = ['Var_', RandomEffects{rr}, '_', eidOrd];
+                                        volName = matlab.lang.makeValidName(volName);
+                                        value_range = saveDataRange(vecData);
+                                        json_roi.random(rr+1).name =  RandomEffects_name{rr}; 
+                                        json_roi.random(rr+1).params.(volName).display_name = dispName;
+                                        json_roi.random(rr+1).params.(volName).value_range = value_range;
+                                        json_roi.random(rr+1).params.(volName).values.left = roiDataStruct(vecData, ymat_codes, idxLeft);
+                                        json_roi.random(rr+1).params.(volName).values.right = roiDataStruct(vecData, ymat_codes, idxRight);
+                                    else                                
+                                        if isnumeric(eidOrd_all)
+                                            eidOrd1 = num2str(eidOrd_all(i1));
+                                            eidOrd2 = num2str(eidOrd_all(i2));
+                                        else
+                                            eidOrd1 = eidOrd_all{i1};
+                                            eidOrd2 = eidOrd_all{i2};
+                                        end
+                                        dispName = ['Correlation ', RandomEffects{rr}, '_', eidOrd2, '-', eidOrd1];
+                                        volName = ['Corr_', RandomEffects{rr}, '_', eidOrd2, '-', eidOrd1];
+                                        volName = matlab.lang.makeValidName(volName);
+                                        value_range = saveDataRange(vecData);
+                                        json_roi.random(rr+1).name = RandomEffects_name{rr};
+                                        json_roi.random(rr+1).params.(volName).display_name = dispName;
+                                        json_roi.random(rr+1).params.(volName).value_range = value_range;
+                                        json_roi.random(rr+1).params.(volName).values.left = roiDataStruct(vecData, ymat_codes, idxLeft);
+                                        json_roi.random(rr+1).params.(volName).values.right = roiDataStruct(vecData, ymat_codes, idxRight);
+                                    end  
+                                end
+                            end
+                        end
+                    end 
+                end 
+            end
+        end
+        % save json_roi_rfx
+        if ~isempty(outPrefix)
+            outName = [outPrefix, 'FFX_RFX_ROI_all.json'];
+        else
+            outName = 'FFX_RFX_ROI_all.json';
+        end
+        saveName = fullfile(dirOutput, outName);
+        roi_json = save_jsonencode(json_roi, PrettyPrint=true);
+        roi_json = regexprep(roi_json, '"x([0-9]+)"\s*:', '"$1":');
+        fid = fopen(saveName, 'w');
+        fwrite(fid, roi_json);
+        fclose(fid);
+    
+        FEMA_save.timing.tSaveROI = toc(tSaveROI);
+        % save FEMA_mapping.json (json_fileTracker is the encoded string from tables block when present)
+        if exist('json_fileTracker', 'var') && (ischar(json_fileTracker) || isstring(json_fileTracker))
+            json_fileTracker = jsondecode(json_fileTracker);
+        else
+            json_fileTracker = struct(struct('roi', {{}}), 'random', struct('roi', {{}}));
+        end
+        json_fileTracker.roi = saveName;
+        json_fileTracker = save_jsonencode(json_fileTracker, PrettyPrint=true);
+        fid = fopen(fullfile(dirOutput, 'FEMA_mapping.json'), 'w');
+        fwrite(fid, json_fileTracker);
+        fclose(fid);
     else
-        outName = 'FFX_RFX_ROI_all.json';
+        warning('Unknown ROI atlas: %s. No mapping outputs.', roi_atlas);
     end
-    saveName = fullfile(dirOutput, outName);
-    roi_json = save_jsonencode(json_roi, PrettyPrint=true);
-    roi_json = regexprep(roi_json, '"x([0-9]+)"\s*:', '"$1":');
-    fid = fopen(saveName, 'w');
-    fwrite(fid, roi_json);
-    fclose(fid);
-
-    FEMA_save.timing.tSaveROI = toc(tSaveROI);
-    % save FEMA_mapping.json (json_fileTracker is the encoded string from tables block when present)
-    if exist('json_fileTracker', 'var') && (ischar(json_fileTracker) || isstring(json_fileTracker))
-        json_fileTracker = jsondecode(json_fileTracker);
-    else
-        json_fileTracker = struct(struct('roi', {{}}), 'random', struct('roi', {{}}));
-    end
-    json_fileTracker.roi = saveName;
-    json_fileTracker = save_jsonencode(json_fileTracker, PrettyPrint=true);
-    fid = fopen(fullfile(dirOutput, 'FEMA_mapping.json'), 'w');
-    fwrite(fid, json_fileTracker);
-    fclose(fid);
 end
 
 FEMA_save.timing.tSaveOverall = toc(tSaveOverall);
