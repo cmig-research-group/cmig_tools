@@ -240,15 +240,13 @@ else
             right_vertices  = right_gii.vertices;
             left_faces      = left_gii.faces;
             right_faces     = right_gii.faces; % + size(left_gii.vertices,1);
+
+            % For inflated surfaces, force a space between left and right
+            % hemispheres - say 10mm
+            xOffset = max(left_gii.vertices(:,1)) - min(right_gii.vertices(:,1)) + 10;
+            right_vertices(:,1) = right_vertices(:,1) + xOffset;
+
             if ~splitLR
-                % In this case, force a space between left and right
-                % hemispheres - say 10mm
-                xOffset = max(left_gii.vertices(:,1)) - min(right_gii.vertices(:,1)) + 10;
-
-                % Move the right hemisphere vertices
-                right_vertices(:,1) = right_vertices(:,1) + xOffset;
-
-                % Merge
                 allVertices = [left_vertices; right_vertices];
                 allFaces    = [left_faces; right_faces + size(left_gii.vertices,1)];
             end
