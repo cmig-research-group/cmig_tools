@@ -63,6 +63,15 @@ function [FFX_names,            FFX_categorical,     FFX_vectorTransforms,    ..
 %% Decrypt JSON file
 configFile = jsondecode(fileread(configFile));
 
+if strcmpi(configFile.params.dependent.type_data, 'external')
+    tmp_locs = find(cellfun(@(x) isfield(x, 'transform'), configFile.params.fixed.vars));
+    for tmp = 1:length(tmp_locs)
+        if strcmpi(configFile.params.fixed.vars{tmp}.transform, 'splines')
+            configFile.params.fixed.vars{tmp}.of_interest = true;
+        end
+    end
+end
+
 %% Extract random effects
 RFX_names = configFile.params.random;
 
@@ -460,7 +469,6 @@ output(:, 12) = def_instance;
 
 for lines = 1:length(cfg)
     output{lines,1} = cfg{lines}.name;
-    output{lines,2} = cfg{lines}.of_interest;
 
     ff = fieldnames(cfg{lines}.splines);
     for f = 1:length(ff)
