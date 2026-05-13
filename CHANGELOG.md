@@ -177,6 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `cmig_tools_utils/matlab/struct2args.m`
 * `docs/FEMAv2.0_UserGuide.pdf`
 * `docs/licenses/LICENSE_plotboxpos.txt`
+* `admin/ABCD_DEMO_test.m`
 * corresponding `docs/help` files removed
 
 ## [3.0.0 - 2025-09-17]
