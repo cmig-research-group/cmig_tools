@@ -821,16 +821,12 @@ if any(ismember(outputType, {'tables', 'external'}))
 
         % Prepare JSON data
         json_tabularY.dependent = depName;
-        if writeJSON
-            json_tabularY.formula = strcat(depName, {' ~ '}, ffx_formula, rfx_formula);
+        
+        if writeJson
+            formula = strcat(depName, {' ~ '}, ffx_formula, rfx_formula);
+            json_tabularY.formula = formula;
         end
-
-        % Prepare JSON data
-        json_tabularY.dependent = depName;
-        if writeJSON
-            json_tabularY.formula   = formula;
-        end
-
+        
         % Prepare fixed effects statistics
         % Assign names
         [tab_fixed(1:howMany).name] = unMatched.colnames_model{:};
