@@ -4,6 +4,181 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [4.0.0 - 2026-05-13]
+### Added
+* Major new functions added:
+    - `FEMA/FEMA_makeDesign.m`: intended replacement for `cmig_tools_utils/r/makeDesign.R`
+    - `FEMA/FEMA_read_GRM.m`: function for reading in genetic relationship matrix
+    - `FEMA/FEMA_save.m`: multi-format saving function
+    - `FEMA/writeGIfTI.m`: function that writes out statistical overlays as GIfTI files
+    - `FEMA/writeGIfTI_underlay.m`: function to generate underlay and atlas files in GIfTI format
+    - `FEMA/FEMA_propagateStats.m`: function that propagates ROI-level statistics to voxel/vertex-level
+* To support the above functions, various supporting functions have been added:
+    - `FEMA/FEMA_createInputJSON.m`
+    - `FEMA/FEMA_loadDataDir.m`
+    - `FEMA/FEMA_mergeArgs.m`
+    - `FEMA/FEMA_parseInputs.m`
+    - `FEMA/FEMA_parse_JSON.m`
+    - `FEMA/FEMA_parse_config.m`
+    - `FEMA/FEMA_readToml.m`
+    - `cmig_tools_utils/matlab/numIcoVertices.m`
+    - `cmig_tools_utils/matlab/read_fs_annot.m`
+    - `cmig_tools_utils/matlab/dispNameStat.m`
+    - `cmig_tools_utils/matlab/doTransformation.m`
+    - `cmig_tools_utils/matlab/winsorize.m`
+    - `cmig_tools_utils/matlab/local_mapEmbeddedToken.m`
+    - `cmig_tools_utils/matlab/save_jsonencode.m`
+    - `cmig_tools_utils/matlab/save_nonfiniteScalarTokens.m`
+    - `cmig_tools_utils/matlab/save_numericToJsonCells.m`
+    - `cmig_tools_utils/matlab/save_prepareStrictJson.m`
+    - `cmig_tools_utils/matlab/toml_parse.m`
+* Additional supporting files and functions for atlases:
+    - `cmig_tools_utils/matlab/aparc2009s2tabroinames.m`
+    - `cmig_tools_utils/matlab/aparc2tabroinames.m`
+    - `cmig_tools_utils/matlab/aseg2tabroinames.m`
+    - `cmig_tools_utils/matlab/atlas2tabNames.m`
+    - `cmig_tools_utils/matlab/createDEAPlut.m`
+    - `cmig_tools_utils/matlab/fiber2tabroinames.m`
+    - `cmig_tools_utils/matlab/roi2ABCDAtlas.m`
+    - `cmig_tools_utils/matlab/roi2FreesurferAtlas.m`
+    - `support_files/aparc_a2009s_lut.csv`
+    - `support_files/aparc_lut.csv`
+    - `support_files/aparcaseg_lut.csv`
+    - `support_files/aseg_lut.csv`
+    - `support_files/fiber_lut.csv`
+    - `support_files/roi2ABCDAtlasMaps.mat`
+    - `support_files/roi2SurfaceAtlasMaps.mat`
+* New recipes have been introduced:
+    - `recipes/demo_run_unstructuredCovariance.m`
+    - `recipes/run_GIfTI_tests.m`
+* Miscellaneous supporting files
+    - `FEMA/Makefile`
+    - `FEMA/compile_stats.sh`
+    - `cmig_tools_utils/matlab/tight_subplot.m`
+    - `showVol/utils/jsystem.m`
+* New files for DEAP parallelization are included (feature under development):
+    - `DEAP/FEMA_DEAP_client.m`
+    - `DEAP/FEMA_DEAP_gencache.m`
+    - `DEAP/FEMA_DEAP_init.m`
+    - `DEAP/FEMA_DEAP_server.m`
+    - `DEAP/FEMA_DEAP_worker.m`
+    - `DEAP/FEMA_DEAP_wrapper.m`
+    - `DEAP/FEMA_DEAP_wrapper_submit.m`
+    - `DEAP/GlobalConfig.m`
+    - `DEAP/compile_DEAP.m`
+    - `DEAP/run_client.sh`
+    - `DEAP/run_gencache.sh`
+    - `DEAP/start_workers.sh`
+* A copy of the [GIfTI toolbox](https://github.com/gllmflndn/gifti) is included; license file added to `docs/licenses`
+
+### Changed
+* `FEMA/FEMA_fit.m`: major changes impacting backward compatiblity
+    - Output changes:
+        - replaced `reusableVars` with `unstructParams` and `residuals_GLS`
+        - `unstructParams` is a structure with fields relevant to unstructured covariance; this is only output when `CovType` is `unstructured`
+        - `residuals_GLS` is a vector or matrix having GLS residuals of `ymat`; this is only output when `returnResiduals` (optional input) is `true`
+        - `info` is a new output variable containing settings and various timing information
+    - Input changes:
+        - `niter` is now an optional parameter (was previously mandatory; not backward compatible)
+        - `SingleOrDouble` parameter replaced by `precision` (functionality unchanged; not backward compatible)
+    - included checks to make sure that `X` is either single or double precision; if not, the data type is changed
+    - warning generated if `ymat` has any constant value columns
+    - all rank calculations use double precision
+    - ensure that initialization follows `precision` parameter, if specified
+    - calculating and returning timing for different sections (see `info.timing`)
+    - removed iterative GLS code
+    - code cleanup
+* `FEMA/FEMA_WaldTest.m`: major changes impacting backward compatiblity
+    - only `logp` values are now returned, consistent with `FEMA_fit` (not backward compatibile)
+    - `logp` values are not truncated to realmin; it is possible to get `Inf` logp values (if p value was zero) (changed behaviour from previous versions)
+    - performance update
+* `FEMA/FEMA_fit_GWAS.m`: small but important changes that impact backward compatibility
+    - `Wald_p` replaced by `Wald_logp`
+    - `SingleOrDouble` parameter replaced by `precision` (functionality unchanged; not backward compatible)
+    - using `nearestSPD_timeout` instead of `nearestSPD`; if `nearestSPD_timeout` fails to converge, `errFlag` is set to true
+* `FEMA/FEMA_compileTerms.m`: `SingleOrDouble` parameter replaced by `precision` (functionality unchanged; not backward compatible)
+* `FEMA/FEMA_gatherGWAS.m`: `Wald_p` replaced by `Wald_logp`
+* `FEMA/FEMA_intersect_design.m`: changes impact backward compatibility
+    - `contrats` and `colnames_model` are not output
+    - `info` is an additional output
+    - code cleanup
+    - missingness information is saved in `info`
+* `FEMA/FEMA_parse_contrastFile`: `contrastNames` is an additional output
+* `FEMA/FEMA_parse_family.m`: for `F,E` model, `iid` is set to `fid`; for `S,E` model, `fid` is set to `iid`
+* `FEMA_process_data.m`: major changes, including ones that impact backward compatibility
+    - `colnames_imaging` is not output
+    - `info` is an additional output
+    - `wholeSampleTransform`, `fname_qc`, `qc_var` are new input parameters
+    - `ranknorm` and `varnorm` are no longer input parameters
+    - added validation functions for optional input parameters
+    - code cleanup
+    - included support for parquet files
+    - major changes to handling `external` data type
+    - included filtering on QC
+    - recording and returning missingess via the `info` variable
+    - optionally filter on iid and/or eid
+* `FEMA_wrapper.m`: major changes, including changes that impact backward compatibility
+    - `fpaths_out` is not output; changes to output parameters, consistent with output from `FEMA_fit`
+    - `SingleOrDouble` parameter replaced by `precision` (functionality unchanged; not backward compatible)
+    - added support for handling DEAP inputs: JSON config file, data file, and output directory
+    - added support for non-DEAP inputs: TOML file
+    - changes to optional input arguments to be compatible with other changes in 4.0.0
+    - HBCD family ID file path hardcoded
+    - added support for making design matrices by calling `FEMA_makeDesign`
+    - logging timing and other information at different places using the `info` structure
+    - changed call to `FEMA_fit` and gathering outputs from `FEMA_fit` to be compatible with the updates above
+    - results savings has been delegated to `FEMA_save`
+* `FEMA/FEMA_classify.m`: replaced the use of `crossvalind` with `cvparition`
+* `FEMA/FEMA_run_on_synthetic_data.m`:
+    - performance update to synthesising IDs
+    - changes to calling `FEMA_fit` to be compatible with the changes above
+* `FEMA/caller_FEMA_fit.m`:
+    - `SingleOrDouble` parameter replaced by `precision` (functionality unchanged; not backward compatible)
+    - `returnReusable` parameter replaced by `returnResiduals`
+    - generates an error if no data is left after intersection of `X` and `ymat`
+    - changed call to `FEMA_fit` and gathering outputs from `FEMA_fit` to be compatible with the updates above
+    - results savings has been delegated to `FEMA_save`
+* `FEMA/caller_FEMA_fit_GWAS.m`:
+    - `doCoeffCovar` default changed to `true`
+    - `SingleOrDouble` parameter replaced by `precision` (functionality unchanged; not backward compatible)
+    - added `cleanUp` as an additional input argument for removing piece-wise GWAS statistics after the overall summary statistics has been generated
+    - no longer needs settings file to be saved; uses `info` from the estimates file
+    - updates to make code compatible with above changes
+    - additionally gathering summary statistics into a single file
+* `FEMA/caller_createBasisFunctions.m`: 
+    - bug fix: replace incorrect use of `strreplace` with `replace`
+    - bug fix handling of `knots` not being specified
+* `FEMA/logging.m`: code clean up; using `datetime`
+* `FEMA/niftiwrite_amd.m`:
+    - replaced `symmetric_cLim` input argument with `cLim_range`
+    - calculates colour limits omitting missing
+    - if input `cLim_range` is scalar, symmetric colour range is written
+* `FEMA/FEMA_info.m`: updated version information
+* `cmig_tools_utils/matlab/PrintMemoryUsage.m`: code clean up
+* `cmig_tools_utils/matlab/SwEfit_amd2.m`: fixed mismatched function name
+* `cmig_tools_utils/matlab/blueblackred.m`: fixed mismatched function name
+* `cmig_tools_utils/matlab/colvec.m`: using `numel` instead of `prod`
+* `cmig_tools_utils/matlab/createBasisFunctions.m`: `knots` can be specified as `quartiles`
+* `cmig_tools_utils/matlab/sub2ind_amd.m`: fixed mismatched function name
+* `cmig_tools_utils/matlab/subsample_volume.m`: defaulting to 2, if input unspecified
+* `recipes/demo_doGWAS_Long_splines.m`: edits for compatibility with above changes; added demo for using `FEMA_convert_splines`
+* corresponding `docs/help` files updated
+
+### Deleted
+* `cmig_tools_utils/matlab/read_annotations.m`
+* `cmig_tools_utils/matlab/mmil_args2parms.m`
+* `cmig_tools_utils/matlab/mmil_check_nargs.m`
+* `cmig_tools_utils/matlab/mmil_cmap_blueblackred.m`
+* `cmig_tools_utils/matlab/mmil_colvec.m`
+* `cmig_tools_utils/matlab/mmil_dilate_mask.m`
+* `cmig_tools_utils/matlab/mmil_parms2args.m`
+* `cmig_tools_utils/matlab/mmil_smooth3d.m`
+* `cmig_tools_utils/matlab/plotboxpos.m`
+* `cmig_tools_utils/matlab/struct2args.m`
+* `docs/FEMAv2.0_UserGuide.pdf`
+* `docs/licenses/LICENSE_plotboxpos.txt`
+* corresponding `docs/help` files removed
+
 ## [3.0.0 - 2025-09-17]
 ### Changed
 * `FEMA_wrapper.m`: fixed parameter `pihat` to `GRM`
