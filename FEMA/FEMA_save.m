@@ -17,7 +17,11 @@ addParameter(p, 'matType', 'uncompressed', @(x) ismember(lower(x), {'compressed'
 parse(p, outputType, dirOutput, varargin{:});
 
 unMatched = p.Unmatched;
-writeJson = ~logical(unMatched.nonDEAP);
+if isfield(unMatched, 'nonDEAP')
+    writeJSON = ~logical(unMatched.nonDEAP);
+else
+    writeJSON = false;
+end
 unMatched_flds = fieldnames(unMatched);
 saveDesignMatrix = p.Results.saveDesignMatrix;
 outPrefix = p.Results.outPrefix;
@@ -90,7 +94,7 @@ if any(ismember(outputType, 'summary'))
             info_tmp.FEMA_makeDesign.settings = rmfield(info_tmp.FEMA_makeDesign.settings.splines, 'basisSubset');
         end 
     end
-    if writeJson
+    if writeJSON
         info_json = save_jsonencode(info_tmp, PrettyPrint=true);
         fid = fopen(fullfile(dirOutput, 'FEMA_summary.json'), 'w');
         fwrite(fid, info_json);
@@ -464,7 +468,7 @@ if any(ismember(outputType, [nii_list gii_list]))
         end
     end    
 
-    if writeJson
+    if writeJSON
         fname_json = fullfile(dirOutput, 'FEMA_mapping.json');
         tmp = save_jsonencode(json, PrettyPrint=true); 
         fid = fopen(fname_json, 'w');
@@ -524,7 +528,7 @@ if any(ismember(outputType, {'corrmat'}))
             % tmp = struct;
             % tmp.upperTriangle = workVar(jj,:);
             fname_json = [outName, '_', toSave_FFX{ff}, '_col', num2str(jj, '%03d'), '_', unMatched.vars_of_interest{j}, '.json'];
-            if writeJson
+            if writeJSON
                 FEMA_vec2json(workVar(jj,:), fullfile(dirOutput, fname_json));
                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                 % fid = fopen(fullfile(dirOutput, fname_json), 'w');
@@ -552,7 +556,7 @@ if any(ismember(outputType, {'corrmat'}))
             % tmp = struct;
             % tmp.upperTriangle = unMatched.(toSave_RFX{ff});
             fname_json = [outName, '_TotVar.json'];
-            if writeJson
+            if writeJSON
                 FEMA_vec2json(unMatched.(toSave_RFX{ff}), fullfile(dirOutput, fname_json));
                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                 % fid = fopen(fullfile(dirOutput, fname_json), 'w');
@@ -589,7 +593,7 @@ if any(ismember(outputType, {'corrmat'}))
                                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                                 volName = ['Var_', RandomEffects{rr}, '_', eidOrd];
                                 fname_json = [outName, '_', volName, '.json'];
-                                if writeJson
+                                if writeJSON
                                     FEMA_vec2json(reshape(squeeze(workVar(i1,i2,rr,:)), 1, []), fullfile(dirOutput, fname_json));
                                     % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                                     % fprintf(fid, tmp);
@@ -614,7 +618,7 @@ if any(ismember(outputType, {'corrmat'}))
                                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                                 volName = ['Corr_', RandomEffects{rr}, '_', eidOrd2, '-', eidOrd1];
                                 fname_json = [outName, '_', volName, '.json'];
-                                if writeJson
+                                if writeJSON
                                     FEMA_vec2json(reshape(squeeze(workVar(i1,i2,rr,:)), 1, []), fullfile(dirOutput, fname_json));
                                     % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                                     % fprintf(fid, tmp);
@@ -642,7 +646,7 @@ if any(ismember(outputType, {'corrmat'}))
                     % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                     volName = ['Var_' RandomEffects{rr}];
                     fname_json = [outName, '_', volName, '.json'];
-                    if writeJson
+                    if writeJSON
                         FEMA_vec2json(workVar(rr,:), fullfile(dirOutput, fname_json));
                         % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                         % fprintf(fid, tmp);
@@ -681,7 +685,7 @@ if any(ismember(outputType, {'corrmat'}))
             % tmp = struct;
             % tmp.upperTriangle = workVar(j,:);
             fname_json = [outName, '_', toSave_Wald{ff}, '_', unMatched.splines_of_interest{j,2}, '.json'];
-            if writeJson
+            if writeJSON
                 FEMA_vec2json(workVar(j,:), fullfile(dirOutput, fname_json));
                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                 % fid = fopen(fullfile(dirOutput, fname_json), 'w');
@@ -696,7 +700,7 @@ if any(ismember(outputType, {'corrmat'}))
     end
 
     % Write out mapping file
-    if writeJson
+    if writeJSON
         fname_json = fullfile(dirOutput, 'FEMA_mapping.json');
         tmp = save_jsonencode(json, PrettyPrint=true); 
         fid = fopen(fname_json, 'w');
@@ -705,7 +709,7 @@ if any(ismember(outputType, {'corrmat'}))
     end
 
     % Write out label file: single file with ROI names
-    if writeJson && isfield(unMatched, 'ymat_names')
+    if writeJSON && isfield(unMatched, 'ymat_names')
         fname_json = fullfile(dirOutput, 'Corrmat_labels.json');
         tmp = save_jsonencode(unMatched.ymat_names, PrettyPrint=true); 
         fid = fopen(fname_json, 'w');
@@ -759,7 +763,7 @@ if any(ismember(outputType, {'tables', 'external'}))
     unMatched.colnames_model = rowvec(unMatched.colnames_model);
     %ffx_formula = [strcat(unMatched.colnames_model(1:length(unMatched.colnames_model)-1), {' + '}), ...
     %                      unMatched.colnames_model(end)];
-    if writeJson
+    if writeJSON
         ffx_formula = [strcat(unMatched.FFX_conceptMapping(1:size(unMatched.FFX_conceptMapping, 1)-1,1)', {' + '}), ...
                               unMatched.FFX_conceptMapping(end,1)];
         ffx_formula = horzcat(ffx_formula{:});
@@ -817,13 +821,13 @@ if any(ismember(outputType, {'tables', 'external'}))
 
         % Prepare JSON data
         json_tabularY.dependent = depName;
-        if writeJson
+        if writeJSON
             json_tabularY.formula = strcat(depName, {' ~ '}, ffx_formula, rfx_formula);
         end
 
         % Prepare JSON data
         json_tabularY.dependent = depName;
-        if writeJson
+        if writeJSON
             json_tabularY.formula   = formula;
         end
 
@@ -864,7 +868,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         json_tabularY.display_name = display_fixed;
 
         % Save as JSON file
-        if writeJson
+        if writeJSON
             table_json = save_jsonencode(json_tabularY, PrettyPrint=true);
             if ~isempty(outPrefix)
                 outName = [outPrefix, '_FFX_byY_', unMatched.ymat_names{yy}, '.json'];
@@ -932,7 +936,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         json_tabularY.display_name = display_random;
 
         % Save as JSON file
-        if writeJson
+        if writeJSON
             table_json = save_jsonencode(json_tabularY, PrettyPrint=true);
             if ~isempty(outPrefix)
                 outName = [outPrefix, '_RFX_byY_', unMatched.ymat_names{yy}, '.json'];
@@ -969,7 +973,7 @@ if any(ismember(outputType, {'tables', 'external'}))
     % display_random.totVar = 'Total variance';
 
     unMatched.colnames_model = rowvec(unMatched.colnames_model);
-    if writeJson
+    if writeJSON
         %ffx_formula = [strcat(unMatched.colnames_model(1:length(unMatched.colnames_model)-1), {' + '}), ...
         %                      unMatched.colnames_model(end)];
         ffx_formula = [strcat(unMatched.FFX_conceptMapping(1:size(unMatched.FFX_conceptMapping, 1)-1,1)', {' + '}), ...
@@ -1019,7 +1023,7 @@ if any(ismember(outputType, {'tables', 'external'}))
 
         % Prepare JSON data
         json_tabularX.fixed       = fixName;
-        if writeJson
+        if writeJSON
             json_tabularX.formula = formula;
         end
         json_tabularX.of_interest = tmp_ofInterest;
@@ -1043,7 +1047,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         json_tabularX.display_name = display_fixed;
 
         % Save as JSON file
-        if writeJson
+        if writeJSON
             table_json = save_jsonencode(json_tabularX, PrettyPrint=true);
             if ~isempty(outPrefix)
                 outName = [outPrefix, '_FFX_byX_', fixName, '.json'];
@@ -1069,7 +1073,7 @@ if any(ismember(outputType, {'tables', 'external'}))
 
         % Prepare JSON data
         json_tabularX.fixed       = fixName;
-        if writeJson
+        if writeJSON
             json_tabularX.formula = formula;
         end
         json_tabularX.of_interest = true;
@@ -1093,7 +1097,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         json_tabularX.display_name = display_fixed_Wald;
 
         % Save as JSON file
-        if writeJson
+        if writeJSON
             table_json = save_jsonencode(json_tabularX, PrettyPrint=true);
             if ~isempty(outPrefix)
                 outName = [outPrefix, '_FFX_byX_', fixName, '.json'];
@@ -1135,7 +1139,7 @@ if any(ismember(outputType, {'tables', 'external'}))
             json_tabularX.display_name = display_random;
 
             % Save as JSON file
-            if writeJson
+            if writeJSON
                 table_json = save_jsonencode(json_tabularX, PrettyPrint=true);
                 if ~isempty(outPrefix)
                     outName = [outPrefix, '_RFX_byX_', unMatched.RandomEffects{rr}, '.json'];
@@ -1187,7 +1191,7 @@ if any(ismember(outputType, {'tables', 'external'}))
             json_tabularX.display_name = struct('varcorr', 'Variance-correlation');
 
             % Save as JSON file
-            if writeJson
+            if writeJSON
                 table_json = save_jsonencode(json_tabularX, PrettyPrint=true);
                 if ~isempty(outPrefix)
                     outName = [outPrefix, '_RFX_byX_', unMatched.RandomEffects{rr}, '.json'];
@@ -1228,7 +1232,7 @@ if any(ismember(outputType, {'tables', 'external'}))
     json_tabularX.display_name = struct('variance', 'Variance');
 
     % Save as JSON file
-    if writeJson
+    if writeJSON
         table_json = save_jsonencode(json_tabularX, PrettyPrint=true);
         if ~isempty(outPrefix)
             outName = [outPrefix, '_RFX_byX_TotVar.json'];
@@ -1261,7 +1265,7 @@ end
 if ismember('FFX_conceptMapping', unMatched_flds)
     tConceptMapping = tic;
 
-    if writeJson
+    if writeJSON
         if ~isempty(outPrefix)
             outName = [outPrefix, '_FEMA_conceptMapping.json'];
         else
@@ -1466,7 +1470,7 @@ if any(ismember(outputType, {'roi'}))
             outName = 'FFX_RFX_ROI_all.json';
         end
         saveName = fullfile(dirOutput, outName);
-        if writeJson
+        if writeJSON
             roi_json = save_jsonencode(json_roi, PrettyPrint=true);
             roi_json = regexprep(roi_json, '"x([0-9]+)"\s*:', '"$1":');
             fid = fopen(saveName, 'w');
@@ -1476,7 +1480,7 @@ if any(ismember(outputType, {'roi'}))
     
         FEMA_save.timing.tSaveROI = toc(tSaveROI);
         % save FEMA_mapping.json (json_fileTracker is the encoded string from tables block when present)
-        if writeJson
+        if writeJSON
             if exist('json_fileTracker', 'var') && (ischar(json_fileTracker) || isstring(json_fileTracker))
                 json_fileTracker = jsondecode(json_fileTracker);
             else
