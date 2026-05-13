@@ -1,0 +1,8 @@
+ FEMA_MERGEARGS  Apply params.makeDesign from JSON before inputParser.
+
+ Non-DEAP TOML writes an optional [makeDesign] table via FEMA_createInputJSON into
+ cfg.params.makeDesign. Name-value pairs listed here match FEMA_makeDesign addParameter
+ names. Order is [defaults from JSON, vararginIn] so explicit MATLAB arguments win.
+
+ Valid field names: iid, eid, dataFile, dirTabulated, dropMissing, outDir,
+ outName, outType, study, fname_fam

@@ -1,0 +1,48 @@
+ FEMA_LOADDATADIR  Load variables from a directory of tabular data files
+ and merge them into a single table.
+
+ Users store covariate / independent variable data across multiple
+ tsv / csv / parquet files in a common directory. This function scans all
+ such files, finds which file contains each requested variable (first match
+ wins when a variable name appears in more than one file), reads only the
+ needed columns from each file, merges everything by participant_id and
+ session_id, and saves the result as a parquet file.
+
+ Usage:
+   [data, fname_data_out] = FEMA_loadDataDir(dirname_data, var_names)
+   [data, fname_data_out] = FEMA_loadDataDir(dirname_data, var_names, ...
+                               'id_vars', {'participant_id','session_id'}, ...
+                               'outDir',  tempdir, ...
+                               'outName', 'merged_data.parquet', ...
+                               'verbose', true)
+
+ Required inputs:
+   dirname_data  <char> or <cell of char>  One directory, or multiple roots
+                               scanned in order (e.g. dependent then data):
+                               all .tsv / .csv / .parquet files are listed and
+                               merged; same basename in later roots loses to an
+                               earlier file after format_priority dedup.
+   var_names     <cell of char> Variable names to collect (column names as
+                               they appear in the data files).
+
+ Optional name-value inputs:
+   id_vars         <cell of char> ID columns used as merge keys.
+                                 Default: {'participant_id', 'session_id'}
+   outDir          <char>        Directory to write the merged file.
+                                 Default: tempdir
+   outName         <char>        Filename for the merged parquet output.
+                                 Default: 'merged_data.parquet'
+   format_priority <cell of char> Format preference when the same file
+                                 exists in multiple formats. First entry
+                                 has highest priority.
+                                 Default: {'parquet', 'csv', 'tsv'}
+   name_map        containers.Map  Optional rename original -> short column name.
+   var_types       containers.Map  Optional; keys = final column names after
+                                 name_map, values = type_var from JSON
+                                 ('categorical'|'continuous'). Categorical
+                                 columns are written as MATLAB categorical.
+   verbose         <logical>     Print progress messages. Default: true
+
+ Outputs:
+   data          <table>       Merged table with id_vars + all found vars.
+   fname_data_out <char>       Full path to the saved merged parquet file.

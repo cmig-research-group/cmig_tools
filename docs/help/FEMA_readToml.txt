@@ -1,0 +1,15 @@
+ FEMA_READTOML  Convert non-DEAP TOML to job JSON and merged tabular parquet.
+
+ Shared by FEMA_wrapper('toml', ...) and FEMA_makeDesign when given a .toml config.
+ Optional name-value arguments are forwarded to FEMA_createInputJSON (e.g. 'outDir',
+ 'outName', 'designOnly', true). FEMA_wrapper calls this with no extras; FEMA_makeDesign
+ passes designOnly=true so [dependent] may be omitted in the TOML.
+
+ See FEMA_createInputJSON for TOML format.
+
+ Outputs:
+   fname_json       Path to written JSON specification
+   fname_data       Path to merged parquet from FEMA_loadDataDir
+   dirname_out_val  [output].dirname from the TOML (also used as default JSON outDir)
+   study_val        Top-level study string from the generated JSON (e.g. 'abcd')
+   timing_rt        struct with .tCreateInputJSON, .tLoadDataDir, .tReadTomlTotal (seconds)

@@ -146,7 +146,7 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_logp, coeffCovar, 
 % L:                any basis functions eye(numBasisFunctions)
 % hypValue:         0
 % doF:              false
-% doCoeffCovar:     false
+% doCoeffCovar:     true
 % 
 %% Additional defaults when genStruct is specified:
 % iid:              [] (i.e., read all subjects)
@@ -336,7 +336,7 @@ p.addParameter('lowRank',        []);
 p.addParameter('L',              []);
 p.addParameter('hypValue',       []);
 p.addParameter('doF',            false);
-p.addParameter('doCoeffCovar',   false);
+p.addParameter('doCoeffCovar',   true);
 
 % Parse varargin
 parse(p, varargin{:});

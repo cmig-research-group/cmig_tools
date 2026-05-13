@@ -1,0 +1,50 @@
+ Function to read genetic relatedness matrix (GRM)
+ Inputs:
+ GRMFile:  character   full path to the GRM file (with extension)
+ 
+ fmt:      character   one of the format specifier (optional; see Notes):
+                           * mat
+                           * dat
+                           * gcta
+ 
+ Outputs:
+ GRM:      single      n x n genetic relatedness matrix
+ 
+ iid_list: cell        n x 1 list of subjects in the order of the GRM
+ 
+ Notes:
+ If fmt is not specified:
+ - If extension is .mat, assume MATLAB file
+ 
+ - If extension is .dat, assume binary file and look for supporting
+   <basename>.mat file which has the list of subjects
+ 
+ - If extension is .bin, assume GCTA-style binary file and look for
+   supporting <basename>.id file which has the list of subjects
+ 
+ Format specification:
+ ---------------------
+ .mat file: a single file containing the following variables:
+   - GRM:            n x n full matrix of GRM values
+   - iid_list:       n x 1 cell array of IDs OR
+   - uqObservations: n x 1 cell array of IDs
+   - if both 'iid_list' and 'uqObservations' are present, 'iid_list' takes
+     precedence
+ 
+ .dat file: binary file with supporting <basename>.mat file:
+   - the GRM matrix is assumed to be lower triangle, saved with double
+     precision
+   - the supporting file contains a cell type variable either named
+     'iid_list' or 'uqObservations' which has the list of unique
+     participants in the order in which they are saved in the binary file
+   - if both 'iid_list' and 'uqObservations' are present, 'iid_list' takes
+     precedence
+ 
+ .bin file: GCTA-style file with supporting <basename>.id file:
+   - the GRM matrix is assumed to be upper triangle, saved with single
+     precision
+   - the supporting file will have a list of unique participants in the
+     order in which they are saved in the binary file
+   - the supporting .id file has no header
+   - the supporting .id file has two columns: family and participant id;
+     the output iid_list uses participant id

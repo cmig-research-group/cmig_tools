@@ -20,7 +20,7 @@
                                    * 'analytic' (compound symmetry)
                                    * 'unstructured'
  
- SingleOrDouble:   character   single or double precision
+ precision:        character   single or double precision
 
  visitnum:         [e x 1]     event number as output from FEMA_fit
                                (required if CovType is unstructured)

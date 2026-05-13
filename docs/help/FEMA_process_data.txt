@@ -23,10 +23,10 @@
  
  OUTPUTS
 	 ymat						:	matrix of imaging data (n x v)
-	 iid_concat					:	src_subject_id
-	 eid_concat					:	eventname
+	 iid_concat					:	participant_id
+	 eid_concat					:	session_id
 	 ivec_mask					:	vector mask for voxelwise data (155179x1) --> not yet available for vertexwise
 	 mask						:	volume mask mask for voxelwise data (100x100x130) --> not yet available for vertexwise
-	 ymat_names			:	imaging column labels for external data inputs
+	 ymat_names			        :	imaging column labels for external data inputs
 	 GRM						:	intersected genetic relatedness matrix
 

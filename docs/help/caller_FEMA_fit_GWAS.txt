@@ -93,12 +93,10 @@
                    distribution for calculating the p values (default: false)
  
  doCoeffCovar:     if coefficient covariance for SNPs should be saved
-                   (default: false); note that this is false by default as
-                   the variable size can become quite massive; coefficient
-                   covariance is required for any post fitting contrast
-                   estimation
+                   (default: true); note that this is true as this is
+                   required for any post fitting contrast estimation
  
- SingleOrDouble:   control the numerical precision; should be one of the
+ precision:        control the numerical precision; should be one of the
                    following (default: setting that was used for FEMA_fit): 
                        * 'double'
                        * 'single'
@@ -112,6 +110,9 @@
  numThreads:       if doPar is true, how many threads per parallel worker
                    (default: 2)
 
+ cleanUp:          if true, summary statistics are gathered and then the
+                   individual chunk files are deleted (default: false)
+ 
  To Do:
  * Handle scneario where *_designMatrix file is not saved as part of
  caller_FEMA_fit - this will require inputs of file_X, file_ymat,
@@ -119,3 +120,6 @@
  clusterinfo, and then proceeding with analysis
  
  * incorporate interaction by sex - what should be the input file?
+ 
+ * doCoeffCovar may be getting ignored if not explicitly passed as an
+ input parameter

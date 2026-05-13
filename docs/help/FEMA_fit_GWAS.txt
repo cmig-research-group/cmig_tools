@@ -71,7 +71,7 @@
 
  OLSflag:          logical     OLS or GLS solution
 
- SingleOrDouble:   character   single or double precision
+ precision:        character   single or double precision
 
  adjustMSE:        logical     specifies whether sig2tvec should be
                                adjusted for the number of covariates and
@@ -111,11 +111,19 @@
                                functions) for m SNPs, v phenotypes, and l
                                weights specified in L
 
- Wald_p:           [m x v x l] p value associated with omnibus Wald test
+ Wald_logp:        [m x v x l] -log10 p value associated with omnibus Wald
+                               test; if p value is less than realmin
+                               (2.2251e-308), then the value will be
+                               infinite
 
  coeffCovar:   [m x q x q x v] coefficient covariance for every SNP for q
                                basis functions and v phenotypes; not
                                computed if there are no basis functions
+ 
+ errFlag:              [m x v] logical vector or matrix indicating either
+                               a nearestSPD convergence issue or a
+                               complex valued standard error being
+                               generated
 
  timeStruct:       structure   contains various timing information
  
@@ -130,13 +138,13 @@
  basisFunction:    intercept only (standard GWAS)
  sex               []
  OLSflag:          false
- SingleOrDouble:   'double'
+ precision:        'double'
  pValType:         'z'
  adjustMSE:        true
  L:                any basis functions eye(numBasisFunctions)
  hypValue:         0
  doF:              false
- doCoeffCovar:     false
+ doCoeffCovar:     true
  
  Additional defaults when genStruct is specified:
  iid:              [] (i.e., read all subjects)

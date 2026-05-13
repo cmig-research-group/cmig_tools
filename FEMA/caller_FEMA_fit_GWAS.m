@@ -94,10 +94,8 @@ function caller_FEMA_fit_GWAS(file_PLINK, file_FEMA_fit, GWASType, dirOutput, ou
 %                   distribution for calculating the p values (default: false)
 % 
 % doCoeffCovar:     if coefficient covariance for SNPs should be saved
-%                   (default: false); note that this is false by default as
-%                   the variable size can become quite massive; coefficient
-%                   covariance is required for any post fitting contrast
-%                   estimation
+%                   (default: true); note that this is true as this is
+%                   required for any post fitting contrast estimation
 % 
 % precision:        control the numerical precision; should be one of the
 %                   following (default: setting that was used for FEMA_fit): 
@@ -123,6 +121,9 @@ function caller_FEMA_fit_GWAS(file_PLINK, file_FEMA_fit, GWASType, dirOutput, ou
 % clusterinfo, and then proceeding with analysis
 % 
 % * incorporate interaction by sex - what should be the input file?
+% 
+% * doCoeffCovar may be getting ignored if not explicitly passed as an
+% input parameter
 
 %% Start
 updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: job started'];
@@ -137,18 +138,18 @@ end
 if ~exist('file_FEMA_fit', 'var') || isempty(file_FEMA_fit)
     error('Please provide a full path to the output from caller_FEMA_fit');
 else
-    % Check if the estimates, the designMatrix, and the settings files exist
+    % Check if the estimates and the designMatrix files exist
     if ~exist(file_FEMA_fit, 'file')
         error(['Unable to find file: ', file_FEMA_fit]);
     else
         file_FEMA_designMatrix = strrep(file_FEMA_fit, '_estimates.mat', '_designMatrix.mat');
         if ~exist(file_FEMA_designMatrix, 'file')
             error(['Unable to find file: ', file_FEMA_designMatrix]);
-        else
-            file_FEMA_settings = strrep(file_FEMA_fit, '_estimates.mat', '_settings.mat');
-            if ~exist(file_FEMA_settings, 'file')
-                error(['Unable to find file: ', file_FEMA_settings]);
-            end
+        % else
+        %     file_FEMA_settings = strrep(file_FEMA_fit, '_estimates.mat', '_settings.mat');
+        %     if ~exist(file_FEMA_settings, 'file')
+        %         error(['Unable to find file: ', file_FEMA_settings]);
+        %     end
         end
     end
 end
@@ -196,7 +197,7 @@ addParameter(p, 'pValType', 'z');
 addParameter(p, 'df', []);
 addParameter(p, 'OLSflag', false);
 addParameter(p, 'doF', false);
-addParameter(p, 'doCoeffCovar', false);
+addParameter(p, 'doCoeffCovar', true);
 addParameter(p, 'precision', 'double');
 addParameter(p, 'doPar', false);
 addParameter(p, 'numWorkers', 2);
@@ -221,11 +222,10 @@ doCoeffCovar        = p.Results.doCoeffCovar;
 precision           = p.Results.precision;
 doPar               = p.Results.doPar;
 cleanUp             = p.Results.cleanUp;
+chunkSize           = p.Results.chunkSize;
 
-if ~isnumeric(p.Results.chunkSize)
+if ~isnumeric(chunkSize)
     chunkSize = str2double(p.Results.chunkSize);
-else
-    chunkSize = p.Results.chunkSize;
 end
 
 if ~isnumeric(p.Results.numWorkers)
@@ -373,7 +373,7 @@ disp(updateString);
 % RandomEffects:    saved in estimates file
 % CovType:          saved in estimates file
 
-temp_estimates  = load(file_FEMA_fit, 'residuals_GLS', 'sig2mat', 'binvec_save', 'info');
+temp_estimates  = load(file_FEMA_fit, 'residuals_GLS', 'sig2mat', 'binvec_save', 'info', 'unstructParams');
 temp_designvars = load(file_FEMA_designMatrix, 'FamilyStruct', 'iid', 'X');
 % temp_settings   = load(file_FEMA_settings, 'RandomEffects', 'precision', 'CovType');
 
@@ -391,7 +391,7 @@ else
     info          = temp_estimates.info;
 
     toChk_info = {'RandomEffects', 'precision', 'CovType'};
-    chk_info   = ismember(toChk_info, fieldnames(info));
+    chk_info   = ismember(toChk_info, fieldnames(info.settings));
     if sum(chk_info) ~= length(toChk_info)
         missMsg = sprintf('%s, ', toChk_info{~chk_info});
         error(['The following required variables are missing from info in ', ...
@@ -411,7 +411,7 @@ else
         % If unstructured covariance, additionally look for unstructParams
         if strcmpi(CovType, 'unstructured')
             if isfield(temp_estimates, 'unstructParams')
-                visitnum = temp_estimates.unstructParams;
+                visitnum = temp_estimates.unstructParams.visitnum;
             else
                 error(['unstructParams field missing from estimates in ', file_FEMA_fit]);
             end

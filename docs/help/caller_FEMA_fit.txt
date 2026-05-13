@@ -9,6 +9,7 @@
  
  To Do:
  Support passing in FamilyStruct
+ Handle hypValue for contrasts
  Regarding contrasts: allow re-analysis on existing models
  Save summary: n obs, ny, Rsquared, singularity, df, model fit?
  Should we separate out permutation results? (problematic)
@@ -57,7 +58,6 @@
 
  Optional inputs (comma-separated name-value pairs):
  ----------------------------------------------------
- 
  niter:            number of iterations (default: 1)
 
  contrasts:        full path to a tab-delimited csv file that specifies
@@ -153,7 +153,7 @@
  NonnegFlag:       apply non-negativity constraint on random effects
                    estimation (default: true)
  
- SingleOrDouble:   control the numerical precision; should be one of the
+ precision:        control the numerical precision; should be one of the
                    following (default: double): 
                        * 'double'
                        * 'single'
@@ -170,9 +170,7 @@
                                              interest using sign flipping
                                              (used for sobel test)
  
- returnReusable:   controls return of additional variables (default:
-                   true); if true, returns a structure with some
-                   variables that can be reused (primarily by FEMA-GWAS)
+ returnResiduals:  if true, GLS residuals are additionally returned 
  
  doPar:            should parallel processing be used for GLS solution
                    (only applicable if CovType is unstructured; default:
@@ -186,5 +184,3 @@
  
  saveDesignMatrix: if true, filtered X variable and ID lists are written
                    out as a separate mat file (default: false)
- 
- Start
