@@ -99,7 +99,7 @@ function caller_FEMA_fit_GWAS(file_PLINK, file_FEMA_fit, GWASType, dirOutput, ou
 %                   covariance is required for any post fitting contrast
 %                   estimation
 % 
-% SingleOrDouble:   control the numerical precision; should be one of the
+% precision:        control the numerical precision; should be one of the
 %                   following (default: setting that was used for FEMA_fit): 
 %                       * 'double'
 %                       * 'single'
@@ -113,6 +113,9 @@ function caller_FEMA_fit_GWAS(file_PLINK, file_FEMA_fit, GWASType, dirOutput, ou
 % numThreads:       if doPar is true, how many threads per parallel worker
 %                   (default: 2)
 %
+% cleanUp:          if true, summary statistics are gathered and then the
+%                   individual chunk files are deleted (default: false)
+% 
 %% To Do:
 % * Handle scneario where *_designMatrix file is not saved as part of
 % caller_FEMA_fit - this will require inputs of file_X, file_ymat,
@@ -194,10 +197,11 @@ addParameter(p, 'df', []);
 addParameter(p, 'OLSflag', false);
 addParameter(p, 'doF', false);
 addParameter(p, 'doCoeffCovar', false);
-addParameter(p, 'SingleOrDouble', 'double');
+addParameter(p, 'precision', 'double');
 addParameter(p, 'doPar', false);
 addParameter(p, 'numWorkers', 2);
 addParameter(p, 'numThreads', 2);
+addParameter(p, 'cleanUp', false);
 
 %% Parse optional inputs
 parse(p, varargin{:})
@@ -214,8 +218,9 @@ df                  = p.Results.df;
 OLSflag             = p.Results.OLSflag;
 doF                 = p.Results.doF;
 doCoeffCovar        = p.Results.doCoeffCovar;
-SingleOrDouble      = p.Results.SingleOrDouble;
+precision           = p.Results.precision;
 doPar               = p.Results.doPar;
+cleanUp             = p.Results.cleanUp;
 
 if ~isnumeric(p.Results.chunkSize)
     chunkSize = str2double(p.Results.chunkSize);
@@ -280,6 +285,12 @@ if isdeployed
         doPar = true;
     else
         doPar = false;
+    end
+
+    if chkFun(cleanUp)
+        cleanUp = true;
+    else
+        cleanUp = false;
     end
 end
 disp(p.Results);
@@ -352,31 +363,62 @@ updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: loading FEMA_fit
 disp(updateString);
 
 % We need the following:
-% ymat residuals:   saved in estimates file (reusableVars)
+% ymat residuals:   saved in estimates file (residuals_GLS)
 % sig2mat:          saved in estimates file
 % binvec_save:      saved in estimates file
 % FamilyStruct:     saved in design matrix
 % iid:              saved in design matrix
 % X:                saved in design matrix
-% SingleOrDouble:   saved in settings file
-% RandomEffects:    saved in settings file
-% CovType:          saved in settings file
+% precision:        saved in estimates file
+% RandomEffects:    saved in estimates file
+% CovType:          saved in estimates file
 
-temp_estimates  = load(file_FEMA_fit, 'reusableVars', 'sig2mat', 'binvec_save');
+temp_estimates  = load(file_FEMA_fit, 'residuals_GLS', 'sig2mat', 'binvec_save', 'info');
 temp_designvars = load(file_FEMA_designMatrix, 'FamilyStruct', 'iid', 'X');
-temp_settings   = load(file_FEMA_settings, 'RandomEffects', 'SingleOrDouble', 'CovType');
+% temp_settings   = load(file_FEMA_settings, 'RandomEffects', 'precision', 'CovType');
 
 % Make sure all fields are present
-toChk_estimates = {'reusableVars', 'sig2mat', 'binvec_save'};
+toChk_estimates = {'residuals_GLS', 'sig2mat', 'binvec_save', 'info'};
 chk_estimates   = ismember(toChk_estimates, fieldnames(temp_estimates));
 if sum(chk_estimates) ~= length(toChk_estimates)
     missMsg = sprintf('%s, ', toChk_estimates{~chk_estimates});
     error(['The following required variables are missing from ', ...
            file_FEMA_fit, ': ', missMsg(1:end-2)]);
 else
-    reusableVars = temp_estimates.reusableVars;
-    sig2mat      = temp_estimates.sig2mat;
-    binvec_save  = temp_estimates.binvec_save;
+    residuals_GLS = temp_estimates.residuals_GLS;
+    sig2mat       = temp_estimates.sig2mat;
+    binvec_save   = temp_estimates.binvec_save;
+    info          = temp_estimates.info;
+
+    toChk_info = {'RandomEffects', 'precision', 'CovType'};
+    chk_info   = ismember(toChk_info, fieldnames(info));
+    if sum(chk_info) ~= length(toChk_info)
+        missMsg = sprintf('%s, ', toChk_info{~chk_info});
+        error(['The following required variables are missing from info in ', ...
+            file_FEMA_fit, ': ', missMsg(1:end-2)]);
+    else
+        RandomEffects = info.settings.RandomEffects;
+        CovType       = info.settings.CovType;
+        if isempty(precision)
+            precision = info.settings.precision;
+        else
+            if ~strcmpi(info.settings.precision, precision)
+            warning(['Different settings of precision between ', ...
+                     'FEMA_fit and current call to FEMA_fit_GWAS; using: ', precision]);
+            end
+        end
+
+        % If unstructured covariance, additionally look for unstructParams
+        if strcmpi(CovType, 'unstructured')
+            if isfield(temp_estimates, 'unstructParams')
+                visitnum = temp_estimates.unstructParams;
+            else
+                error(['unstructParams field missing from estimates in ', file_FEMA_fit]);
+            end
+        else
+            visitnum = [];
+        end
+    end
     clear temp_estimates;
 end
 
@@ -393,25 +435,25 @@ else
     clear temp_designvars;
 end
 
-toChk_settings = {'RandomEffects', 'SingleOrDouble', 'CovType'};
-chk_settings   = ismember(toChk_settings, fieldnames(temp_settings));
-if sum(chk_settings) ~= length(toChk_settings)
-    missMsg = sprintf('%s, ', toChk_settings{~chk_settings});
-    error(['The following required variables are missing from ', ...
-           file_FEMA_settings, ': ', missMsg(1:end-2)]);
-else
-    RandomEffects = temp_settings.RandomEffects;
-    CovType       = temp_settings.CovType;
-    if isempty(SingleOrDouble)
-        SingleOrDouble = temp_settings.SingleOrDouble;
-    else
-        if ~strcmpi(temp_settings.SingleOrDouble, SingleOrDouble)
-            warning(['Different settings of SingleOrDouble between ', ...
-                     'FEMA_fit and current call to FEMA_fit_GWAS; using: ', SingleOrDouble]);
-        end
-    end
-    clear temp_settings
-end
+% toChk_settings = {'RandomEffects', 'precision', 'CovType'};
+% chk_settings   = ismember(toChk_settings, fieldnames(info));
+% if sum(chk_settings) ~= length(toChk_settings)
+%     missMsg = sprintf('%s, ', toChk_settings{~chk_settings});
+%     error(['The following required variables are missing from ', ...
+%            file_FEMA_settings, ': ', missMsg(1:end-2)]);
+% else
+%     RandomEffects = temp_settings.RandomEffects;
+%     CovType       = temp_settings.CovType;
+%     if isempty(SingleOrDouble)
+%         SingleOrDouble = temp_settings.SingleOrDouble;
+%     else
+%         if ~strcmpi(temp_settings.SingleOrDouble, SingleOrDouble)
+%             warning(['Different settings of SingleOrDouble between ', ...
+%                      'FEMA_fit and current call to FEMA_fit_GWAS; using: ', SingleOrDouble]);
+%         end
+%     end
+%     clear temp_settings
+% end
 
 %% Get some information about genetics
 updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: extracting basic genetics information'];
@@ -431,10 +473,12 @@ end
 updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: compiling V term'];
 disp(updateString);
 
-[allWsTerms, timing_compile] = FEMA_compileTerms(FamilyStruct.clusterinfo, binvec_save,      ...
-                                           sig2mat, RandomEffects, FamilyStruct.famtypevec,  ...
-                                           reusableVars.GroupByFamType, CovType,             ...
-                                           SingleOrDouble, reusableVars.visitnum);
+[allWsTerms, timing_compile] = FEMA_compileTerms(FamilyStruct.clusterinfo,     ...
+                                                 binvec_save, sig2mat,         ...
+                                                 RandomEffects,                ...
+                                                 FamilyStruct.famtypevec,      ...
+                                                 info.settings.GroupByFamType, ...
+                                                 CovType, precision, visitnum);
 
 %% Divide genome into chunks
 updateString = [char(datetime('now')), ': caller_FEMA_fit_GWAS: splitting genome into parts'];
@@ -443,9 +487,8 @@ disp(updateString);
 [splitInfo, timing_divide] = divideSNPs(file_PLINK, splitBy, chunkSize, outPrefix, ...
                                         SNPID,      Chr,     BP,        genInfo);
 
-%% Extract out ymat residuals and clear up some space
-ymat_res_gls = reusableVars.ymat_res_gls;
-clear reusableVars FamilyStruct iid
+%% Clear up some space
+clear FamilyStruct iid
 
 %% Initialize parallel cluster
 if doPar
@@ -465,9 +508,9 @@ disp(updateString);
 if doPar
     parfor parts = 1:length(splitInfo)
         t1 = tic;
-        FEMA_fit_GWAS(splitInfo{parts}, ymat_res_gls, binvec_save, X, allWsTerms, ...
+        FEMA_fit_GWAS(splitInfo{parts}, residuals_GLS, binvec_save, X, allWsTerms, ...
                       'bfSNP', bfSNP, 'pValType', pValType, 'df', df,             ...
-                      'OLSflag', OLSflag, 'SingleOrDouble', SingleOrDouble,       ...
+                      'OLSflag', OLSflag, 'precision', precision,                 ...
                       'outDir', dirOutput, 'outName', splitInfo{parts}.outName,   ...
                       'L', contrasts, 'hypValue', hypValues, 'doF', doF,          ...
                       'doCoeffCovar', doCoeffCovar);
@@ -479,9 +522,9 @@ if doPar
 else
     for parts = 1:length(splitInfo)
         t1 = tic;
-        FEMA_fit_GWAS(splitInfo{parts}, ymat_res_gls, binvec_save, X, allWsTerms, ...
+        FEMA_fit_GWAS(splitInfo{parts}, residuals_GLS, binvec_save, X, allWsTerms, ...
                       'bfSNP', bfSNP, 'pValType', pValType, 'df', df,             ...
-                      'OLSflag', OLSflag, 'SingleOrDouble', SingleOrDouble,       ...
+                      'OLSflag', OLSflag, 'precision', precision,                 ...
                       'outDir', dirOutput, 'outName', splitInfo{parts}.outName,   ...
                       'L', contrasts, 'hypValue', hypValues, 'doF', doF,          ...
                       'doCoeffCovar', doCoeffCovar);
@@ -491,6 +534,9 @@ else
     end
 end
 timing_GWAS = toc(t_GWAS);
+
+%% Gather GWAS into a single summary statistics
+FEMA_gatherGWAS(dirOutput, outPrefix, cleanUp, dirOutput, [outPrefix, '_SummaryStatistics']);
 
 %% Save miscellenous information as a mat file
 % GWAS results are already saved
@@ -503,7 +549,7 @@ tmpInfo = whos;
 saveName = fullfile(dirOutput, [outPrefix, '_miscInfo.mat']);
 toSave   = {'timing_compile', 'timing_divide', 'timing_GWAS',                    ...
             'file_PLINK', 'file_FEMA_fit', 'file_basisFunc',  'file_contrast',   ...
-            'bfSNP', 'pValType', 'df', 'OLSflag', 'SingleOrDouble', 'contrasts', ...
+            'bfSNP', 'pValType', 'df', 'OLSflag', 'precision', 'contrasts', ...
             'doF', 'doCoeffCovar', 'GWASType',  'appendMainEffect', 'splitBy',   ...
             'chunkSize', 'meanImpute', 'roundOff', 'transform', 'stdType',       ...
             'doPar', 'numWorkers', 'numThreads', 'hypValues'};
@@ -511,14 +557,14 @@ toSave   = {'timing_compile', 'timing_divide', 'timing_GWAS',                   
 if sum([tmpInfo(ismember({tmpInfo(:).name}', toSave)).bytes]) > 2^31
     save(saveName, 'timing_compile', 'timing_divide', 'timing_GWAS',                     ...
                     'file_PLINK', 'file_FEMA_fit', 'file_basisFunc',  'file_contrast',   ...
-                    'bfSNP', 'pValType', 'df', 'OLSflag', 'SingleOrDouble', 'contrasts', ...
+                    'bfSNP', 'pValType', 'df', 'OLSflag', 'precision', 'contrasts', ...
                     'doF', 'doCoeffCovar', 'GWASType',  'appendMainEffect', 'splitBy',   ...
                     'chunkSize', 'meanImpute', 'roundOff', 'transform', 'stdType',       ...
                     'doPar', 'numWorkers', 'numThreads', 'hypValues', '-v7.3');
 else
     save(saveName, 'timing_compile', 'timing_divide', 'timing_GWAS',                     ...
                     'file_PLINK', 'file_FEMA_fit', 'file_basisFunc',  'file_contrast',   ...
-                    'bfSNP', 'pValType', 'df', 'OLSflag', 'SingleOrDouble', 'contrasts', ...
+                    'bfSNP', 'pValType', 'df', 'OLSflag', 'precision', 'contrasts', ...
                     'doF', 'doCoeffCovar', 'GWASType',  'appendMainEffect', 'splitBy',   ...
                     'chunkSize', 'meanImpute', 'roundOff', 'transform', 'stdType',       ...
                     'doPar', 'numWorkers', 'numThreads', 'hypValues');
