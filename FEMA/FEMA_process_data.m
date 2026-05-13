@@ -66,6 +66,7 @@ addParameter(p, 'transformY', 'none', @(x) ischar(x) && ...
                                            'std' 'standardize' 'normalize' ...
                                            'logn' 'log10' 'inverseranknorm' ...
                                            'ranknorm' 'int'}));
+addParameter(p, 'nonDEAP', false, @(x) isscalar(x) && (islogical(x) || isnumeric(x)));
 
 parse(p, fstem_imaging, dirname_imaging, datatype, varargin{:})
 iid = p.Results.iid;
@@ -83,6 +84,7 @@ study = p.Results.study;
 release = p.Results.release;
 wholeSampleTransform = p.Results.wholeSampleTransform;
 transformY = p.Results.transformY;
+nonDEAP = p.Results.nonDEAP;
 
 logging(FEMA_info)
 % log overall timing 
@@ -353,46 +355,60 @@ switch datatype
     case 'external'
 	    logging('Reading tabulated imaging data from %s', dirname_imaging);
         tLoadData = tic;
-        [~, ~, ext_imaging] = fileparts(dirname_imaging);
-        if ~isempty(fstem_imaging)
+        if nonDEAP
+            fname_roidat = fullfile(dirname_imaging, fstem_imaging);
+            [~, ~, ext_imaging] = fileparts(fname_roidat);
             switch ext_imaging
                 case '.parquet'
-                    opts = parquetinfo(dirname_imaging);
-                    varInc = [rowvec(fstem_imaging) {'participant_id' 'session_id'}];
-                    varPresent = ismember(varInc, opts.VariableNames);
-                    if any(~varPresent)
-                        missingVars = varInc(~varPresent);
-                        error(['Could not find variables in table ', fname_qc, ': ', strjoin(missingVars, ', ')]);
-                    else
-                        try 
-                            roidat = parquetread(dirname_imaging, 'SelectedVariableNames', varInc);
-                            roidat.session_id = cellstr(roidat.session_id);
-                        catch ME
-                            sprintf('Cannot load tabulated data from: %s\n%s', dirname_imaging, rethrow(ME));
-                            % error('Cannot load tabulated data from %s', dirname_imaging);
-                        end
-                    end 
+                    roidat = parquetread(fname_roidat);
                 case {'.csv' '.tsv' '.txt'}
-                    opts = detectImportOptions(dirname_imaging, 'FileType', 'text');
-                    varInc = [rowvec(fstem_imaging) {'participant_id' 'session_id'}];
-                    varPresent = ismember(varInc, opts.VariableNames);
-                    if any(~varPresent)
-                        missingVars = varInc(~varPresent);
-                        error(['Could not find variables in file ', dirname_imaging, ': ', strjoin(missingVars, ', ')]);
-                    else
-                        opts.SelectedVariableNames = varInc;  
-                        try
-                            roidat = readtable(dirname_imaging, opts);
-                        catch ME
-                            sprintf('Cannot load tabulated data from: %s\n%s', dirname_imaging, rethrow(ME));
-                            % error('Cannot load tabulated data from %s', dirname_imaging);
-                        end 
-                    end
+                    opts = detectImportOptions(fname_roidat, 'FileType', 'text');
+                    roidat = readtable(fname_roidat, opts);
                 otherwise
-                    error('Unsupported file format for tabulated data: %s. Must be .parquet, .csv, .tsv, or .txt', ext_imaging); 
+                    error('Unsupported file format for tabulated data: %s. Must be .parquet, .csv, .tsv, or .txt', ext_imaging);
             end
         else 
-            error('No dependent variable specified');
+            [~, ~, ext_imaging] = fileparts(dirname_imaging);
+            if ~isempty(fstem_imaging)
+                switch ext_imaging
+                    case '.parquet'
+                        opts = parquetinfo(dirname_imaging);
+                        varInc = [rowvec(fstem_imaging) {'participant_id' 'session_id'}];
+                        varPresent = ismember(varInc, opts.VariableNames);
+                        if any(~varPresent)
+                            missingVars = varInc(~varPresent);
+                            error(['Could not find variables in table ', fname_qc, ': ', strjoin(missingVars, ', ')]);
+                        else
+                            try 
+                                roidat = parquetread(dirname_imaging, 'SelectedVariableNames', varInc);
+                                roidat.session_id = cellstr(roidat.session_id);
+                            catch ME
+                                sprintf('Cannot load tabulated data from: %s\n%s', dirname_imaging, rethrow(ME));
+                                % error('Cannot load tabulated data from %s', dirname_imaging);
+                            end
+                        end 
+                    case {'.csv' '.tsv' '.txt'}
+                        opts = detectImportOptions(dirname_imaging, 'FileType', 'text');
+                        varInc = [rowvec(fstem_imaging) {'participant_id' 'session_id'}];
+                        varPresent = ismember(varInc, opts.VariableNames);
+                        if any(~varPresent)
+                            missingVars = varInc(~varPresent);
+                            error(['Could not find variables in file ', dirname_imaging, ': ', strjoin(missingVars, ', ')]);
+                        else
+                            opts.SelectedVariableNames = varInc;  
+                            try
+                                roidat = readtable(dirname_imaging, opts);
+                            catch ME
+                                sprintf('Cannot load tabulated data from: %s\n%s', dirname_imaging, rethrow(ME));
+                                % error('Cannot load tabulated data from %s', dirname_imaging);
+                            end 
+                        end
+                    otherwise
+                        error('Unsupported file format for tabulated data: %s. Must be .parquet, .csv, .tsv, or .txt', ext_imaging); 
+                end
+            else 
+                error('No dependent variable specified');
+            end 
         end 
 	    % Check which ID + event columns are present for the different releases
 	    %if any(strcmp(roidat.Properties.VariableNames, 'src_subject_id'))
@@ -406,6 +422,18 @@ switch datatype
 	    %end
         iid_concat = roidat.participant_id;
         eid_concat = roidat.session_id;
+
+        % remove non-numeric columns from roidat - this should only needed for non-DEAP data
+        dataVarNames = setdiff(roidat.Properties.VariableNames, {'participant_id', 'session_id'}, 'stable');
+        isNumericData = cellfun(@(x) isnumeric(roidat.(x)), dataVarNames);
+        toDropNonNumeric = dataVarNames(~isNumericData);
+        if ~isempty(toDropNonNumeric)
+            fprintf('%d column(s) [%s] are not numeric. Dropping from analysis.\n', ...
+                numel(toDropNonNumeric), strjoin(cellstr(toDropNonNumeric(:)), ', '));
+            roidat = removevars(roidat, toDropNonNumeric);
+        end
+
+        %define dependent variable, ymat
         ymat = table2array(removevars(roidat, {'participant_id', 'session_id'}));
 	    ymat_names = removevars(roidat, {'participant_id', 'session_id'}).Properties.VariableNames;
 	    idevent = strcat(iid_concat(:),'_',eid_concat(:));

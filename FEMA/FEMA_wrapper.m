@@ -4,16 +4,22 @@ function [beta_hat, beta_se, zmat, logpmat, sig2tvec, sig2mat, Hessmat, logLikve
           residuals_GLS, info_fit, inputs, mask, tfce_perm, info] = FEMA_wrapper(varargin)
 %
 % FEMA_wrapper can be called either as:
-%   FEMA_wrapper(fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, ...)
-%   FEMA_wrapper('config', fname_json, 'data', fname_data, 'output', dirname_out)
-%   FEMA_wrapper('toml', fname_toml)   [non-DEAP: all parameters in TOML config]
+% non-DEAP mode:
+%   FEMA_wrapper('fstem_imaging', fstem_imaging, ...
+%               'fname_design', fname_design, ...
+%               'dirname_out', dirname_out, ...
+%               'dirname_imaging', dirname_imaging, ...
+%               'datatype', datatype, ...)
+%   FEMA_wrapper('toml', fname_toml)   
+% DEAP mode:
+%   FEMA_wrapper('config', fname_json, ...
+%                'data', fname_data, ...
+%                'output', dirname_out)
 % Wrapper function to run whole FEMA pipeline:
 %     1) To load and process imaging data (FEMA_process_data)
 %     2) To intersect with design matrices (FEMA_intersect_design)
 %     3) To run linear mixed effects models (FEMA_fit)
 %     4) To save outputs in specified format
-%
-% USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
 %
 % INPUTS
 %   fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
@@ -100,6 +106,8 @@ if ~isempty(idx_toml)
     
     % Reconstruct varargin as the standard config-mode call
     varargin = {'config', fname_json, 'data', fname_data, 'output', dirname_out_val};
+
+    nonDEAP = true;
 end
 %% ---- end non-DEAP TOML entry point ----
 
@@ -137,11 +145,16 @@ if existSet1
         % extraArgs{end+1} = varargin{find(ismember(varargin, leftOverArgs{ii}))+1}; %#ok<AGROW>
     end
     varargin = extraArgs;
+    if ~exist('nonDEAP', 'var')
+        nonDEAP = false;
+    end
 else
     fstem_imaging   = varargin{find(strcmpi(varargin, {'fstem_imaging'})) + 1};
     dirname_out     = varargin{find(strcmpi(varargin, {'dirname_out'})) + 1};
     dirname_imaging = varargin{find(strcmpi(varargin, {'dirname_imaging'})) + 1};
     datatype        = varargin{find(strcmpi(varargin, {'datatype'})) + 1};
+
+    nonDEAP = true; 
 end
 
 inputs = inputParser;
@@ -151,7 +164,9 @@ addRequired(inputs, 'fstem_imaging', @(x) iscell(x) || ischar(x));
 addRequired(inputs, 'dirname_out', @ischar);
 addRequired(inputs, 'dirname_imaging', @ischar);
 addRequired(inputs, 'datatype', @(x) ischar(x) && ...
-                     ismember(x, {'voxel', 'vertex', 'corrmat', ...
+                     ismember(x, {'voxel', 'voxelwise', ...
+                                  'vertex', 'vertexwise', ...
+                                  'corrmat', ... 
                                   'roi', 'external'}));
 % optional inputs
 addParameter(inputs, 'fname_design', @(x) iscell(x) || ischar(x));
@@ -299,7 +314,7 @@ end
 [ymat, iid_concat, eid_concat, ivec_mask, mask, GRM, preg, address, info_process_data] = ...
 FEMA_process_data(fstem_imaging, dirname_imaging, datatype, 'ico', ico, 'GRM_file', fname_GRM, 'preg_file', ...
                   fname_pregnancy, 'address_file', fname_address, 'corrvec_thresh', corrvec_thresh, ...
-                  'iid', iid_filter, 'eid', eid_filter, 'study', study, 'release', release);
+                  'iid', iid_filter, 'eid', eid_filter, 'study', study, 'release', release, 'nonDEAP', nonDEAP);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % back up data 
@@ -343,6 +358,9 @@ for des=1:n_desmat % loop if multiple design matrices
         tmp.settings.fname = fname_design{des};
         tmp.timing.tRead   = toc(tRead);
         info_makeDesign    = tmp;
+        splines_of_interest = [];
+        FFX_conceptMapping = [];
+        info_makeDesign = [];
     else 
         disp(['In Wrapper: about to call FEMA_makeDesign; full path to dataFile is: ', dataFile]);
         [designMatrix, vars_of_interest, splines_of_interest, FFX_conceptMapping, info_makeDesign] = ...
@@ -670,7 +688,8 @@ for des=1:n_desmat % loop if multiple design matrices
                         'NonnegFlag', NonnegFlag, 'precision', precision, 'logLikflag', logLikflag, ...
                         'PermType', PermType, 'colsinterest', colsinterest, 'vars_of_interest', vars_of_interest,...
                         'ymat_names', info.FEMA_process_data.ymat_names, 'roi_atlas', roi_atlas, ...
-                        'fstem_imaging', fstem_imaging, 'saveDesignMatrix', saveDesignMatrix, 'info', info, 'matType', matType);
+                        'fstem_imaging', fstem_imaging, 'saveDesignMatrix', saveDesignMatrix, ...
+                        'nonDEAP', nonDEAP, 'info', info, 'matType', matType);
     end
 
 end % looping over desmat 
