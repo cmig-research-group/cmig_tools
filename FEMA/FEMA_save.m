@@ -822,7 +822,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         % Prepare JSON data
         json_tabularY.dependent = depName;
         
-        if writeJson
+        if writeJSON
             formula = strcat(depName, {' ~ '}, ffx_formula, rfx_formula);
             json_tabularY.formula = formula;
         end
