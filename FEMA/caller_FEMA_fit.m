@@ -185,7 +185,7 @@ function caller_FEMA_fit(file_X, file_ymat, dirOutput, outPrefix, varargin)
 % 
 % saveDesignMatrix: if true, filtered X variable and ID lists are written
 %                   out as a separate mat file (default: false)
-% 
+
 %% Start
 updateString = [char(datetime('now')), ': caller_FEMA_fit: job started'];
 disp(updateString);
@@ -298,6 +298,15 @@ else
     numThreads = p.Results.numThreads;
 end
 
+if isdeployed
+    chkFun = @(x) (ischar(x) | isstring(x)) && ismember(lower(x), {'true'});
+    if chkFun(saveDesignMatrix)
+        saveDesignMatrix = true;
+    else
+        saveDesignMatrix = false;
+    end
+end
+    
 if isdeployed
     if iscell(p.Results.RandomEffects)
         RandomEffects = p.Results.RandomEffects;
@@ -492,6 +501,11 @@ disp(updateString);
 
 updateString = [char(datetime('now')), ': caller_FEMA_fit: ', num2str(nObs_ymat), ' observations in ymat after intersection'];
 disp(updateString);
+
+%% Check if there is meaningful data left
+if nObs_ymat == 0 || nObs_X == 0
+    error('No observations left in the data after intersection');
+end
 
 %% Perform a check for NaN and Inf
 if logical(sum(any(isnan(X)))) || logical(sum(any(isnan(ymat)))) || ...

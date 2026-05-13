@@ -226,6 +226,8 @@ if ~isempty(file_knots)
             end
         end
     end
+else
+    knots = [];
 end
 
 %% Pass everything to createBasisFunctions
@@ -244,8 +246,8 @@ updateString = [char(datetime('now')), ': caller_createBasisFunctions: saving re
 disp(updateString);
 
 % Make variable names for the output
-varNames_basisFunction = strreplace(strcat({'BF_'}, num2str((1:size(basisFunction,2))')), ' ', '');
-varNames_basisSubset   = strreplace(strcat({'BFsubset_'}, num2str((1:size(basisSubset,2))')), ' ', '');
+varNames_basisFunction = replace(strcat({'BF_'}, num2str((1:size(basisFunction,2))')), ' ', '');
+varNames_basisSubset   = replace(strcat({'BFsubset_'}, num2str((1:size(basisSubset,2))')), ' ', '');
 
 if strcmpi(outType, 'mat')
     % Get a sense for all variables in the workspace

@@ -1,14 +1,21 @@
 
  FEMA_wrapper can be called either as:
-   FEMA_wrapper(fstem_imaging, fname_design, dirname_out, dirname_imaging, datatype, ...)
-   FEMA_wrapper('config', fname_json, 'data', fname_data, 'output', dirname_out)
+ non-DEAP mode:
+   FEMA_wrapper('fstem_imaging', fstem_imaging, ...
+               'fname_design', fname_design, ...
+               'dirname_out', dirname_out, ...
+               'dirname_imaging', dirname_imaging, ...
+               'datatype', datatype, ...)
+   FEMA_wrapper('toml', fname_toml)   
+ DEAP mode:
+   FEMA_wrapper('config', fname_json, ...
+                'data', fname_data, ...
+                'output', dirname_out)
  Wrapper function to run whole FEMA pipeline:
      1) To load and process imaging data (FEMA_process_data)
      2) To intersect with design matrices (FEMA_intersect_design)
      3) To run linear mixed effects models (FEMA_fit)
      4) To save outputs in specified format
-
- USAGE: FEMA_wrapper(fstem_imaging,fname_design,dirname_out,dirname_imaging,datatype,varargin)
 
  INPUTS
    fstem_imaging <char>       :  name of vertex/voxel-mapped phenotype (e.g., 'thickness-sm16', 'FA')
@@ -16,7 +23,8 @@
                                  this can either be a csv, txt or parquet file of the complete design matrix
                                  created to the FEMA specifications or it can a JSON config file to be passed to 
                                  FEMA_makeDesign to create a design matrix. 
-   dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include separate output directory as rows within dirname_out as a cell array
+   dirname_out <cell>         :  cell array with path to output directory --> if batching design matrices must include 
+                                 separate output directory as rows within dirname_out as a cell array
    dirname_imaging <char>     :  path to imaging data directory
    datatype <char>            :  'voxel','vertex','external', 'corrmat'
                                    NB: Other than 'external' all code is written to expect ABCD data
@@ -46,6 +54,8 @@
    precision <char>           :  input for FEMA_fit - default 'double' --> other option: 'single' - for precision
    logLikflag <boolean>       :  input for FEMA_fit - default 0
    PermType <char>            :  input for FEMA_fit - options:
-                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly flipping the sign of each observation
-                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
+                                   'wildbootstrap' - residual boostrap --> creates null distribution by randomly 
+                                                                           flipping the sign of each observation
+                                   'wildbootstrap-nn' - non-null boostrap --> estimates distribution around effect 
+                                                                              of interest using sign flipping (used for sobel test)
    tfce <num>                 :  default 0 --> if 1 will run TFCE

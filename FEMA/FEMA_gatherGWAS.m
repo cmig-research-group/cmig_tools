@@ -103,16 +103,16 @@ end
 if is3D
     [beta_hat, beta_se, tStats, logpValues] = deal(zeros(numSNPs, numCoeff, numPhen));
     if doWald
-        [Wald_F, Wald_p] = deal(zeros(numSNPs, numPhen, numCon));
+        [Wald_F, Wald_logp] = deal(zeros(numSNPs, numPhen, numCon));
     end
 else
     if doWald
-        [Wald_F, Wald_p] = deal(zeros(numSNPs, numPhen, numCon));
+        [Wald_F, Wald_logp] = deal(zeros(numSNPs, numPhen, numCon));
         [beta_hat, beta_se, tStats, logpValues] = deal(zeros(numSNPs, numCoeff, numPhen));
     else
         [beta_hat, beta_se, tStats, logpValues] = deal(zeros(numSNPs, numPhen));
         Wald_F = [];
-        Wald_p = [];
+        Wald_logp = [];
     end
 end
 
@@ -135,7 +135,8 @@ if is3D
     if doWald
         for files = 1:length(ls)
             % Load data
-            tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_p', 'genStruct', 'coeffCovar', 'errFlag');
+            tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', ...
+                                  'Wald_F', 'Wald_logp', 'genStruct', 'coeffCovar', 'errFlag');
 
             % How many rows?
             chk = size(tmp.beta_hat, 1);
@@ -146,7 +147,7 @@ if is3D
             tStats(init:init+chk-1,     :, :)    = tmp.tStats;
             logpValues(init:init+chk-1, :, :)    = tmp.logpValues;
             Wald_F(init:init+chk-1,     :, :)    = tmp.Wald_F;
-            Wald_p(init:init+chk-1,     :, :)    = tmp.Wald_p;
+            Wald_logp(init:init+chk-1,     :, :) = tmp.Wald_logp;
             Chr(init:init+chk-1)                 = tmp.genStruct.Chr;
             BP(init:init+chk-1)                  = tmp.genStruct.BP;
             rsID(init:init+chk-1)                = tmp.genStruct.SNPs;
@@ -182,7 +183,8 @@ else
     if doWald
         for files = 1:length(ls)
             % Load data
-            tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_p', 'genStruct', 'coeffCovar', 'errFlag');
+            tmp = load(ls{files}, 'beta_hat', 'beta_se', 'tStats', 'logpValues', ...
+                                  'Wald_F', 'Wald_logp', 'genStruct', 'coeffCovar', 'errFlag');
 
             % How many rows?
             chk = size(tmp.beta_hat, 1);
@@ -193,7 +195,7 @@ else
             tStats(init:init+chk-1, :)          = tmp.tStats;
             logpValues(init:init+chk-1, :)      = tmp.logpValues;
             Wald_F(init:init+chk-1, :)          = tmp.Wald_F;
-            Wald_p(init:init+chk-1, :)          = tmp.Wald_p;
+            Wald_logp(init:init+chk-1, :)       = tmp.Wald_logp;
             Chr(init:init+chk-1)                = tmp.genStruct.Chr;
             BP(init:init+chk-1)                 = tmp.genStruct.BP;
             rsID(init:init+chk-1)               = tmp.genStruct.SNPs;
@@ -236,14 +238,14 @@ BP  = cellfun(@str2double, BP);
 saveName = fullfile(outDir, [strrep(outName, '.mat', ''), '.mat']);
 
 % Variables to save
-toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_p', 'Chr', 'BP', 'rsID', 'errFlag', 'coeffCovar'};
+toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_logp', 'Chr', 'BP', 'rsID', 'errFlag', 'coeffCovar'};
 
 % Get an estimate of size of the variables
 tmpInfo = whos;
 if sum([tmpInfo(ismember({tmpInfo(:).name}', toSave)).bytes]) > 2^31
-    save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_p', 'Chr', 'BP', 'rsID', 'errFlag', 'coeffCovar', '-v7.3');
+    save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_logp', 'Chr', 'BP', 'rsID', 'errFlag', 'coeffCovar', '-v7.3');
 else
-    save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_p', 'Chr', 'BP', 'rsID', 'errFlag', 'coeffCovar');
+    save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'Wald_F', 'Wald_logp', 'Chr', 'BP', 'rsID', 'errFlag', 'coeffCovar');
 end
 
 %% Clean up, if required

@@ -2,8 +2,14 @@
  Inputs:
  configFile:       character       full path to a configuration file
                                    (see example configuration file in the
-                                   recipe folder), can either be a JSON or 
-                                   text file saved with the extension '.config'
+                                   recipe folder): '.json', '.config' text,
+                                   or non-DEAP '.toml' (see FEMA_createInputJSON).
+  
+                                   If configFile is '.toml', FEMA_readToml builds job JSON and a
+                                   merged parquet (designOnly=true so [dependent] may be omitted),
+                                   then configFile becomes that JSON path and varargin receives
+                                   dataFile, default outDir / study, optional params.makeDesign,
+                                   plus any name-values you pass (iid, eid, outName, ...).
   
  Optional inputs (name-pair values): 
  iid:              cell / char     individual IDs for all observations
@@ -16,20 +22,14 @@
                                    csv file with no header that has event
                                    IDs that need to be retained
  
- dataFile:         character       full path to a .csv/.tsv/.parquet/
-                                   file that has the variables specified
-                                   in configFile to read in / additional
-                                   variables to be included in the design matrix
-                                       - if .csv/.tsv/.parquet, the columns should be named as (in order):
-                                           * participant_id: the individual ID for every observation
-                                           * session_id:     the event ID for every observation
-                                           * column 3 onwards should be the variables to include
-                                           * if the `familyIDvar` specified in configFile exists, 
-                                             in the dataFile, this is respected; otherwise, an attempt
-                                             is made to read the family ID from the demographics table
-                                           * if a column named `agevec` exists, it is not 
-                                             considered to be a part of the design matrix
- 
+ dataFile:         character       (JSON / .config configs only) full path to a
+                                   .csv/.tsv/.parquet with model columns. Required
+                                   when configFile is JSON. Not used when configFile
+                                   is .toml (tabular data are always merged from the
+                                   TOML into a parquet; passing 'dataFile' with .toml
+                                   is deprecated and ignored with a warning).
+                                       - Columns: participant_id, session_id, then covariates;
+                                         see recipe examples for details.
                                    N.B: if agevec is missing in dataFile,
                                    it is assumed to be "0" throughout
                                    (since it is not directly used for analysis)
@@ -43,14 +43,6 @@
                                    from the design matrix or not (default:
                                    true)
  
- isFE:             logical         true or false indicating if the
-                                   RandomEffects model type is F and E (in
-                                   which case iid = fid)
- 
- isSE:             logical         true or false indicating if the
-                                   RandomEffects model type is S and E (in
-                                   which case fid = iid)
- 
  outDir:           character       full path to where the design matrix
                                    should be written out
  
@@ -62,7 +54,11 @@
                                    for the design matrix:
                                        * 'csv'
                                        * 'mat'
+                                       * 'parquet'
                                        * 'compiled' | 'standalone'
+
+ Other options (iid, eid, outName, dropMissing, ...) are plain MATLAB name-values:
+   FEMA_makeDesign('cfg.toml', 'outName', 'mydesign')
 
  Output(s):
  designMatrix:     table           the created design matrix with the
@@ -83,15 +79,7 @@
  To Dos
  Need additional checks for when this function will be called in compiled mode
  How to handle non-standard family IDs? For example, scanner ID?
- Need to read data if anything specified in configFile is not found in
- dataFile
- dataFile specification for mat file is really complicated - not currently
- handled (see end of file)
  Currently using session_id for sorting of events which is not a
  generalisable solution as session_id may be incorrectly sorted (if
  non-numeric); need to incorporate age-based sorting OR allow user to
  specify another flag for sorting of events for delta computation
- DP: 
- i think we always should save an output file so writeDesignMat = true and 
-     if no output directory is given either save to pwd or ~ 
-

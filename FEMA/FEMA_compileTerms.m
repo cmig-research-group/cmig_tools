@@ -1,7 +1,7 @@
 function [allWsTerms, timing] = FEMA_compileTerms(clusterinfo, binvec,         ...
                                                   sig2mat,     RandomEffects,  ...
                                                   famtypevec,  GroupByFamType, ...
-                                                  CovType,     SingleOrDouble, visitnum)
+                                                  CovType,     precision, visitnum)
 %% Compile Ws term for every bin
 %% Inputs:
 % clusterinfo:      [1 x f]     cell type of f families/clusters, returned
@@ -24,7 +24,7 @@ function [allWsTerms, timing] = FEMA_compileTerms(clusterinfo, binvec,         .
 %                                   * 'analytic' (compound symmetry)
 %                                   * 'unstructured'
 % 
-% SingleOrDouble:   character   single or double precision
+% precision:        character   single or double precision
 %
 % visitnum:         [e x 1]     event number as output from FEMA_fit
 %                               (required if CovType is unstructured)
@@ -108,15 +108,15 @@ if unstructuredCov
             end
 
             % Compute inverse of V
-            Vis_fam = double(Vs_fam) \ eye(tmpSize, SingleOrDouble);
+            Vis_fam = double(Vs_fam) \ eye(tmpSize, precision);
             msg     = lastwarn;
             if ~isempty(msg)
-                Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                Vis_fam = cast(pinv(double(Vs_fam)), precision);
                 msg = '';
                 lastwarn('');
             end
             % if any(isnan(Vis_fam) | isinf(Vis_fam))
-            %     Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+            %     Vis_fam = cast(pinv(double(Vs_fam)), precision);
             % end
 
             % Compile allWsFam
@@ -161,15 +161,15 @@ else
                     end
     
                     % Compute inverse of V
-                    Vis_famtype = double(Vs_famtype) \ eye(tmpSize, SingleOrDouble);
+                    Vis_famtype = double(Vs_famtype) \ eye(tmpSize, precision);
                     msg         = lastwarn;
                     if ~isempty(msg)
-                        Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
+                        Vis_famtype = cast(pinv(double(Vs_famtype)), precision);
                         msg = '';
                         lastwarn('');
                     end
                     % if any(isnan(Vis_famtype) | isinf(Vis_famtype))
-                    %     Vis_famtype = cast(pinv(double(Vs_famtype)), SingleOrDouble);
+                    %     Vis_famtype = cast(pinv(double(Vs_famtype)), precision);
                     % end
     
                     % Compile allWsFam
@@ -199,15 +199,15 @@ else
                     end
     
                     % Compute inverse of V
-                    Vis_fam = double(Vs_fam) \ eye(tmpSize, SingleOrDouble);
+                    Vis_fam = double(Vs_fam) \ eye(tmpSize, precision);
                     msg     = lastwarn;
                     if ~isempty(msg)
-                        Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                        Vis_fam = cast(pinv(double(Vs_fam)), precision);
                         msg = '';
                         lastwarn('');
                     end
                     % if any(isnan(Vis_fam) | isinf(Vis_fam))
-                    %     Vis_fam = cast(pinv(double(Vs_fam)), SingleOrDouble);
+                    %     Vis_fam = cast(pinv(double(Vs_fam)), precision);
                     % end
     
                     % Compile allWsFam
