@@ -1,4 +1,4 @@
-function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, coeffCovar, errFlag, timeStruct] = ...
+function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_logp, coeffCovar, errFlag, timeStruct] = ...
           FEMA_fit_GWAS(genoMat, ymat_res, binvec, Xvars, allWsTerms, varargin)
 % Function to perform GWAS using FEMA
 %% Inputs:
@@ -73,7 +73,7 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, coeffCovar, err
 %
 % OLSflag:          logical     OLS or GLS solution
 %
-% SingleOrDouble:   character   single or double precision
+% precision:        character   single or double precision
 %
 % adjustMSE:        logical     specifies whether sig2tvec should be
 %                               adjusted for the number of covariates and
@@ -113,7 +113,7 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, coeffCovar, err
 %                               functions) for m SNPs, v phenotypes, and l
 %                               weights specified in L
 %
-% Wald_p:           [m x v x l] -log10 p value associated with omnibus Wald
+% Wald_logp:        [m x v x l] -log10 p value associated with omnibus Wald
 %                               test; if p value is less than realmin
 %                               (2.2251e-308), then the value will be
 %                               infinite
@@ -121,6 +121,11 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, coeffCovar, err
 % coeffCovar:   [m x q x q x v] coefficient covariance for every SNP for q
 %                               basis functions and v phenotypes; not
 %                               computed if there are no basis functions
+% 
+% errFlag:              [m x v] logical vector or matrix indicating either
+%                               a nearestSPD convergence issue or a
+%                               complex valued standard error being
+%                               generated
 %
 % timeStruct:       structure   contains various timing information
 % 
@@ -135,7 +140,7 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, coeffCovar, err
 % basisFunction:    intercept only (standard GWAS)
 % sex               []
 % OLSflag:          false
-% SingleOrDouble:   'double'
+% precision:        'double'
 % pValType:         'z'
 % adjustMSE:        true
 % L:                any basis functions eye(numBasisFunctions)
@@ -322,7 +327,7 @@ p.addParameter('sex',            []);
 p.addParameter('pValType',       'z');
 p.addParameter('df',             []);
 p.addParameter('OLSflag',        false);
-p.addParameter('SingleOrDouble', 'double');
+p.addParameter('precision',      'double');
 p.addParameter('outDir',         '');
 p.addParameter('outName',        '');
 p.addParameter('useShortcut',    false);
@@ -342,7 +347,7 @@ sex             = p.Results.sex;
 pValType        = p.Results.pValType;
 df              = p.Results.df;
 OLSflag         = p.Results.OLSflag;
-SingleOrDouble  = p.Results.SingleOrDouble;
+precision       = p.Results.precision;
 outDir          = p.Results.outDir;
 outName         = p.Results.outName;
 useLSQ          = p.Results.useLSQ;
@@ -384,10 +389,10 @@ if isempty(df)
     df = size(ymat_res, 1) - (size(Xvars, 2) + numBasisFunc);
 end
 
-% Check SingleOrDouble
-SingleOrDouble = lower(SingleOrDouble);
-if ~ismember(SingleOrDouble, {'single', 'double'})
-    error('Unknown value for SingleOrDouble specified');
+% Check precision
+precision = lower(precision);
+if ~ismember(precision, {'single', 'double'})
+    error('Unknown value for precision specified');
 end
 
 % Check L
@@ -452,7 +457,7 @@ end
 
 %% Cast genoMat as double precision, if required
 tDouble = tic;
-if strcmpi(SingleOrDouble, 'double')
+if strcmpi(precision, 'double')
     genoMat = double(genoMat);
 end
 timeStruct.tDouble = toc(tDouble);
@@ -485,10 +490,10 @@ end
 
 %% Initialize omnibus test
 if ~standardGWAS
-    [Wald_F, Wald_p] = deal(zeros(numSNPs, numYvars, numCon));
+    [Wald_F, Wald_logp] = deal(zeros(numSNPs, numYvars, numCon));
 else
-    Wald_F = [];
-    Wald_p = [];
+    Wald_F    = [];
+    Wald_logp = [];
 end
 
 %% Initialize coefficient covariance if required
@@ -503,6 +508,9 @@ else
 end
 
 timeStruct.tinitilize  = toc(t1);
+
+%% Keeping track of nearestSPD convergence
+converge = false(numSNPs, numYvars);
 
 %% Do estimation
 tEstimation = tic;
@@ -627,7 +635,7 @@ if standardGWAS
     end
 else
     % Use basis function to create new genotype matrix
-    tmpGenotype = zeros(numObs, numBasisFunc, numSNPs, SingleOrDouble);
+    tmpGenotype = zeros(numObs, numBasisFunc, numSNPs, precision);
     for basis   = 1:numBasisFunc
         tmpGenotype(:, basis, :) = genoMat .* bfSNP(:, basis);
     end
@@ -677,7 +685,7 @@ else
                 msg = ''; %#ok<NASGU>
                 lastwarn('');
             end
-            iterm1 = nearestSPD(iterm1);
+            [iterm1, converge(snps,:)] = nearestSPD_timeout(iterm1);
 
             % Calculate beta coefficient
             tmpCoeff                          = iterm1 * (tmpX' * ymat_res);
@@ -699,7 +707,7 @@ else
             % Do Wald test
             for ii = 1:numY
                 coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
-                [Wald_F(snps, ii, :), Wald_p(snps, ii, :)] =  ...
+                [Wald_F(snps, ii, :), Wald_logp(snps, ii, :)] =  ...
                 FEMA_WaldTest(L, tmpCoeff(:, ii), coeffCovar, hypValue, doF, numObs);
             end
         end
@@ -745,7 +753,7 @@ else
                     msg = ''; %#ok<NASGU>
                     lastwarn('');
                 end
-                iterm1 = nearestSPD(iterm1);
+                [iterm1, converge(snps,sig2bini)] = nearestSPD_timeout(iterm1);
 
                 % Calculate beta coefficient
                 tmpCoeff                                 = iterm1 * (XtW * tmpY);
@@ -760,7 +768,7 @@ else
                 % Do Wald test
                 for ii = 1:length(ivec_bin)
                     temp_coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
-                    [Wald_F(snps, ivec_bin(ii), :), Wald_p(snps, ivec_bin(ii), :)] =  ...
+                    [Wald_F(snps, ivec_bin(ii), :), Wald_logp(snps, ivec_bin(ii), :)] =  ...
                     FEMA_WaldTest(L, tmpCoeff(:, ii), temp_coeffCovar, hypValue, doF, numObs);
 
                     if doCoeffCovar
@@ -806,6 +814,7 @@ errFlag = imag(beta_se) ~= 0;
 if numBasisFunc > 1
     errFlag = squeeze(any(errFlag, 2));
 end
+errFlag = errFlag | converge;
 
 % Save variables, if necessary
 if writeResults
@@ -814,13 +823,18 @@ if writeResults
     saveName = fullfile(outDir, [strrep(outName, '.mat', ''), '.mat']);
 
     % Variables to save
-    toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'coeffCovar', 'timeStruct', 'genStruct', 'errFlag'};
+    toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', ...
+              'Wald_logp', 'coeffCovar', 'timeStruct', 'genStruct', 'errFlag'};
 
     % Get an estimate of size of the variables
     tmpInfo = whos;
     if sum([tmpInfo(ismember({tmpInfo(:).name}', toSave)).bytes]) > 2^31
-        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'coeffCovar', 'timeStruct', 'genStruct', 'errFlag', '-v7.3');
+        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', ...
+                       'Wald_F', 'Wald_logp', 'coeffCovar', 'timeStruct',   ...
+                       'genStruct', 'errFlag', '-v7.3');
     else
-        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'coeffCovar', 'timeStruct', 'genStruct', 'errFlag');
+        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', ...
+                       'Wald_F', 'Wald_logp', 'coeffCovar', 'timeStruct',   ...
+                       'genStruct', 'errFlag');
     end
 end
