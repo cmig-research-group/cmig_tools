@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.0.1 - 2026-05-13]
 ### Changed 
-- `FEMA/FEMA_parse_JSON.m`: normalize `params.fixed.vars` to a cell for when only a single fixed effect is specified and `jsondecode` returns a scalar struct.
+- `FEMA/FEMA_parse_JSON.m`: normalize `params.fixed.vars` to a cell for when only a single fixed effect is specified and `jsondecode` returns a scalar struct
+- `FEMA/FEMA_save.m`: removed `Wald statistic` and `Wald -log10(p)` from display_name output for tabulated data analyses when the model doesn't contain splines
 
 ## [4.0.0 - 2026-05-13]
 ### Added
