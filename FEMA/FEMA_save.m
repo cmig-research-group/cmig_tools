@@ -747,8 +747,10 @@ if any(ismember(outputType, {'tables', 'external'}))
     display_fixed.beta_se   = 'Standard Error';
     display_fixed.zmat      = 'T statistics';
     display_fixed.logpmat   = 'Signed -log10(p)';
-    display_fixed.Wald      = 'Wald statistics';
-    display_fixed.logp_Wald = 'Wald -log10(p)';
+    if ~isempty(unMatched.Wald)
+        display_fixed.Wald      = 'Wald statistics';
+        display_fixed.logp_Wald = 'Wald -log10(p)';
+    end
 
     % Create a structure for display names: random effects
     if ndims(unMatched.sig2mat) == 2
