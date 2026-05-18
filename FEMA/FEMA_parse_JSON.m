@@ -64,8 +64,8 @@ function [FFX_names,            FFX_categorical,     FFX_vectorTransforms,    ..
 configFile = jsondecode(fileread(configFile));
 
 if strcmpi(configFile.params.dependent.type_data, 'external')
-    if isstruct(configFile.params.fixed.vars) & length(configFile.params.fixed.vars) ==1
-        configFile.params.fixed.vars = {configFile.params.fixed.vars};
+    if isstruct(configFile.params.fixed.vars)
+        configFile.params.fixed.vars = num2cell(configFile.params.fixed.vars);
     end
     tmp_locs = find(cellfun(@(x) isfield(x, 'transform'), configFile.params.fixed.vars));
     for tmp = 1:length(tmp_locs)
