@@ -115,7 +115,7 @@ else
     % Should be numX by numX by numY matrix
     [a, b, c] = size(coeffCovar);
 
-    if a ~= b | a ~= numX | c ~= numY
+    if a ~= b || a ~= numX || c ~= numY
         error(['Expected coefficient covariance matrix to be: ', ...
               num2str(numX), ' x ', num2str(numX), ' x ', num2str(numY)]);
     end
@@ -163,9 +163,9 @@ else
         numObs = reshape(numObs, [numel(numObs), 1]);
 
         % Check that the number of elements match number of cells
-        if size(numObs, 2) ~= numCells
+        if size(numObs, 1) ~= numCells
             error(['numObs should either be a scalar or a vector of ', ...
-                   num2str(numCells), ' x 1 values']);
+                   '1 x ', num2str(numCells), ' values']);
         end
     end
 end
@@ -180,25 +180,36 @@ df2             = numObs - numX;
 for cc = 1:numCells
 
     % Current weights - validated and padded
-    L{cc}       = validateContrast(L{cc}, numX);
+    L{cc} = validateContrast(L{cc}, numX);
 
-    % Find indexing
-    [r,c] = find(L{cc});
+    % Find indexing: we need rows of beta_hat to subset into: these can
+    % be obtained by checking which entries of L are non-zero
+    wchCols_L = any(L{cc} ~= 0, 1);
+
+    % Show a warning if nothing is left
+    if ~any(wchCols_L)
+        warning(['Contrast number ', num2str(cc), ' is all zeros']);
+    end
 
     % Now subset beta_hat and coeffCovar
-    tmp_beta_hat   = beta_hat(r,:);
-    tmp_coeffCovar = coeffCovar(r,r,:);
+    tmp_beta_hat   = beta_hat(wchCols_L, :);
+    tmp_coeffCovar = coeffCovar(wchCols_L, wchCols_L, :);
 
     % Subset the weights
-    currWeights = L{cc}(r,c);
+    currWeights = L{cc}(:,wchCols_L);
 
     % Numerator degree of freedom = number of linearly independent rows
     % df(cc,1) = size(currWeights, 1);
     df(cc,1) = rank(currWeights);
 
+    % Allocate contents of this cell
+    LB_hat{cc,1} = zeros(size(currWeights,1), numY);
+    LB_SE{cc,1}  = zeros(size(currWeights,1), numY);
+
     for yy = 1:numY
         % Linear combination of beta
         LB = currWeights * tmp_beta_hat(:,yy);
+        % LB = currWeights * beta_hat(:,yy);
     
         % Difference from hypothesised mean
         LB = LB - hypValue(cc);
@@ -208,6 +219,7 @@ for cc = 1:numCells
     
         % Calculate W2 = (L * B)' * inv{L * Cov * L'} * (L * B)
         % W2 = LB' * ((L * coeffCovar(:,:,yy) * L') \ eye(numX)) * LB;
+        % innerTerm = (currWeights * coeffCovar(:,:,yy) * currWeights');
         innerTerm = (currWeights * tmp_coeffCovar(:,:,yy) * currWeights');
 
         LB_SE{cc,1}(:,yy) = sqrt(diag(innerTerm));
@@ -259,7 +271,8 @@ else
             L = [L, zeros(1, numX - size(L,2))];
         else
             % Matrix case, need to zero pad columns
-            L = padarray(L, [0, numX - size(L,2)], 0, 'post');
+            % L = padarray(L, [0, numX - size(L,2)], 0, 'post');
+            L = [L, zeros(size(L,1), numX - size(L,2))];
         end
     end
 end
