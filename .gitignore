@@ -8,3 +8,5 @@
 
 # Quarto output (docs/deap)
 docs/deap/_site/
+
+.claude

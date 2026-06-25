@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## [4.0.3 - 2026-06-24]
+### Changed 
+- `FEMA/FEMA_WaldTest.m`: 
+    - bug fixed incorrect indexing in case of non-square contrast weights
+    - added check for scenarios where extra entries are specified in the contrast vector
+    - added warning for all zero contrast
+    - bug fixed incorrect check on `numObs`
+    - pre-allocating contents
+    - removed dependency on `padarray`
+- `FEMA/FEMA_fit`: updated citation information
+- `docs/citationInfo.txt`: updated citation information
+- `cmig_tools_utils/matlab/doFEMA_tests`: removed `niter` when calling `FEMA_fit`
+
+## [4.0.2 - 2026-05-19]
+### Changed 
+- `FEMA/FEMA_parse_JSON.m`: bug fixed indexing continuous variables field
+
 ## [4.0.1 - 2026-05-18]
 ### Changed 
 - `FEMA/FEMA_parse_JSON.m`: normalize `params.fixed.vars` to a cell for when only a single fixed effect is specified and `jsondecode` returns a scalar struct

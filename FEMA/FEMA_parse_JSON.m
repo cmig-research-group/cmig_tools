@@ -69,8 +69,8 @@ if strcmpi(configFile.params.dependent.type_data, 'external')
     end
     tmp_locs = find(cellfun(@(x) isfield(x, 'transform'), configFile.params.fixed.vars));
     for tmp = 1:length(tmp_locs)
-        if strcmpi(configFile.params.fixed.vars{tmp}.transform, 'splines')
-            configFile.params.fixed.vars{tmp}.of_interest = true;
+        if strcmpi(configFile.params.fixed.vars{tmp_locs(tmp)}.transform, 'splines')
+            configFile.params.fixed.vars{tmp_locs(tmp)}.of_interest = true;
         end
     end
 end
