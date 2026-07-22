@@ -1,4 +1,4 @@
-function [splitInfo, timing] = divideSNPs(bFile, splitBy, chunkSize, SNPID, Chr, BP, genInfo)
+function [splitInfo, timing] = divideSNPs(bFile, splitBy, chunkSize, outPrefix, SNPID, Chr, BP, genInfo)
 % Function that divides SNPs into chunks or by chromosomes
 %% Input(s):
 % bFile:        character       full path to a bFile without extension
@@ -14,6 +14,11 @@ function [splitInfo, timing] = divideSNPs(bFile, splitBy, chunkSize, SNPID, Chr,
 %                               'chromosome', then chunkSize is not
 %                               relevant
 %
+% outPrefix:    character       if specified, this prefix is used to create
+%                               chunk wise output name; otherwise, defaults
+%                               to either 'FEMA_GWAS_Chunk-' or
+%                               'FEMA_GWAS_Chr-' depending on splitBy
+% 
 %% Other inputs:
 % Parsing of bFile can be skipped if these are additionally input:
 % Chr:          [m x 1]         cell type having chromosome number for
@@ -60,6 +65,15 @@ else
     splitBy = lower(splitBy);
     if ~ismember(splitBy, {'snp', 'chromosome'})
         error(['Unknown splitBy value passed: ', splitBy, ' ; should be either snp or chromosome']);
+    end
+end
+
+% Check outPrefix
+if ~exist('outPrefix', 'var') || isempty(outPrefix)
+    if strcmpi(splitBy, 'snp')
+        outPrefix = 'FEMA_GWAS_Chunk-';
+    else
+        outPrefix = 'FEMA_GWAS_Chr-';
     end
 end
 
@@ -122,7 +136,7 @@ if strcmpi(splitBy, 'snp')
         splitInfo{chunk}.Chr              = Chr(tmpLocs);
         splitInfo{chunk}.SNPs             = SNPID(tmpLocs);
         splitInfo{chunk}.BP               = BP(tmpLocs);
-        splitInfo{chunk}.outName          = ['FEMA_GWAS_Chunk-', num2str(chunk, '%05d')];
+        splitInfo{chunk}.outName          = [outPrefix, num2str(chunk, '%05d')];
         splitInfo{chunk}.genInfo.locSNPs  = genInfo.locSNPs(tmpLocs);
         splitInfo{chunk}.genInfo.locIID   = genInfo.locIID;
         splitInfo{chunk}.genInfo.numSubjs = genInfo.numSubjs;
@@ -141,7 +155,7 @@ else
         splitInfo{chromo}.Chr              = Chr(tmpLocs);
         splitInfo{chromo}.SNPs             = SNPID(tmpLocs);
         splitInfo{chromo}.BP               = BP(tmpLocs);
-        splitInfo{chromo}.outName          = ['FEMA_GWAS_Chr-', num2str(chr{chromo}, '%02d')];
+        splitInfo{chromo}.outName          = [outPrefix, num2str(chr{chromo}, '%02d')];
         splitInfo{chromo}.genInfo.locSNPs  = genInfo.locSNPs(tmpLocs);
         splitInfo{chromo}.genInfo.locIID   = genInfo.locIID;
         splitInfo{chromo}.genInfo.numSubjs = genInfo.numSubjs;

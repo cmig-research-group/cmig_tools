@@ -1,0 +1,18 @@
+ FUNCTION [cbetahat, cbetaSE, Vg] = SwEfit(X,bID,Y[,con,Vg])
+
+ Estimate betahat with OLS and obtain standard errors using the 'classic'
+ Sandwich estimator, 
+
+   X   - Design matrix, N x P
+   bID - Block IDs, identifying clusters, might be family, site, subject (for repeated mes) 
+   Y   - Data, N x Nelm
+   con - Matrix of t contrasts, Ncon x P; if omitted or empty defaults to eye(P)
+   Vg  - Global working covariance:
+             []  - use independence (default)
+             1   - estimate the global covariance on the fly, otw
+             Vg  - cell array such that inv(Vg{i}) is the working covariance for block i.
+
+   Vg  - Global working covariance; useful if Vg is computed on the fly.
+
+ T. Nichols 24 March 2021
+ See https://github.com/nicholst/matlab/blob/master/LICENSE

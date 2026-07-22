@@ -1,0 +1,16 @@
+ Function to winsorize a given vector or matrix with pre-specified lower
+ and upper percentile range
+ 
+ Input(s):
+ inputVars:    [n x p]             vector or matrix where every column
+                                   needs to be winsorized
+ 
+ Optional inputs:
+ lower_bound:  [1 x 1] OR [1 x p]  scalar or vector determining the lower
+                                   percentile range (default: 0)
+ 
+ upper_bound:  [1 x 1] OR [1 x p]  scalar or vector determining the upper
+                                   percentile range (default: 100)
+
+ Output(s):
+ outputVar:    [n x p]             vector or matrix with winsorized data

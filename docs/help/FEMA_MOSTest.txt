@@ -1,0 +1,7 @@
+ FEMA_MOSTest - Computes the MOSTest statistics on the permuted z-scores.
+
+ Syntax: [rank_log10pval_mostest, extrap_log10pval_mostest, mostvec] = FEMA_MOSTest(zmat_perm, colnames_interest, outdir, fstem_imaging, datatype, varargin)
+
+ INPUTS:
+   zmat_perm          : (n_variables x n_pixels x (n_permutations+1))
+   colnames_interest  : cf. FEMA_wrapper

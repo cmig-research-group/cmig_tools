@@ -1,0 +1,5 @@
+ writeDEAP write voxelwise results to binary format mosaics for DEAP, called from SSE_wrapper
+
+   writeDEAP(results, dirname_out, fstem_imaging, ivnames, colnames_model)
+
+ writes a volume for each variable type in results and each IV in ivnames and in each of three planes

@@ -1,0 +1,14 @@
+function outputType = setOutputType(datatype)
+    switch datatype
+        case 'voxel'
+            outputType = 'nifti';
+        case 'vertex'
+            outputType = 'gifti';
+        case 'corrmat'
+            outputType = 'corrmat';
+        case 'roi'
+            outputType = 'nifti';
+        case 'external'
+            outputType = 'tables';
+    end
+end

@@ -1,0 +1,29 @@
+ Function to calculate the number of rows and columns in a subplot given
+ the number of plots to be made
+ Inputs:
+ num_plots:     the actual number of plots to be made
+ balance_value: difference between the number of rows and columns
+ 
+ Outputs:
+ rows:          the number of rows in the subplot
+ cols:          the number of columns in the subplot
+ 
+ Notes:
+ Depending on the value of balance_value, the resulting row and column
+ combination can lead to many more plots than are actually needed
+ 
+ If balance_value = 0, that is, only same number of rows and columns
+ are expected. The largest value of num_plots in this case is 10000
+ 
+ If num_plots <= 2, rows = 1, cols = num_plots
+ 
+ Also see numSubplots function on FileExchange: 
+ https://www.mathworks.com/matlabcentral/fileexchange/26310-numsubplots-neatly-arrange-subplots
+ 
+ Default:
+ balance_value: 3
+ 
+ Author(s)
+ Parekh, Pravesh
+ August 23, 2018
+ MBIAL

@@ -20,7 +20,7 @@ function varargout = showVol(varargin)
 % NOTE 3: initialLPH is a vector of length 3 that specifies the
 %         LPH coordinates of the starting point of the crosshair
 %
-% NOTE 4: Final agument can be an optional configuration structure with fields:
+% NOTE 4: Final agument can be a  configuration structure with fields:
 %           RCS         initial RCS coords
 %           crange      color axis range
 %           cmap        colormap
@@ -31,11 +31,17 @@ function varargout = showVol(varargin)
 %           link        link coordinates across figures (default: true)
 %
 %         ABCD-specific features
-%           roifile     path to roi probability volumes
-%           roiset      path to ROI settings file (a set of displayed ROIs, saved previously)
-%           roiatlas    atlas version for ROIs: ABCD1, ABCD2 OR ABCD3 (defaults to ABCD3 as of Dec 2023)
-%           annotations true/false(default): Enable anatomical annotations
+%           roiatlas    REQUIRED: atlas version for ROIs: ABCD1, ABCD2 OR 5.0_ABCD3
+%           roiset      path to ROI settings file (a set of displayed ROIs, saved previously--very useful)
+%           annotations true/false(default): Enable anatomical annotations, a 'yelp' for the brain
 %
+% NOTE 5: Orientation is a scalar that specifies the orientation for initial view:
+%           1 = coronal (default)
+%           2 = sagittal
+%           3 = axial
+%
+%         Orientation and configStruct can appear in ANY order — 
+%            showVol will scan all arguments and extract them safely.
 %
 % Commands that can be entered in the "Command" edit box:
 % ------------------------------------------------------
@@ -166,11 +172,53 @@ winposArg = [];
 handles.doLinkCoordinates = true;
 handles.hasABCDBrain = false; %keep track if any volumes are ABCD Brain
 handles.doAnnotations = false; %only enable if explicitly selected
-handles.anat.roiatlas = [];
+handles.anat.roiatlas = '6.0_ABCD3'; % default to latest release 
 handles.anat.roifile = [];
 handles.anat.roiset = [];
 
-for iii = 1:nargin-3
+% ----------------------------------------------------------
+%  Parse orientation & configStruct
+% ----------------------------------------------------------
+initOrientation = 1;       % default orientation: 1=axial, 2=coronal, 3=sagittal
+configStruct = [];         % default: none
+
+orientation_idx = [];      % index for orientation
+config_idx = [];           % index for config struct
+
+for k = 1:numel(varargin)
+    arg = varargin{k};
+
+    % Look for orientation (numeric scalar: 1, 2, or 3)
+    if isempty(orientation_idx) && isnumeric(arg) && isscalar(arg) && ismember(arg, [1 2 3])
+        orientation_idx = k;
+
+    % Look for configStruct (a struct that is NOT a volume)
+    % skip anything that looks like a volume (has .imgs or .Mvxl2lph)
+    % or pre-rendered slices (has .imgs1)
+    elseif isempty(config_idx) && isstruct(arg) ...
+            && ~isfield(arg, 'imgs') && ~isfield(arg, 'Mvxl2lph') ...
+            && ~isfield(arg, 'imgs1')
+        config_idx = k;
+    end
+end
+
+% Extract orientation if found
+if ~isempty(orientation_idx)
+    initOrientation = varargin{orientation_idx};
+    varargin(orientation_idx) = [];   % remove so later code only sees vols/meshes
+
+    % Validate orientation
+    assert(ismember(initOrientation, [1 2 3]), ...
+        'Orientation must be 1 (axial), 2 (coronal), or 3 (sagittal).');
+end
+
+% Extract configStruct if found 
+if ~isempty(config_idx)
+    configStruct = varargin{config_idx};
+    varargin(config_idx) = [];        % remove so later code only sees vols/meshes
+end
+
+for iii = 1:numel(varargin)
   if iscell(varargin{iii}) % AMD: Handle cell arrays of vols and/or meshes -- recursively call function for cell arrays (avoid duplication)
     v = varargin{iii};
     for vi = 1:length(v)
@@ -274,6 +322,7 @@ for iii = 1:nargin-3
   else
     if ndims(varargin{iii}) >= 3 % AMD: handle volumes specified as matrices -- convert to struct
       v = varargin{iii};
+      assumeAtlas = '6.0_ABCD3'; %FIXME: need to know atlas version, assume 6.0 (Nov 24)
       
       %check if these might be brain volumes in ABCD atlas space; if so, must add correct transform for ROIs to display properly
       canonicalSize = [200 200 260];
@@ -282,9 +331,9 @@ for iii = 1:nargin-3
       if size(v,4)==3 %assume should be an RGB volume FIXME: better solution: ask folks to create a struct
         handles.numVols = handles.numVols + 1;
         if isABCDBrain
-          fprintf('%s: Volume %d [%d x %d x %d x 3] initialized as RGB ABCD brain volume.\n',...
-            mfilename, iii, sz(1), sz(2), sz(3))
-          Mvxl2lph = Mvxl2lph_atlas; %FIXME: right now all atlas versions have same Mvxl2lph. If that changes in future, must check atlas version here
+          fprintf('%s: Volume %d [%d x %d x %d x 3] initialized as RGB ABCD brain volume. Assuming %s atlas.\n',...
+            mfilename, iii, sz(1), sz(2), sz(3), assumeAtlas)
+          Mvxl2lph = Mvxl2lph_atlas(assumeAtlas);
           handles.vols{handles.numVols} = ctx_mgh2ctx(v, M_LPH_TO_RAS*Mvxl2lph);
           handles.vols{handles.numVols}.isABCDBrain = true;
           handles.hasABCDBrain = true;
@@ -298,10 +347,10 @@ for iii = 1:nargin-3
           if isABCDBrain
             if vi == 1
               if length(sz)==3, sz(4)=1; end
-              fprintf('%s: Volume %d [%d x %d x %d x %d] initialized as %d scalar ABCD brain volumes.\n',...
-                mfilename, iii, sz(1), sz(2), sz(3), sz(4), sz(4))
+              fprintf('%s: Volume %d [%d x %d x %d x %d] initialized as %d scalar ABCD brain volumes. Assuming %s atlas.\n',...
+                mfilename, iii, sz(1), sz(2), sz(3), sz(4), sz(4), assumeAtlas)
             end
-            Mvxl2lph = Mvxl2lph_atlas; %FIXME: right now all atlas versions have same Mvxl2lph. If that changes in future, must check atlas version here
+            Mvxl2lph = Mvxl2lph_atlas(assumeAtlas);
             handles.vols{handles.numVols} = ctx_mgh2ctx(v(:,:,:,vi), M_LPH_TO_RAS*Mvxl2lph);
             handles.vols{handles.numVols}.isABCDBrain = true;
             handles.hasABCDBrain = true;
@@ -352,39 +401,25 @@ if handles.hasABCDBrain
   cfg = abcdConfig('showVol');
   
   if isempty(cfg.data.showVolData)
-    error('%s: You must download showVolData first. See https://github.com/cmig-research-group/showVol for instructions.',mfilename)
+    error('%s: You must download showVolData first. See https://github.com/cmig-research-group/showVol for instructions.',mfilename) %TODO: UPDATE repository
   end
   
-  %default rois, generated by prepareAtlases_*.m
-  defaultRoifile.ABCD1 = fullfile(cfg.data.showVolData,'Atlas','showVolAtlases_ABCD1_cor10.mat');
-  defaultRoifile.ABCD2 = fullfile(cfg.data.showVolData,'Atlas','showVolAtlases_ABCD2_cor10.mat');
-  defaultRoifile.ABCD3 = fullfile(cfg.data.showVolData,'Atlas','showVolAtlases_ABCD3_cor10.mat');
-      
+  if isempty(handles.anat.roiatlas)
+    error('%s: You must explicitly specify an ABCD atlas version to use ROIs: ''ABCD1'', ''ABCD2'', ''5.0_ABCD3'', ''6.0_ABCD3'',are valid as of Feb 2024.\n\n To do so, the final argument to showVol must be: struct(''roiatlas'',<atlasVersion>)',mfilename)
+  end
+  
   if isempty(handles.anat.roifile)
-    % default atlas (As of April 2022, ABCD2)
-    if isempty(handles.anat.roiatlas)
-      fprintf(2,'%s: Defaulting to *ABCD3* atlas ROIs.\nSet cfg.roiatlas to ''ABCDx'' or specify a specific cfg.roifile if you want something else.\n', mfilename)
-      handles.anat.roiatlas = 'ABCD3';
-    end
-    % default roifile
-    if ~isfield(defaultRoifile, handles.anat.roiatlas(1:5))
-      availableAtlases = join(fieldnames(defaultRoifile), ', ');
-      error('%s: Invalid cfg.roiatlas (%s) -- only [%s] are supported.', mfilename, handles.anat.roiatlas(1:5), availableAtlases{1} )
-    end
-    handles.anat.roifile = defaultRoifile.(handles.anat.roiatlas(1:5));
+    handles.anat.roifile = showVolAtlasFile(handles.anat.roiatlas);
     disp([mfilename ': Using default ' handles.anat.roiatlas ' ROI file: ' handles.anat.roifile])
+  else
+    disp([mfilename ': Using custom ROI file: ' handles.anat.roifile])
   end
-  
-  %does roifile exist? If not, give some helpful hints and disable ROI functionality
-  if ~exist(handles.anat.roifile,'file')
-    fprintf(2,'%s: ROI file (%s) not found.\n Make sure you have downloaded showVolData and set the path in ~/abcdConfig.json.',mfilename,  handles.anat.roifile)
-    handles.anat.roifile = [];
-  end
+
 end
 
 %% -------------------------------
 
-%FIXME, kind of obsolete. use defalt axis volume size
+%FIXME, this stuff is pretty obsolete. use defalt axis volume size
 %find a 1mm volume; if none, fall back on old methods using first volume
 voxSizes = [];
 for vvv = 1:handles.numVols
@@ -481,12 +516,13 @@ set(handles.darken_slider, 'Value', 0.5);
 set(handles.darken_slider,   'Min', 0);
 set(handles.darken_slider,   'Max', 1);
 
-% Starting points
-handles.rr = ceil(handles.rrMax/2 ); %NB 1mm images are centered on 100,100,130 not 101,101,131 as before.
+% Cursor starting points
+handles.rr = ceil(handles.rrMax/2 ); %NB 1mm images in ABCD1 and ABCD2 are centered on 100,100,130 not 101,101,131 as before.
 handles.cc = ceil(handles.ccMax/2 );
 handles.ss = ceil(handles.ssMax/2 );
+
 %UM ABCD3 seems to be centered at 99,99,129!!
-if strncmp(handles.anat.roiatlas, 'ABCD3', 5)
+if contains('ABCD3', handles.anat.roiatlas)
   handles.rr = ceil(handles.rrMax/2 )-1;
   handles.cc = ceil(handles.ccMax/2 )-1;
   handles.ss = ceil(handles.ssMax/2 )-1;
@@ -609,7 +645,7 @@ handles.currentVol = 1;
 handles.currentVolPB = handles.volPB(1);
 set(handles.currentVolPB, 'ForegroundColor', 'r');
 set(handles.currentVolPB, 'TooltipString', ['Hide ' handles.volnames{handles.currentVol}]);
-handles.ORIENTATION = 1;
+handles.ORIENTATION = initOrientation;
 handles.HIDE1 = 0;
 handles.HIDE2 = 0;
 handles.HIDE3 = 0;
@@ -1152,7 +1188,7 @@ addpath(fullfile(handles.showVolPath,'utils','')); %make sure utils in path
 %make sure cmig_utils are present (public release will include, so should not be an issue)
 hasCmigUtils = exist('atlas_T1.m','file'); %pick a file found only in cmig_utils
 if ~hasCmigUtils
-  error('You must also get cmig_utils from github (https://github.com/cmig-research-group/cmig_utils) and add to your path.')  
+  error('You must also get cmig_utils from github (https://github.com/cmig-research-group/cmig_utils) and add to your path.') %FIXME: verify this is release version or is it included in cmig_tools?
 end
 
 guidata(handles.figure, handles)
@@ -2198,7 +2234,7 @@ if ~handles.hasABCDBrain || isempty(handles.anat.roifile)
   return
 end
 
-%file pre-processed by prepareAtlases.m. Specific atlases are expanded on
+%file pre-processed by prepareAtlases*.m. Specific atlases are expanded on
 %demand in atlas_popup_Callback
 atlasfile = handles.anat.roifile;
 roiset = handles.anat.roiset;
@@ -2209,7 +2245,9 @@ if isempty(roiatlas)
   atlasnum = str2double(atlasnum{1}{1});
   roiatlas = sprintf('ABCD%d',atlasnum);
 else
-  atlasnum = str2double(roiatlas(end));
+  [~,roifile] = fileparts(atlasfile);
+  atlasnum = regexp(roifile,'ABCD(\d)', 'tokens');
+  atlasnum = str2double(atlasnum{1}{1});
 end
   
 handles.anat = load(atlasfile);
@@ -2236,14 +2274,13 @@ handles.anat.params.showOverlay = true; %slightly hacky--this also controls show
 set(handles.overlay_cb,'Value',true)
 handles.anat.params.isTracking = false; %use to speed up drawing when tracking mouse
 
-%FIXME -- forgot to subtract 10000 from fiber roicodes!
+%FIXME -- early atlas version may have forgot to subtract 10000 from fiber roicodes!
 try
   if any(handles.anat.fiber.roicodes > 10000)
     handles.anat.fiber.roicodes = handles.anat.fiber.roicodes - 10000;
   end
 catch
 end
-
 
 handles.anat.aseg.showNames = true;
 handles.anat.aseg.prob = expandROI(handles.anat.aseg.prob);
@@ -2652,7 +2689,7 @@ for iA = 1:length(atlases)
       if contains(mode,'fill') && handles.anat.params.overlayAlpha>0
         c = [1 1 1]; %when showing colored roiprob, use white outline FIXME: make this UI-selectable
       else
-        c = A.roicolors(A.uiRoiOverlayIdx(iR),:);
+        %c = A.roicolors(A.uiRoiOverlayIdx(iR),:);
         m = max(c(:)); %FIXME: temporary fix, will be fixed permanentyly in prepareAtlases.m
         if m > 1
           c = c/255;

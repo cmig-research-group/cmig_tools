@@ -12,15 +12,20 @@ else
     useLSQ = false;
 end
 
-if rank(C) < size(C, 2)
-    if useLSQ
-        betahat_out = lsqminnorm(C, d);
-    else
-        betahat_out = pinv(C)*d;
-    end
-else
-    betahat_out = C \ d;
-end
+betahat_out = pinv(C)*d;
+% Using lsqminnorm or backslash in this case seems to be quite slow
+% compared to using pinv; the only possible exception is M1 chip running
+% Apple native silicon version of MATLAB (at least that is how it was for
+% MATLAB R2023b)
+% if rank(C) < size(C, 2)
+%     if useLSQ
+%         betahat_out = lsqminnorm(C, d);
+%     else
+%         betahat_out = pinv(C)*d;
+%     end
+% else
+%     betahat_out = C \ d;
+% end
 
 ivec_neg = (sum(betahat_out<0,1)>0);
 
@@ -36,16 +41,16 @@ for comboi = 1:ncombos % Should only re-do voxels that provide negative values f
   bitvec = colvec(~nnvec);
   bitvec(nnlist) = ~logical(bitget(comboi-1,[1:length(nnlist)]'));
   betahat = zeros(size(C,2),nvox);
-  if rank(C(:,bitvec)) < size(C(:,bitvec), 2)
-      if useLSQ
-          betahat(bitvec,:) = lsqminnorm(C(:,bitvec), d);
-      else
-          betahat(bitvec,:) = pinv(C(:,bitvec))*d;
-      end
-  else
-      betahat(bitvec,:) = C(:,bitvec) \ d;
-  end
-  % betahat(bitvec,:) = pinv(C(:,bitvec))*d;
+  % if rank(C(:,bitvec)) < size(C(:,bitvec), 2)
+  %     if useLSQ
+  %         betahat(bitvec,:) = lsqminnorm(C(:,bitvec), d);
+  %     else
+  %         betahat(bitvec,:) = pinv(C(:,bitvec))*d;
+  %     end
+  % else
+  %     betahat(bitvec,:) = C(:,bitvec) \ d;
+  % end
+  betahat(bitvec,:) = pinv(C(:,bitvec))*d;
   betahat(nnlist,:) = max(0,betahat(nnlist,:));
   costvec = sum((d-C*betahat).^2,1);
   betamat(:,:,comboi) = betahat;

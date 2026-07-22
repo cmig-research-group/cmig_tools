@@ -1,0 +1,9 @@
+ drawColorbar  draw an imaging colorbar
+
+   drawColorbar(ax, colormap, limits, [labelColor])
+
+   ax:         axis handle to draw in
+   colormap:   Nx3 or Nx4 (with alpha) colormap
+   limits:     [min max] or [min max threshold] labels for colorbar
+   labelColor: optional. 'white' (default), 'black' or other latex color name (see latexcolor.com)
+

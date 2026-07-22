@@ -1,0 +1,1 @@
+  xvec = colvec(linspace(0,5*max(x),1001));

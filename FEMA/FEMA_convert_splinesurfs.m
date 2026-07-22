@@ -61,10 +61,10 @@ for xi = 1:length(Xvars)
     wvec = dbfmat(xi,:)';
     valvec_dbf = sum(statmat_dbf.*wvec,1); 
     sevec_dbf = rowvec(sqrt(pagemtimes(pagemtimes(wvec',coeffCovar(colnums_bf,colnums_bf,:)),wvec)));
-    zvec_dbf = valvec_dbf(ivec_mask) ./ sevec_dbf;
+    zvec_dbf = valvec_dbf ./ sevec_dbf;
     surf_dbf(xi, :) = valvec_dbf;
-    semat_dbf(xi, ivec_mask) = sevec_dbf;
-    zmat_dbf(xi, ivec_mask) = zvec_dbf;
+    semat_dbf(xi, :) = sevec_dbf;
+    zmat_dbf(xi, :) = zvec_dbf;
 end
 
 % basis functions
@@ -74,19 +74,19 @@ for xi = 1:length(Xvars)
     wvec = bfmat(xi,:)';
     valvec_bf = sum(statmat_bf.*[wvec; 1],1); 
     sevec_bf = rowvec(sqrt(pagemtimes(pagemtimes([wvec; 1]',coeffCovar([colnums_bf colnum_intercept], [colnums_bf colnum_intercept],:)),[wvec; 1])));
-    zvec_bf = valvec_bf(ivec_mask) ./ sevec_bf;
+    zvec_bf = valvec_bf ./ sevec_bf;
     surf_bf(xi, :) = valvec_bf;
-    semat_bf(xi, ivec_mask) = sevec_bf;
-    zmat_bf(xi, ivec_mask) = zvec_bf;
+    semat_bf(xi, :) = sevec_bf;
+    zmat_bf(xi, :) = zvec_bf;
 
 end
 
 if nargout>1
     varargout{1} = semat_dbf;
     varargout{2} = zmat_dbf;
-    varargout{4} = surf_bf;
-    varargout{5} = semat_bf;
-    varargout{6} = zmat_bf;
+    varargout{3} = surf_bf;
+    varargout{4} = semat_bf;
+    varargout{5} = zmat_bf;
 end
 
 % figure(1); clf;

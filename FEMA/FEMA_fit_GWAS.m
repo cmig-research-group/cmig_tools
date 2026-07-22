@@ -1,22 +1,9 @@
-function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = ...
-          FEMA_fit_GWAS(genoMat, ymat_res, binvec, Xvars, genStruct, allWsTerms, varargin)
+function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_logp, coeffCovar, errFlag, timeStruct] = ...
+          FEMA_fit_GWAS(genoMat, ymat_res, binvec, Xvars, allWsTerms, varargin)
 % Function to perform GWAS using FEMA
 %% Inputs:
-% genoMat:          [n x m]     matrix containing genotype data of n
-%                               subjects and m SNPs; alternatively can be 
-%                               a structure genStruct (see below)
-%
-% ymat_res:         [n x v]     matrix of n subjects and v (GLS) residual
-%                               phenotypes from FEMA_fit
-%  
-% binvec:           [1 x b]     vector of bin values on which random
-%                               effects were evaluated in FEMA_fit
-% 
-% Xvars:            [n x p]     matrix containing X variables (or
-%                               covariates) that were used for creating
-%                               ymat_res when calling FEMA_fit
-% 
-% genStruct:        structure   instead of genoMat, genStruct can be passed
+% genoMat:          [n x m] OR  matrix containing genotype data of n
+%                   structure   subjects and m SNPs; OR can be a structure
 %                               which reads genotyping data for specified
 %                               subjects and SNPs; should contain the
 %                               following fields (see FEMA_parse_PLINK):
@@ -32,6 +19,16 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 %                   * 'stdType':    if transform is 'std', then one of the
 %                                   following: 'emperical' or 'gcta'
 %                   * 'snpList':    list of SNPs to read
+%
+% ymat_res:         [n x v]     matrix of n subjects and v (GLS) residual
+%                               phenotypes from FEMA_fit
+%  
+% binvec:           [1 x b]     vector of bin values on which random
+%                               effects were evaluated in FEMA_fit
+% 
+% Xvars:            [n x p]     matrix containing X variables (or
+%                               covariates) that were used for creating
+%                               ymat_res when calling FEMA_fit
 %
 % allWsTerms:       cell        output from FEMA_compileTerms containing
 %                               the inverse of the V term for each bin
@@ -76,12 +73,20 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 %
 % OLSflag:          logical     OLS or GLS solution
 %
-% SingleOrDouble:   character   single or double precision
+% precision:        character   single or double precision
 %
 % adjustMSE:        logical     specifies whether sig2tvec should be
 %                               adjusted for the number of covariates and
 %                               the number of basis functions or not
 %                               (default is true)
+%
+% doCoeffCovar      logical     true or false indicating if coefficient
+%                               covariance for every SNP needs to be
+%                               computed (and optionally saved); this can
+%                               be used, for example, in the future for
+%                               Wald test but can take up a large amount of
+%                               disk space; is not computed if there are no
+%                               basis functions (i.e., for standard GWAS)
 %
 % outDir:           character   full path to where the results should be
 %                               saved
@@ -108,7 +113,19 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 %                               functions) for m SNPs, v phenotypes, and l
 %                               weights specified in L
 %
-% Wald_p:           [m x v x l] p value associated with omnibus Wald test
+% Wald_logp:        [m x v x l] -log10 p value associated with omnibus Wald
+%                               test; if p value is less than realmin
+%                               (2.2251e-308), then the value will be
+%                               infinite
+%
+% coeffCovar:   [m x q x q x v] coefficient covariance for every SNP for q
+%                               basis functions and v phenotypes; not
+%                               computed if there are no basis functions
+% 
+% errFlag:              [m x v] logical vector or matrix indicating either
+%                               a nearestSPD convergence issue or a
+%                               complex valued standard error being
+%                               generated
 %
 % timeStruct:       structure   contains various timing information
 % 
@@ -116,24 +133,27 @@ function [beta_hat, beta_se, tStats, logpValues, Wald_F, Wald_p, timeStruct] = .
 % Results are only saved as a mat file if both outDir and outName are
 % specified in the input
 % 
+% Coefficient covariance is only computed (and saved) if basis functions
+% are specified
+% 
 %% Defaults:
 % basisFunction:    intercept only (standard GWAS)
 % sex               []
 % OLSflag:          false
-% SingleOrDouble:   'double'
+% precision:        'double'
 % pValType:         'z'
 % adjustMSE:        true
-% L:                any basis functions eye(numBasisFunctions) and 
-%                   all basis functions ones(numBasisFunctions,1)
+% L:                any basis functions eye(numBasisFunctions)
 % hypValue:         0
 % doF:              false
-%
+% doCoeffCovar:     true
+% 
 %% Additional defaults when genStruct is specified:
 % iid:              [] (i.e., read all subjects)
 % onlyCheck:        false
 % lowMem:           false
 % meanImpute:       true
-% roundOff:         true
+% roundOff:         false
 % transform:        'none'
 % stdType:          'none'
 % SNPList:          [] (i.e., read all SNPs)
@@ -212,13 +232,18 @@ tCheck = tic;
 
 % Check genoMat
 if ~exist('genoMat', 'var') || isempty(genoMat)
-    if ~exist('genStruct', 'var') || isempty(genStruct)
-        error('Please specify genoMat which contains genotyping data or specify genStruct');
-    else
-        toRead = true;
-    end
+    error('Please specify genoMat which contains genotyping data or specify a structure with required fields to read genotyping data');
 else
-    toRead = false;
+    if isstruct(genoMat)
+        genStruct = genoMat;
+        toRead = true;
+    else
+        if ismatrix(genoMat)
+            toRead = false;
+        else
+            error('Unknown genoMat data type');
+        end
+    end
 end
 
 % Check y variables
@@ -257,9 +282,9 @@ if toRead
         genStruct.meanImpute = true;
     end
 
-    % If roundOff is not specified, set it to true
+    % If roundOff is not specified, set it to false
     if ~isfield(genStruct, 'roundOff')
-        genStruct.roundOff = true;
+        genStruct.roundOff = false;
     end
 
     % If transform is not specified, set it to none
@@ -302,7 +327,7 @@ p.addParameter('sex',            []);
 p.addParameter('pValType',       'z');
 p.addParameter('df',             []);
 p.addParameter('OLSflag',        false);
-p.addParameter('SingleOrDouble', 'double');
+p.addParameter('precision',      'double');
 p.addParameter('outDir',         '');
 p.addParameter('outName',        '');
 p.addParameter('useShortcut',    false);
@@ -311,6 +336,7 @@ p.addParameter('lowRank',        []);
 p.addParameter('L',              []);
 p.addParameter('hypValue',       []);
 p.addParameter('doF',            false);
+p.addParameter('doCoeffCovar',   true);
 
 % Parse varargin
 parse(p, varargin{:});
@@ -321,7 +347,7 @@ sex             = p.Results.sex;
 pValType        = p.Results.pValType;
 df              = p.Results.df;
 OLSflag         = p.Results.OLSflag;
-SingleOrDouble  = p.Results.SingleOrDouble;
+precision       = p.Results.precision;
 outDir          = p.Results.outDir;
 outName         = p.Results.outName;
 useLSQ          = p.Results.useLSQ;
@@ -329,6 +355,7 @@ lowRank         = p.Results.lowRank;
 L               = p.Results.L;
 hypValue        = p.Results.hypValue;
 doF             = p.Results.doF;
+doCoeffCovar    = p.Results.doCoeffCovar;
 
 % Check basis functions
 if ~exist('bfSNP', 'var') || isempty(bfSNP)
@@ -362,16 +389,15 @@ if isempty(df)
     df = size(ymat_res, 1) - (size(Xvars, 2) + numBasisFunc);
 end
 
-% Check SingleOrDouble
-SingleOrDouble = lower(SingleOrDouble);
-if ~ismember(SingleOrDouble, {'single', 'double'})
-    error('Unknown value for SingleOrDouble specified');
+% Check precision
+precision = lower(precision);
+if ~ismember(precision, {'single', 'double'})
+    error('Unknown value for precision specified');
 end
 
 % Check L
 if ~exist('L', 'var') || isempty(L)
-    L{1} = ones(1, numBasisFunc);
-    L{2} = eye(numBasisFunc);
+    L{1} = eye(numBasisFunc);
 else
     if ~iscell(L)
         L = {L};
@@ -431,7 +457,7 @@ end
 
 %% Cast genoMat as double precision, if required
 tDouble = tic;
-if strcmpi(SingleOrDouble, 'double')
+if strcmpi(precision, 'double')
     genoMat = double(genoMat);
 end
 timeStruct.tDouble = toc(tDouble);
@@ -464,13 +490,27 @@ end
 
 %% Initialize omnibus test
 if ~standardGWAS
-    [Wald_F, Wald_p] = deal(zeros(numSNPs, numYvars, numCon));
+    [Wald_F, Wald_logp] = deal(zeros(numSNPs, numYvars, numCon));
 else
-    Wald_F = [];
-    Wald_p = [];
+    Wald_F    = [];
+    Wald_logp = [];
+end
+
+%% Initialize coefficient covariance if required
+if doCoeffCovar
+    if standardGWAS
+        coeffCovar = [];
+    else
+        coeffCovar = zeros(numSNPs, numBasisFunc, numBasisFunc, numYvars, class(ymat_res));
+    end
+else
+    coeffCovar = [];
 end
 
 timeStruct.tinitilize  = toc(t1);
+
+%% Keeping track of nearestSPD convergence
+converge = false(numSNPs, numYvars);
 
 %% Do estimation
 tEstimation = tic;
@@ -489,6 +529,7 @@ if standardGWAS
         numY = size(ymat_res, 2);
 
         % Residualize genotype for X variables
+        % genoMat can be overwritten as we don't need it later
         if regressX
             genoMat = FEMA_OLSResiduals(genoMat, Xvars);
         end
@@ -525,58 +566,68 @@ if standardGWAS
 
             % Get GLS residuals for each SNP
             if regressX
-                genoMat = FEMA_GLSResiduals(genoMat, Xvars, [], [], currWsTerm);
+                res_genoMat = FEMA_GLSResiduals(genoMat, Xvars, [], [], currWsTerm);
+            else
+                res_genoMat = genoMat; % Useless copy
             end
 
             % XtW term
-            XtW = genoMat' * currWsTerm;
-            
-            % Calculating the inner term
-            % X' * W has been already calculated ---> XtWVsWt or XtW
-            % Therefore, the inner term is the inverse of XtW * X
-            % However, since each SNP is being treated independently, we are only
-            % interested in the diagonal term of the XtW * X multiplication
-            % This is equivalent to a sum over element-wise multiplication:
-            % sum(XtW' .* X)
-            %
-            % XtW:                  [chunk x subj] beta = inv(X' * W * X) * X' * W * yy
-            % X or genovec:         [subj x chunk]
-            % XtWVsWt' .* genovec:  [subj x chunk]
-            % Sum over the first dimension (subjects) will be [1 x chunk]
-            %
-            % If everything is double precision:
-            % diag(XtW * genovec) approximately equal to sum(XtW' .* genovec)
-            %
-            % Since we are interested in the inverse of this inner term, and each
-            % SNP is still being treated independently, therefore the inverse is
-            % simply an inverse of a scaler, which is 1/value
-            % For older MATLAB use: 1./(sum(bsxfun(@times, XtWVsWt', genovec)));
-            % Bi = 1./(sum(XtWVsWt' .* genovec));
-            Bi = 1./(sum(XtW' .* genoMat));
+            XtW = res_genoMat' * currWsTerm;
 
-            % For the next set of multiplications:
-            % beta      = Bi * X'  * W * y
-            % or, beta  = Bi * XtW * y
-            %
-            % Bi:   [1     x chunk]
-            % XtW:  [chunk x subj]
-            % ymat: [subj  x bins]
-            %
-            % It is faster to implement XtW * ymat, resulting in [chunk x bins]
-            % which is then multiplied element-wise by Bi
-            % beta_hat(:,ivec_bin) = Bi' .* (XtW * ymat_res(:, ivec_bin));
-            tmpCoeff             = Bi' .* (XtW * tmpY);
-            beta_hat(:,ivec_bin) = tmpCoeff;
-
-            % Calculate standard error - likely faster to loop over y 
-            % variables in ivec_bin than looping over columns of genoMat
-            for yy = 1:length(ivec_bin)
-                % Mean squared error - where mean is calculated using df
-                tmp_MSE = sum((tmpY(:,yy) - (genoMat .* tmpCoeff(:,yy)')).^2)/df;
-
-                % Standard error
-                beta_se(:, ivec_bin(yy)) = sqrt(Bi .* tmp_MSE);
+            for snps = 1:numSNPs
+                Bi                       = 1/(XtW(snps,:) * res_genoMat(:,snps));
+                tmpCoeff                 = Bi * XtW(snps,:) * tmpY;
+                beta_hat(snps, ivec_bin) = tmpCoeff;
+                tmp_MSE                  = sum((tmpY - (res_genoMat(:,snps) * tmpCoeff)).^2)/df;
+                beta_se(snps, ivec_bin)  = sqrt(Bi .* tmp_MSE);
             end
+            
+            % % Calculating the inner term
+            % % X' * W has been already calculated ---> XtWVsWt or XtW
+            % % Therefore, the inner term is the inverse of XtW * X
+            % % However, since each SNP is being treated independently, we are only
+            % % interested in the diagonal term of the XtW * X multiplication
+            % % This is equivalent to a sum over element-wise multiplication:
+            % % sum(XtW' .* X)
+            % %
+            % % XtW:                  [chunk x subj] beta = inv(X' * W * X) * X' * W * yy
+            % % X or genovec:         [subj x chunk]
+            % % XtWVsWt' .* genovec:  [subj x chunk]
+            % % Sum over the first dimension (subjects) will be [1 x chunk]
+            % %
+            % % If everything is double precision:
+            % % diag(XtW * genovec) approximately equal to sum(XtW' .* genovec)
+            % %
+            % % Since we are interested in the inverse of this inner term, and each
+            % % SNP is still being treated independently, therefore the inverse is
+            % % simply an inverse of a scaler, which is 1/value
+            % % For older MATLAB use: 1./(sum(bsxfun(@times, XtWVsWt', genovec)));
+            % % Bi = 1./(sum(XtWVsWt' .* genovec));
+            % Bi = 1./(sum(XtW' .* res_genoMat));
+            % 
+            % % For the next set of multiplications:
+            % % beta      = Bi * X'  * W * y
+            % % or, beta  = Bi * XtW * y
+            % %
+            % % Bi:   [1     x chunk]
+            % % XtW:  [chunk x subj]
+            % % ymat: [subj  x bins]
+            % %
+            % % It is faster to implement XtW * ymat, resulting in [chunk x bins]
+            % % which is then multiplied element-wise by Bi
+            % % beta_hat(:,ivec_bin) = Bi' .* (XtW * ymat_res(:, ivec_bin));
+            % tmpCoeff             = Bi' .* (XtW * tmpY);
+            % beta_hat(:,ivec_bin) = tmpCoeff;
+            % 
+            % % Calculate standard error - likely faster to loop over y 
+            % % variables in ivec_bin than looping over columns of genoMat
+            % for yy = 1:length(ivec_bin)
+            %     % Mean squared error - where mean is calculated using df
+            %     tmp_MSE = sum((tmpY(:,yy) - (res_genoMat .* tmpCoeff(:,yy)')).^2)/df;
+            % 
+            %     % Standard error
+            %     beta_se(:, ivec_bin(yy)) = sqrt(Bi .* tmp_MSE);
+            % end
 
             % Update bin counter
             binLoc = binLoc + 1;
@@ -584,7 +635,7 @@ if standardGWAS
     end
 else
     % Use basis function to create new genotype matrix
-    tmpGenotype = zeros(numObs, numBasisFunc, numSNPs, SingleOrDouble);
+    tmpGenotype = zeros(numObs, numBasisFunc, numSNPs, precision);
     for basis   = 1:numBasisFunc
         tmpGenotype(:, basis, :) = genoMat .* bfSNP(:, basis);
     end
@@ -608,6 +659,7 @@ else
         numY = size(ymat_res, 2);
 
         % Residualize genoMat
+        % genoMat can be overwritten
         if regressX
             genoMat = FEMA_OLSResiduals(genoMat, Xvars);
         end
@@ -633,22 +685,29 @@ else
                 msg = ''; %#ok<NASGU>
                 lastwarn('');
             end
-            iterm1 = nearestSPD(iterm1);
+            [iterm1, converge(snps,:)] = nearestSPD_timeout(iterm1);
 
             % Calculate beta coefficient
-            tmpCoeff             = iterm1 * (tmpX' * ymat_res);
-            beta_hat(snps, :, :) = tmpCoeff;
+            tmpCoeff                          = iterm1 * (tmpX' * ymat_res);
+            beta_hat(snps, 1:numBasisFunc, :) = tmpCoeff;
 
             % Mean squared error - where mean is calculated using df
             tmp_MSE = sum((ymat_res - (tmpX * tmpCoeff)).^2)/df;
 
+            % Coefficient covariance
+            if doCoeffCovar
+                for ii = 1:size(ymat_res,2)
+                    coeffCovar(snps, 1:numBasisFunc, 1:numBasisFunc, ii) = iterm1 * tmp_MSE(ii); %#ok<AGROW>
+                end
+            end
+
             % Calculate standard error
-            beta_se(snps, :, :) = sqrt(diag(iterm1) * tmp_MSE);
+            beta_se(snps, 1:numBasisFunc, :) = sqrt(diag(iterm1) * tmp_MSE);
 
             % Do Wald test
             for ii = 1:numY
                 coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
-                [Wald_F(snps, ii, :), Wald_p(snps, ii, :)] =  ...
+                [Wald_F(snps, ii, :), Wald_logp(snps, ii, :)] =  ...
                 FEMA_WaldTest(L, tmpCoeff(:, ii), coeffCovar, hypValue, doF, numObs);
             end
         end
@@ -664,17 +723,19 @@ else
 
             % Residualize genoMat
             if regressX
-                genoMat = FEMA_GLSResiduals(genoMat, Xvars, [], [], currWsTerm, [], useLSQ, lowRank);
+                res_genoMat = FEMA_GLSResiduals(genoMat, Xvars, [], [], currWsTerm, [], useLSQ, lowRank);
+            else
+                res_genoMat = genoMat;
             end
 
             % Loop over every SNP
             for snps = 1:numSNPs
 
                 % Prepare matrix of X variables
-                tmpX = genoMat(:, beginLocs(snps):endLocs(snps));
+                tmpX = res_genoMat(:, beginLocs(snps):endLocs(snps));
 
                 % Prepare XtW
-                XtW = double(tmpX') * currWsTerm;
+                XtW = tmpX' * currWsTerm;
 
                 % XtW is already transposed
                 term1 = XtW * tmpX;
@@ -692,23 +753,27 @@ else
                     msg = ''; %#ok<NASGU>
                     lastwarn('');
                 end
-                iterm1 = nearestSPD(iterm1);
+                [iterm1, converge(snps,sig2bini)] = nearestSPD_timeout(iterm1);
 
                 % Calculate beta coefficient
-                tmpCoeff                    = iterm1 * (XtW * tmpY);
-                beta_hat(snps, :, ivec_bin) = tmpCoeff;
+                tmpCoeff                                 = iterm1 * (XtW * tmpY);
+                beta_hat(snps, 1:numBasisFunc, ivec_bin) = tmpCoeff;
 
                 % Mean squared error - where mean is calculated using df
                 tmp_MSE = sum((tmpY - (tmpX * tmpCoeff)).^2)/df;
 
                 % Calculate standard error
-                beta_se(snps,  :, ivec_bin) = sqrt(diag(iterm1) * tmp_MSE);
+                beta_se(snps,  1:numBasisFunc, ivec_bin) = sqrt(diag(iterm1) * tmp_MSE);
 
                 % Do Wald test
                 for ii = 1:length(ivec_bin)
-                    coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
-                    [Wald_F(snps, ivec_bin(ii), :), Wald_p(snps, ivec_bin(ii), :)] =  ...
-                    FEMA_WaldTest(L, tmpCoeff(:, ii), coeffCovar, hypValue, doF, numObs);
+                    temp_coeffCovar = iterm1 * (tmp_MSE(ii) * eye(numBasisFunc));
+                    [Wald_F(snps, ivec_bin(ii), :), Wald_logp(snps, ivec_bin(ii), :)] =  ...
+                    FEMA_WaldTest(L, tmpCoeff(:, ii), temp_coeffCovar, hypValue, doF, numObs);
+
+                    if doCoeffCovar
+                        coeffCovar(snps, 1:numBasisFunc, 1:numBasisFunc, ivec_bin(ii)) = temp_coeffCovar; %#ok<AGROW>
+                    end
                 end
             end
 
@@ -740,6 +805,17 @@ end
 timeStruct.tEstimation = toc(tEstimation);
 timeStruct.Overall     = toc(tOver);
 
+%% Handle the situation where a complex valued standard error was generated
+% Likely because of the random effects variance-covariance matrices not
+% being semi-positive definite; this seemingly (and rarely) leads to a
+% negative valued coefficient covariance inv(XtWX) term, for which the
+% square root is a complex number
+errFlag = imag(beta_se) ~= 0;
+if numBasisFunc > 1
+    errFlag = squeeze(any(errFlag, 2));
+end
+errFlag = errFlag | converge;
+
 % Save variables, if necessary
 if writeResults
 
@@ -747,13 +823,18 @@ if writeResults
     saveName = fullfile(outDir, [strrep(outName, '.mat', ''), '.mat']);
 
     % Variables to save
-    toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', 'genStruct'};
+    toSave = {'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', ...
+              'Wald_logp', 'coeffCovar', 'timeStruct', 'genStruct', 'errFlag'};
 
     % Get an estimate of size of the variables
     tmpInfo = whos;
     if sum([tmpInfo(ismember({tmpInfo(:).name}', toSave)).bytes]) > 2^31
-        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', 'genStruct', '-v7.3');
+        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', ...
+                       'Wald_F', 'Wald_logp', 'coeffCovar', 'timeStruct',   ...
+                       'genStruct', 'errFlag', '-v7.3');
     else
-        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', 'Wald_F', 'Wald_p', 'timeStruct', 'genStruct');
+        save(saveName, 'beta_hat', 'beta_se', 'tStats', 'logpValues', 'df', ...
+                       'Wald_F', 'Wald_logp', 'coeffCovar', 'timeStruct',   ...
+                       'genStruct', 'errFlag');
     end
 end

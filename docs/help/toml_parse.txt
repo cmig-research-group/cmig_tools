@@ -1,0 +1,12 @@
+ TOML_PARSE  Parse a TOML config file into a MATLAB struct.
+
+ Supports the subset of TOML needed for FEMA non-DEAP config files:
+   - Bare sections:       [section] and [section.subsection]
+   - Arrays of tables:    [[section.array]]
+   - Key = value pairs:   strings, numbers, booleans, inline arrays
+   - Arrays may span multiple lines (e.g. fstem = [ "a", "b" ])
+
+ Usage:
+   s = toml_parse('/path/to/config.toml')
+
+ Returns a nested MATLAB struct.

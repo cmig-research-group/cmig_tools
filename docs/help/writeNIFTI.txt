@@ -1,0 +1,5 @@
+ writeNifti write voxelwise data to nifti, called from FEMA_wrapper
+
+   writeNifti(results, dirname_out, fstem_imaging, ivnames, colnames_model)
+
+ writes a volume for each variable type in results and each IV in ivnames

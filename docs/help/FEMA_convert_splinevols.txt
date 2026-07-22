@@ -1,0 +1,47 @@
+ Function to convert the test statistics of a FEMA analysis using spline
+ basis functions to a 4D vols variable.
+ Inputs:
+ basisSubset:       table of basis functions output by createBasisFunction (typically loaded using readtable)
+
+ beta_hat:      array of beta estimates from FEMA output; 
+
+ colnums_bf:   column numbers of beta_hat corresponding to basis functions
+
+ colnum_intercept: column number of beta_hat corresponding to intercept
+
+ mask:         mask for use in calculating volume
+
+ Xvars:         vector of x values over which basis functions are evaluated output by creasteBasisFunctions.m;
+               length is equal to number of rows in basisSubset
+
+ coeffCovar:   estimated coefficient covariance matrix
+
+ outpath:      optional; path to location to save nifti file; if empty, 
+               file will not be saved
+
+ Outputs:
+ vols_dbf:     4D array of volumes to be read by a 3D volume viewer; 4th 
+               dimension represents different values of x over which spline 
+               function is evaluated; volumes corresponding to the derivatives 
+               of spline estimates for different values of Xvars
+
+ sevols_dbf:   4D array of volumes corresponding to the standard error 
+               of the derivative of the spline estimates for each value of Xvars
+
+ zvols_dbf:    4D array of volumes corresponding to the z-scores of the 
+               derivative of the spline estimates
+
+ volmat_dbf:   matrix containing the weighted sum of the betas for the 
+               derivatives of the splines
+
+ vols_bf:      4D array of volumes corresponding to the spline estimates 
+               (not their derivatives) for different values of Xvars
+
+ sevols_bf:    4D array of volumes corresponding to the standard error of 
+               the spline function itself
+
+ zvols_bf:     4D array of volumes corresponding to the z-scores of the spline 
+               estimates
+
+ volmat_bf:    matrix containing the weighted sum of the betas for the 
+               spline basis functions

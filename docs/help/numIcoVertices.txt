@@ -1,0 +1,2 @@
+ Trivial function that gives us how many vertices to pick based on
+ icosahedron number

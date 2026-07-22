@@ -1,0 +1,94 @@
+ Caller function for createBasisFunctions (compiled version)
+ Mandatory inputs:
+ ------------------
+ file_valvec:      full path to a .csv file containing a vector of values 
+                   for which basis functions need to be created (for
+                   example, age / time)
+                       - option 1: values should be in a single column
+                                   without any column name
+                       - option 2: if the input is a full design matrix
+                                   (with variable names), then an
+                                   additional input argument 'varName'
+                                   must specify which column of the design
+                                   matrix needs to be used
+ 
+ dirOutput:        full path to where the results will be saved
+ 
+ outType:          which format should the results be saved; should be one
+                   of the following:
+                       * mat:  results are saved as .mat file containing
+                               the following variables: 
+                                   - basisFunction
+                                   - basisSubset
+                                   - Xvars
+                                   - bfRank
+                                   - settings
+                                   - timing
+                       * csv:  results are saved as separate .csv files;
+                               following variables are written out:
+                                   - basisFunction (with header)
+                                   - basisSubset   (with header)
+                                   - Xvars         (without header)
+ 
+ Optional inputs (comma-separated name-value pairs):
+ ----------------------------------------------------
+ outPrefix:        prefix to the output file names (without extension;
+                   default: FEMA_createBasisFunctions-yyyyMMMdd-HHmmSS)
+
+ varName:          only needed if file_valvec points to a full design
+                   matrix; in this case, varName must correspond to a
+                   column in the design matrix
+ 
+ file_knots:       full path to a .csv file containing a vector vector of
+                   values which serve as knots (single column without any
+                   variable names; default knot values are at the [0 25 50
+                   75 100] percentiles of valvec
+
+ splineType:       should be one of the following (default: nsk):
+                       * 'nsk'   (natural cubic splines with unit heights at knots)
+                       * 'nsk-R' (natural cubic splines with unit heights at knots created using nsk in R)
+                       * 'ns'    (nautral cubic splines)
+                       * 'bs'    (B-splines)
+
+ Xpowers:          vector indicating which powers of the linearly spaced
+                   variables should be regressed from the basis functions;
+                   for example, 0:1 would mean regressing out the
+                   intercept and the linear effect of the variable; 0:2
+                   would mean regressing out the intercept, the linear
+                   effect, and the quadratic effect of the variable
+                   (default: [])
+
+ method:           should be one of the following (default: svd):
+                       * 'svd'
+                       * 'raw'
+ 
+ minMax:           numeric vector: if a single value is provided, this is
+                   the number of linearly spaced values that will be
+                   created; if two values are provided, these are the
+                   minimum and the maximum values which are used for
+                   creating a vector linearly spaced values; if three
+                   values are provided, the third value is used as the
+                   number of linearly spaced values; if left empty, the
+                   min and max of valvec is used (default: span of the data)
+
+ intercept:        logical; indicates if intercept should be used during
+                   the creation of the splines (this parameter is specific 
+                   to R - adding an intercept is not the same as adding a
+                   constant to the basis functions; default: true)
+
+ optCommand:       optional command(s) to be issued prior to invoking
+                   R; useful, for example, on cluster environments where
+                   modules may need to be loaded before R is accessible
+                   (default: [])
+
+ optAppend:        optional command to be appended to the call to
+                   'Rscript' - for example, '/usr/local/bin/' can be
+                   appended prior to 'Rscript', if Rscript is not on PATH
+                   (default: [])
+
+ cleanUp:          logical; if true, deletes all temporary files that were
+                   created along the way (default: true)
+
+ instance:         numeric; useful if function is being called in parallel
+                   to ensure independence of each call (and that files are
+                   not deleted, etc.; default: 1)

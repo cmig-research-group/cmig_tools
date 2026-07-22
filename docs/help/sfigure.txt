@@ -1,0 +1,7 @@
+ SFIGURE  Create figure window (minus annoying focus-theft).
+
+ Usage is identical to figure.
+
+ Daniel Eaton, 2005
+
+ See also figure

@@ -1,0 +1,18 @@
+ Function to compile split GWAS measures into one
+ Inputs:
+ inDir:        full path to a directory having part-wise GWAS results
+
+ lookupName:   common part of the file names that need to be looked up
+               (is looked up using regexpi)
+
+ cleanUp:      true or false indicating if part-wise files should be
+               deleted afterwards (default: false)
+
+ outDir:       full path to a directory where results should be saved
+               (else results are written to inDir)
+
+ outName:      if specified, results are saved in outDir using this name;
+               else results are saved in outDir with the name
+               FEMA_GWAS_Aggregate.mat
+
+ Initialize timer

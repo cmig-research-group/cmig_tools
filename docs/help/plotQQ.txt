@@ -1,0 +1,27 @@
+ Function that reads a GWAS summary file and creates a QQ plot
+ Inputs:
+ h_ax:         handle to an existing figure axis that should be used for
+               plotting (leave empty for creating a new figure); use this 
+               option for creating plots that should be added to the same
+               figure 
+
+ pVals:        vector of p values (not -log10 values)
+
+ strTitle:     character indicating the title of the figure (if left
+               empty, no title will be put on top of the figure)
+
+ colOver:      color to be used for plotting
+
+ axLabel:      true or false indicating if x and y axes should be labeled
+               (default: true)
+
+ Outputs:
+ fig:          handle to the figure where the plot exists
+
+ h_ax:         handle to the axis within the figure
+
+ ll:           handle to the QQ plot actual line
+
+ TO-DO:
+ Reintroduce the reading of summary statistics file
+ Add binomial confidence interval

@@ -1,0 +1,58 @@
+ Function that reads a user-created text configuration file and parses
+ various information out of it which can then be used by FEMA_makeDesign
+ Input(s):
+ configFile:               full path to a text configuration file
+
+ Output(s):
+ FFX_names:                cell type having the names of all fixed effects
+ 
+ FFX_categorical:          structure type with three fields: 
+                               * name:             name of the fixed effect(s)
+                               * of_interest:      true/false
+                               * reference:        name of the level which
+                                                   serves as the reference 
+ 
+ FFX_vectorTransforms:     structure type with three fields:
+                               * name:             name of the fixed effect(s)
+                               * of_interest:      true/false
+                               * transformation:   local transform to apply
+ 
+ FFX_winsorize:            structure type with four fields:
+                               * name:             name of the fixed effect(s)
+                               * of_interest:      true/false
+                               * transformation:   'winsorize'
+                               * lower:            lower percentile
+                               * upper:            upper percentile
+ 
+ FFX_deltaTransforms:      structure type with three fields:
+                               * name:             name of the fixed effect(s)
+                               * of_interest:      true/false
+                               * transformation:   'delta'
+ 
+ FFX_splineTransforms:     structure with following fields:
+                               * name:             name of the fixed effect(s)
+                               * of_interest:      true/false
+                               * knots:            knot placement information
+                               * splineType:       type of splines to create
+                               * Xpowers:          number of powers to regress
+                               * method:           'svd' or 'raw'
+                               * minMax:           custom range for spline span
+                               * interecpt:        true/false
+                               * optCommand:       if additional command is to be run
+                               * optAppend:        if additional command is to be added
+                               * cleanUp:          true/false
+                               * instance:         instance number
+ 
+ FFX_global:               character type having the name of the global
+                           transformation (if any) that should be applied
+                           after all local transformations to continuous
+                           variables
+ 
+ global_intercept:         true or false indicating if an overall
+                           intercept should be added to the design matrix
+ 
+ loc_cont:                 logical vector of entries in FFX_names which
+                           are continuous variables
+ 
+ family_id:                character type having the name of the
+                           variable to use as the family_id

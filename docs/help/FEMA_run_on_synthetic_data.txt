@@ -1,0 +1,13 @@
+ This 'hello world' demo shows how to use FEMA_fit
+
+ The script generates synthetic data with n = 30000 observations, up to 5
+ observations per subject, and up to 5 individuals per family; then, it
+ calls FEMA_fit; finally it visualize the estimates
+
+ Requirements
+ To run this example, clone the following repos and add them to
+ MATLAB path with 'addpath' command.
+
+ - https://github.com/cmig-research-group/cmig_utils
+ - https://github.com/andersonwinkler/PALM   
+   (PALM is optional - you only needed it if you play with restricted exchangeability blocks)

@@ -1,0 +1,109 @@
+ FEMA_CREATEINPUTJSON  Convert a non-DEAP TOML config file into a FEMA
+ job-spec JSON file compatible with FEMA_parseInputs and FEMA_parse_JSON.
+
+ The generated JSON contains all fields read by the existing FEMA parsers
+ plus two custom top-level fields (dirname_tabular, dirname_out) that are
+ used by the non-DEAP FEMA_wrapper entry point and ignored by all other
+ existing FEMA code.
+
+ Usage:
+   fname_json = FEMA_createInputJSON(fname_toml)
+   fname_json = FEMA_createInputJSON(fname_toml, 'outDir', '/my/dir')
+   fname_json = FEMA_createInputJSON(fname_toml, 'outName', 'my_spec.json')
+
+ Required input:
+   fname_toml  <char>   Full path to a TOML config file.
+
+ Optional name-value inputs:
+   outDir      <char>   Directory in which to write the JSON file.
+                        Default: [output].dirname from the TOML config
+   outName     <char>   Filename for the JSON file.
+                        Default: 'fema_spec_<timestamp>.json'
+   designOnly  <logical> If true, [dependent] may be omitted (design-matrix-only
+                TOML; FEMA_makeDesign passes this when converting .toml). Default false
+                for FEMA_wrapper / FEMA_readToml.
+
+ Output:
+   fname_json  <char>   Full path to the written JSON file.
+
+ TOML config format (all sections and keys):
+
+   [dependent]    required unless designOnly is true (FEMA_makeDesign .toml path)
+   fstem    = "thickness-sm16"    imaging phenotype / variable stem
+   datatype = "vertex"            vertex | voxel | roi | corrmat | external
+   dirname  = "/path/to/data"     path to imaging data dir or file
+
+   [output]
+   dirname  = "/path/to/results"
+
+   [data]
+   dirname  = "/path/to/tabular_data_dir"   dir with tsv/csv/parquet files
+
+   [makeDesign]    optional — same names as FEMA_makeDesign name-values (merged via FEMA_mergeArgs)
+   dropMissing = false
+   outName     = "MyDesign"
+
+   [model]
+   study      = "abcd"
+   release    = "6.0"
+   transformY = "inverseranknorm"
+   random     = ["F", "S", "E"]
+
+   [[model.vars]]
+   name        = "visit_age"
+   shortname   = "age"           optional: display name in outputs
+   type        = "continuous"    continuous | categorical
+   of_interest = true
+   transform   = "splines"       optional inline transform for continuous vars
+   type_spline  = "nsk"             (splines only) nsk | bs | poly
+   method      = "svd"             (splines only) svd | raw
+   knots       = "quartiles"       (splines only) "quartiles" or [12, 14, 16]
+   xpowers     = [0, 1]            (splines only) optional
+   minmax      = [1, 99]           (winsorize only) percentile bounds
+
+   [[model.vars]]
+   name        = "site"
+   type        = "categorical"
+   reference   = "mode"          mode | last | first | <specific level>
+   of_interest = false
+
+   [model.design]
+   transform_global = "demean"
+   intercept        = true
+   n_gpcs           = 0
+
+    Alternative: transforms can also be specified in a separate section
+    (fallback when no inline transform field is present on the var):
+   [[model.transformations]]
+   var        = "visit_age"      must match a name in [[model.vars]]
+   type       = "splines"        splines | delta | log10 | demean | center |
+                                   std | inverseranknorm | ranknorm |
+                                   quadratic | winsorize
+   type_spline = "nsk"
+   method     = "svd"
+   knots      = "quartiles"
+
+   [[model.interactions]]
+   vars        = "visit_age * sex"
+   of_interest = true
+
+   [advanced]
+   type_perm      = "none"       none | wildbootstrap | wildbootstrap-nn
+   n_perm         = 0
+   type_cov       = "analytic"   analytic | unstructured
+   type_fixed_est = "gls"        gls | ols
+   n_bins         = 20
+   precision      = "double"     double | single
+
+   [options]
+    Any FEMA_wrapper parameter not covered by the sections above.
+    Field names must match FEMA_wrapper parameter names (case-insensitive).
+    Example:
+   outputType      = "mat"
+   corrvec_thresh  = 0.8
+   returnResiduals = false
+   ico             = 5
+
+    Only needed if random includes "A" (additive genetic effect):
+    [model.grm]
+    dirname = "/path/to/grm.mat"

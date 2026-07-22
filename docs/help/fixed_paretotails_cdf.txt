@@ -1,0 +1,4 @@
+ WARNING: this function is used due to potential bug in MATLAB paretotails.
+          The lowest value produced by paretotails.cdf is ~ 1E-17 (regardless whether lower or
+          upper tail is taken). All lower values are truncated to 0. Directly using
+          GeneralizedPareto with corresponding parameters allows to handle values down to ~ 1E-300.

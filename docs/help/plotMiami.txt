@@ -1,0 +1,57 @@
+ Function to create a Miami plot (aka mirrored Manhattan plot)
+ Inputs:
+ Chr:          [g x 1]     numeric vector of values indicating chromosome
+                           number for every genetic variant g
+
+ bpLoc:        [g x 1]     numeric vector of values indicating the base
+                           pair location for every genetic variant g
+
+ logpVals1:    [g x 1]     numeric vector of values indicating the first
+                           set of -log10 p values for every genetic variant
+
+ logpVals2:    [g x 1]     numeric vector of values indicating the second
+                           set of -log10 p values for every genetic variant
+
+ strTitle1:    <character> text to use as a title for the top plot (optional)
+
+ strTitle2:    <character> text to use as a title for the bottom plot (optional)
+
+ markers:      <numeric>   vector of values to use as tick values for y
+                           axis (optional)
+
+ GWSAThresh:   <numeric>   number indicating the GWAS significance
+                           threshold level; assumes -log10 p value; 
+                           (default: -log10(5 x 10^-8))
+
+ style:        <character> should be one of the following (see Notes):
+                               * 'mono'
+                               * 'mono2'
+                               * 'dark'
+                               * 'dark-diff' (default)
+                               * 'diverge'
+                               * 'diverge-diff'
+                               * 'diverge-diff2'
+                               * 'stark'
+
+ filterThresh: <numeric>   -log10 threshold that should be applied to
+                           filter out variants
+ 
+ tickMarks:    <numeric>   vector of -log10 values to mark on y axes
+
+ toMarkPos:    <struct>    structure type having the following fields;
+                           these SNPs are highlighted by a large marker
+                           around it; fields should include (only for the
+                           top panel): p positions, c chromosomes
+                               * 'Chr'         1 x c
+                               * 'bpLoc'       p x c
+                               * 'logpVals'    p x c
+                               * 'rsID'        p x c
+
+ TO-DO:
+ Reintroduce the reading of summary statistics file
+ Detect and handle sex chromosomes
+ Remove fixed number of chromosomes
+ Handle situation where one or more chromosome(s) may be missing
+ Add space between chromosomes
+ Allow an axis handle to be passed in
+ Add chromosome labels

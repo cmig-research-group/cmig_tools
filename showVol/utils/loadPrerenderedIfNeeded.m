@@ -3,9 +3,35 @@ function loadPrerenderedIfNeeded(atlas, fodtype)
 %
 %  loadPrerenderedIfNeeded(atlas)
 %
-%  loads prerendered volumes into a global variable PRI
+%  caches prerendered volumes into a global variable PRI. This is a big timesaver over repeatedly loading them (especially the large FODs)
 %
-%     by default loads ABCD2 images
+%  atlas is one of 3.0_ABCD1_cor10, 4.0_ABCD2_cor10 or 5.0_ABCD3_cor10, etc (or unambiguous abbreviations, e.g. 5.0 or ABCD2: see validateAtlasVersion.m)
+%
+%  to force a reload: >> clear global PRI
+%
+% NEW: Dec 2023 ABCD3 is now available, but without FOD or FA means yet
+%
+% PRI.ABCD3_50
+%                T1:  % mean T1 1mm (from atlas_dspace)
+%                T2:  % mean T2 1mm (from atlas_dspace)
+%                CO:  % mean fiber orientation rgb (from atlas_dspace)
+%          aseg_rgb:  % aseg atlas rgb
+%         fiber_rgb:  % fiber atlas rgb
+%     aparcaseg_rgb:  % aparcaseg atlas rgb
+%
+%
+% Backwards compatibiilty with older atlases
+%
+%   loadPrerenderedIfNeeded('ABCD1')
+%   loadPrerenderedIfNeeded('ABCD2')
+%
+% PRI.ABCD1
+%       FOD_1mm    % normalized FOD (emphasizing gray matter FOD)
+%      aseg_rgb    % aseg atlas 1mm
+%     fiber_rgb    % fiber atlas 1mm
+%            CO    % mean fiber orientation rgb
+%            T1    % mean T1 1mm
+%            T2    % mean T2 1mm
 %
 % PRI.ABCD2
 %               FOD:  % voxelwise normalized FOD (emphasizing gray matter FOD)
@@ -19,7 +45,7 @@ function loadPrerenderedIfNeeded(atlas, fodtype)
 %     aparcaseg_rgb:  % aparcaseg atlas rgb
 %
 % FOD types
-%   ABCD2 has different FOD normalizations: voxelwise, and global
+%   ABCD2 has availablel different FOD normalizations: voxelwise, and global
 %   this can be specified by a second argument
 %
 %       function loadPrerenderedIfNeeded(atlas, fodtype)
@@ -27,41 +53,14 @@ function loadPrerenderedIfNeeded(atlas, fodtype)
 %         fodtype = 'p80'; %global 80% normlization, emphisizes white matter FOD
 %         fodtype = 'p50'; %global 50% normlization 
 %   multiple types can be specified in a cell array
-%
-%
-% NEW: Dec 2023 ABCD3 is now tentatively available, but without FOD or FA means yet
-%
-% PRI.ABCD3
-%                T1:  % mean T1 1mm (from atlas_dspace)
-%                T2:  % mean T2 1mm (from atlas_dspace)
-%                CO:  % mean fiber orientation rgb (from atlas_dspace)
-%          aseg_rgb:  % aseg atlas rgb
-%         fiber_rgb:  % fiber atlas rgb
-%     aparcaseg_rgb:  % aparcaseg atlas rgb
-%
-%
-% Backwards compatibiilty with older atlases
-%
-%     can also load ABCD1 atlas, or both
-%   loadPrerenderedIfNeeded('ABCD1')
-%   loadPrerenderedIfNeeded({'ABCD1','ABCD2'})
-%
-% PRI.ABCD1
-%       FOD_1mm    % normalized FOD (emphasizing gray matter FOD)
-%      aseg_rgb    % aseg atlas 1mm
-%     fiber_rgb    % fiber atlas 1mm
-%            CO    % mean fiber orientation rgb
-%            T1    % mean T1 1mm
-%            T2    % mean T2 1mm
-%
-
 
 cfg = abcdConfig('showVol');
 
 if ~exist('atlas','var') || isempty(atlas)
-  atlas = 'ABCD2';
-    fprintf(2, '%s: Using ABCD2_cor10 atlas by default.\n   Specify atlas explicitly if you want something else.\n',mfilename)
+    error('%s: must specify an atlas version including release e.g. 5.0_ABCD3_cor10. See validateAtlasVersion.m',mfilename)
 end
+
+atlas = validateAtlasVersion(atlas); %expand to canonical form
 
 if ~exist('fodtype','var') || isempty(fodtype)
   fodtype = {''}; %no suffix means voxel-wise normalized
@@ -179,7 +178,7 @@ if contains(atlas,'ABCD2')
     
     for iV = 1:length(vols)
       varname = [vols{iV} '_ABCD2_cor10'];
-      fname = fullfile(cfg.data.showVolData,'Atlas',[varname '.mat']);
+      fname = fullfile(cfg.data.showVolData,'Atlas','ABCD2_cor10',[varname '.mat']);
       try
         tmp = load(fname);
         fieldname = [vols{iV} '_ABCD2_cor10'];
@@ -200,16 +199,23 @@ if contains(atlas,'ABCD2')
   end
 end % ABCD2
 
-% ################################# ABCD3 ########################################
+% ################################# 5.0_ABCD3, 6.0_ABCD3, etc ########################################
 if contains(atlas,'ABCD3')
-  if ~exist('PRI','var') || isempty(PRI) || ~isfield(PRI,'ABCD3')
+  [abcdRelease, atlasVersion, atlasSuffix] = parseAtlasVersion(atlas);
+  
+  abcdReleaseVarName = abcdRelease(abcdRelease~='.'); %NB field name can't start with #, so call it ABCD3_50
+  fieldName = [atlasVersion '_' abcdReleaseVarName];
+
+  atlasVarName = atlas(atlas~='.'); %similarly, variable names can't have a '.' in them
+  
+  if ~exist('PRI','var') || isempty(PRI) || ~isfield(PRI,fieldName) %NB field name can't start with #, so call it ABCD3_50
     fprintf('%s -- %s.m: Cacheing pre-rendered images for %s (slow, but only have to do it once per session)\r\n', datestr(now), mfilename, atlas);
     
-    % FIXME: for now, no FOD
+    % FIXME: for now, no FOD & maybe no plans for it?
     fodsuffix=[];
     
     for iF = 1:length(fodsuffix)
-      FOD_path = fullfile(cfg.data.showVolData,'FOD',['FOD_ABCD3_cor10' fodsuffix{iF} '_c.mat']);
+      FOD_path = fullfile(cfg.data.showVolData,'FOD',['FOD_' atlas fodsuffix{iF} '_c.mat']);
       if ~exist(FOD_path,'file'), disp(['Unable to load FOD. Missing ' FOD_path '!']), continue, end
       
       fprintf('%s -- %s.m: Loading FOD%s images (May take a few minutes)\r\n', datestr(now), mfilename,fodsuffix{iF});
@@ -221,7 +227,7 @@ if contains(atlas,'ABCD3')
       FODname = ['FOD' fodsuffix{iF}];
       disp(FODname)
       if isempty(fodsuffix{iF})
-        vol_FOD_1mm.name = 'FOD [ABCD3] voxelwise normalized'; %temporary FIXME
+        vol_FOD_1mm.name = ['FOD [' atlas '] voxelwise normalized'];
       end
       PRI.ABCD3.(FODname) = vol_FOD_1mm;
     end
@@ -232,23 +238,23 @@ if contains(atlas,'ABCD3')
     vols = {'T1','T2','CO','aseg_rgb','fiber_rgb','aparcaseg_rgb'}; %FIXME: do not have FA (yet?)
     
     for iV = 1:length(vols)
-      varname = [vols{iV} '_ABCD3_cor10'];
-      fname = fullfile(cfg.data.showVolData,'Atlas',[varname '.mat']);
+      varname = [vols{iV} '_' atlas];
+      fname = fullfile(cfg.data.showVolData,'Atlas',atlas,[varname '.mat']);
       try
         tmp = load(fname);
-        fieldname = [vols{iV} '_ABCD3_cor10'];
-        PRI.ABCD3.(vols{iV}) = tmp.(fieldname);
+        fileFieldname = [vols{iV} '_' atlasVarName];
+        PRI.(fieldName).(vols{iV}) = tmp.(fileFieldname);
       catch
         disp(['problem with ' vols{iV}])
       end
     end
     
     %JRI preference--add ghost of T1 to fiber atlas image for orientation help
-    maxFV = max(PRI.ABCD3.fiber_rgb.imgs(:)); % FIXME - the fiber_rgb are blown out so we're tweaking it to look good
-    maxT1 = max(PRI.ABCD3.T1.imgs(:));
-    PRI.ABCD3.fiber_rgb.imgs = PRI.ABCD3.fiber_rgb.imgs / (0.65 * maxFV) + PRI.ABCD3.T1.imgs * (0.2 / maxT1);
+    maxFV = max(PRI.(fieldName).fiber_rgb.imgs(:)); % FIXME - the fiber_rgb are overexposed so we're tweaking it to look good
+    maxT1 = max(PRI.(fieldName).T1.imgs(:));
+    PRI.(fieldName).fiber_rgb.imgs = PRI.(fieldName).fiber_rgb.imgs / (0.65 * maxFV) + PRI.(fieldName).T1.imgs * (0.2 / maxT1);
 
   else
       fprintf('%s -- %s.m: Using cached prerendered images for atlas %s (''clear global PRI'' to force reloading)\r\n', datestr(now), mfilename, atlas);
   end
-end %ABCD3
+end %ABCD3 (multiple release versions: 5.0, 6.0, etc)

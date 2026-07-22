@@ -1,0 +1,13 @@
+ Calculate log-likelihood with respect to random random effects.
+ Higher values correspont to better fit of the model to the data.
+ Note that some previous versions of this function returned negative log
+ likelihood (aka cost function - lower is better).
+
+ sig2vec         - vector of random effects (variance parameters) for a given phenotype;
+                   typically, sig2vec = sig2mat(i, :) * sig2tvec(i), i - phenotype index
+ yvec_res        - vector of residuals
+ clusterinfo, Ss - output of FEMA_parse_family
+
+
+ FEMA_logLik doesn't have RandomEffects argument
+ instead, it works on assumption that the order of random effects in 'x' is the same as in 'Ss'

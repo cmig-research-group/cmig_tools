@@ -1,5 +1,12 @@
 *.m~
 *.asv
 *.swp
-DEAP/
 .ipynb_checkpoints/
+*.csv
+*.parquet
+*.tsv
+
+# Quarto output (docs/deap)
+docs/deap/_site/
+
+.claude

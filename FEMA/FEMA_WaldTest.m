@@ -1,4 +1,4 @@
-function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
+function [W, logp, LB_hat, LB_SE, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, doF, numObs)
 % Function to compute multivariate Wald test given a set of parameters
 %% Inputs:
 % L:            numeric (vector or matrix) or cell type containing weights 
@@ -40,20 +40,25 @@ function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, 
 % W:            [k x v] vector of Wald statistics, where k is the number of
 %               cells in the input L; if L was numeric, F is scalar
 %
-% p:            [k x v] vector of p values, where k is the number of cells
-%               in the input L; if L was numeric, p is scalar; this is the
-%               p value under F or chi-squared distribution testing the
-%               null hypothesis that the linear combination of coefficients
-%               are equal to the hypothesised value (or zero)
-%
 % logp:         [k x v] vector of log10 p values, where k is the number of
 %               cells in the input L; if L was numeric, logp is scalar;
 %               this is the log10 p value under F or chi-squared
 %               distribution testing the null hypothesis that the linear
 %               combination of coefficients are equal to the hypothesised
-%               value (or zero); note that p values smaller than realmin
-%               (2.2251e-308) are truncated to realmin and a warning
-%               messsage is shown
+%               value (or zero); note that p values smaller than
+%               realmin (2.2251e-308) are truncated to zero, so -log10(p)
+%               value will be infinity and a warning messsage will be shown
+% 
+% LB_hat:       [k x 1] cell type where k is the number of cells in the
+%               input L; this is the product of L and beta_hat (meaningful
+%               for univariate contrasts which would be a scalar for every
+%               outcome variable v)
+% 
+% LB_SE:        [k x 1] cell type where k is the number of cells in the
+%               input L; this is the standard error for the evaluated
+%               contrast, estimated as sqrt(diag({L * Cov * L'})) and
+%               will be meaningful for univariate contrast which would be a
+%               scalar for every outcome variable v
 %
 % df:           [k x 1] vector of numerator degrees of freedom, where k is
 %               the number of cells in the input L; if L was numeric, df1 
@@ -68,6 +73,10 @@ function [W, p, logp, df, L] = FEMA_WaldTest(L, beta_hat, coeffCovar, hypValue, 
 % calculated in this function; however, MATLAB additionally penalizes the F
 % by dividing it with the numerator degrees of freedom. Then, they perform
 % a lookup using a F distribution.
+% 
+% For univariate contrasts, sqrt(W) = LB_hat./LB_SE
+% 
+% N.B.: the -log10(p) values returned from FEMA_WaldTest are unsigned
 % 
 %% Reference:
 % Fitzmaurice, G. M., Laird, N. M., & Ware, J. H. (2011). Applied 
@@ -106,7 +115,7 @@ else
     % Should be numX by numX by numY matrix
     [a, b, c] = size(coeffCovar);
 
-    if a ~= b | a ~= numX | c ~= numY
+    if a ~= b || a ~= numX || c ~= numY
         error(['Expected coefficient covariance matrix to be: ', ...
               num2str(numX), ' x ', num2str(numX), ' x ', num2str(numY)]);
     end
@@ -154,39 +163,67 @@ else
         numObs = reshape(numObs, [numel(numObs), 1]);
 
         % Check that the number of elements match number of cells
-        if size(numObs, 2) ~= numCells
+        if size(numObs, 1) ~= numCells
             error(['numObs should either be a scalar or a vector of ', ...
-                   num2str(numCells), ' x 1 values']);
+                   '1 x ', num2str(numCells), ' values']);
         end
     end
 end
 
 %% Initialize
-[W, p] = deal(zeros(numCells, numY));
-df     = zeros(numCells, 1);
-df2    = numObs - numX;
+[W, p]          = deal(zeros(numCells, numY));
+[LB_hat, LB_SE] = deal(cell(numCells, 1));
+df              = zeros(numCells, 1);
+df2             = numObs - numX;
 
 %% Calculate, for every cell
 for cc = 1:numCells
 
     % Current weights - validated and padded
-    L{cc}       = validateContrast(L{cc}, numX);
-    currWeights = L{cc};
+    L{cc} = validateContrast(L{cc}, numX);
+
+    % Find indexing: we need rows of beta_hat to subset into: these can
+    % be obtained by checking which entries of L are non-zero
+    wchCols_L = any(L{cc} ~= 0, 1);
+
+    % Show a warning if nothing is left
+    if ~any(wchCols_L)
+        warning(['Contrast number ', num2str(cc), ' is all zeros']);
+    end
+
+    % Now subset beta_hat and coeffCovar
+    tmp_beta_hat   = beta_hat(wchCols_L, :);
+    tmp_coeffCovar = coeffCovar(wchCols_L, wchCols_L, :);
+
+    % Subset the weights
+    currWeights = L{cc}(:,wchCols_L);
 
     % Numerator degree of freedom = number of linearly independent rows
     % df(cc,1) = size(currWeights, 1);
     df(cc,1) = rank(currWeights);
 
+    % Allocate contents of this cell
+    LB_hat{cc,1} = zeros(size(currWeights,1), numY);
+    LB_SE{cc,1}  = zeros(size(currWeights,1), numY);
+
     for yy = 1:numY
         % Linear combination of beta
-        LB = currWeights * beta_hat(:,yy);
+        LB = currWeights * tmp_beta_hat(:,yy);
+        % LB = currWeights * beta_hat(:,yy);
     
         % Difference from hypothesised mean
         LB = LB - hypValue(cc);
+
+        % Save this value of LB_hat
+        LB_hat{cc,1}(:,yy) = LB;
     
         % Calculate W2 = (L * B)' * inv{L * Cov * L'} * (L * B)
         % W2 = LB' * ((L * coeffCovar(:,:,yy) * L') \ eye(numX)) * LB;
-        innerTerm = (currWeights * coeffCovar(:,:,yy) * currWeights');
+        % innerTerm = (currWeights * coeffCovar(:,:,yy) * currWeights');
+        innerTerm = (currWeights * tmp_coeffCovar(:,:,yy) * currWeights');
+
+        LB_SE{cc,1}(:,yy) = sqrt(diag(innerTerm));
+
         if rank(innerTerm) < size(innerTerm, 2)
             W(cc, yy) = (LB' *  (pinv(innerTerm) * LB));
         else
@@ -207,9 +244,10 @@ end
 % Calculate -log10 p-values
 if any(p < realmin)
     warning(['One or more p values are smaller than ', num2str(realmin), ...
-             '; truncating them to ', num2str(realmin)]);
+             '; -log10(p) values will be infinite']);
 end
-logp = -log10(max(realmin, p));
+% logp = -log10(max(realmin, p));
+logp = -log10(p);
 
 function L = validateContrast(L, numX)
 % Function that validates and pads a contrast
@@ -233,7 +271,8 @@ else
             L = [L, zeros(1, numX - size(L,2))];
         else
             % Matrix case, need to zero pad columns
-            L = padarray(L, [0, numX - size(L,2)], 0, 'post');
+            % L = padarray(L, [0, numX - size(L,2)], 0, 'post');
+            L = [L, zeros(size(L,1), numX - size(L,2))];
         end
     end
 end

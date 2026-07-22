@@ -1,0 +1,45 @@
+ Function to perform ordinary least squares fitting given a design matrix
+ X and a vector or matrix of outcome variables ymat
+ Inputs:
+ X:            [n x p]     design matrix of p predictors for n observations
+
+ ymat:         [n x v]     vector or matrix of v outcome variables for n
+                           observations
+
+ SingleOrDouble:           character type indicating if output should be
+                           single precision or double precision; if left
+                           empty, defaults to the lower precision category
+
+ Outputs:
+ beta_hat:     [p x v]     vector or matrix of coefficient estimates
+ 
+ beta_se:      [p x v]     vector or matrix of coefficient standard errors
+
+ MSE:          [1 x v]     vector of mean squared errors
+
+ coeffCovar:   [p x p x v] matrix of coefficient covariance (already
+                           multiplied with the mean squared error)
+
+ df:           [1 x 1]     scalar indicating the degrees of freedom
+                           (df = number of observations - rank(X))
+
+ rankX:        [1 x 1]     scalar indicating the rank of the design matrix
+
+ References and Notes:
+ MATLAB's internal solution: implemented in function lsfit: line 1042
+ onwards in function LinearModel.m
+
+ R's default QR tolerance: https://search.r-project.org/R/refmans/base/html/qr.html
+
+ Another R package QR tolerance: https://search.r-project.org/CRAN/refmans/matlib/html/QR.html
+
+ matlab.internal.math.getTolToCompareSVs
+ 
+ https://math.stackexchange.com/a/4307382
+
+ MATLAB's determination of output type is based on: internal.stats.dominantType
+
+ Note that there is a subtle rounding off difference when computing Qty if
+ performed one y at a time as compared to the entire ymat matrix
+ https://stackoverflow.com/questions/76253592/matlab-produces-different-matrix-product-results-depending-on-computation-form
+ https://www.mathworks.com/matlabcentral/answers/581277-matrix-multiply-result-different-from-loops

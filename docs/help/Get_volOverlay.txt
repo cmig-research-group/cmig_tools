@@ -1,0 +1,16 @@
+ This is a wrapper to get the blended volume overlays
+ Require input:
+   vol_tstat: the statistical map generated as the voxelwise analysis
+              assuming it is already masked and has consistent orientation as vol_T1 (100 x 120 x 120)
+   tmax: the maximun value of tstats for the coloring map
+   tmin: the minimun value of tstats for the coloring map
+         NOTE -- recommend to do symmetric tmax and tmin if the stat is signed. 
+   vol_T1: the mean T1 in atlas space. It is oriented as 100 x 120 x 120 now
+           can load from the pre-saved volumn .mat
+   tthresh: optional, if specified suppresses -stats with |value| < tthresh
+     note, this needs a new version of vol_color_overlay from the showVol
+     repository.
+    stat: optional, default is false (will give lop pvals), if stat=true,
+       will output color overlay of original statistic
+
+   output: vols_logp_rgb, opyionally the colormap cmap

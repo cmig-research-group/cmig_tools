@@ -1,0 +1,20 @@
+ nearestSPD - the nearest (in Frobenius norm) Symmetric Positive Definite matrix to A
+ usage: Ahat = nearestSPD(A)
+
+ From Higham: "The nearest symmetric positive semidefinite matrix in the
+ Frobenius norm to an arbitrary real matrix A is shown to be (B + H)/2,
+ where H is the symmetric polar factor of B=(A + A')/2."
+
+ http://www.sciencedirect.com/science/article/pii/0024379588902236
+
+ arguments: (input)
+  A - square matrix, which will be converted to the nearest Symmetric
+    Positive Definite Matrix.
+
+ Arguments: (output)
+  Ahat - The matrix chosen as the nearest SPD matrix to A.
+
+ This modified version has a max number of iterations; if for any reason
+ the nearest SPD has not been found by then, return the version that was
+ available at that iteration and set converge to false - prevents infinite
+ loop - PP (24 Feb 2025)

@@ -1,0 +1,3 @@
+ Compile mean squared error between FEMA and ground truth (similarly fitlmematrix and ground truth)
+ Models: FE, SE, AE, FSE, FAE, SAE, FASE
+ Setup parameters 

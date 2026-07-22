@@ -1,4 +1,4 @@
-function [cbetahat, cbetaSE, Vg] = SwEfit(X,bID,Y,con,Vg,clusterinfo,beta_hat_tmp,Vis,XtVis,XtVisX,XtVisY,B)
+function [cbetahat, cbetaSE, Vg] = SwEfit_amd2(X,bID,Y,con,Vg,clusterinfo,beta_hat_tmp,Vis,XtVis,XtVisX,XtVisY,B)
 % FUNCTION [cbetahat, cbetaSE, Vg] = SwEfit(X,bID,Y[,con,Vg])
 %
 % Estimate betahat with OLS and obtain standard errors using the 'classic'

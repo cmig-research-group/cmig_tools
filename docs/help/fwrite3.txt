@@ -1,0 +1,4 @@
+ fs_fwrite3(fid, val)
+
+ Write a 3 byte integer into a file
+

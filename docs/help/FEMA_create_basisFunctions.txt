@@ -1,0 +1,72 @@
+ Function to create basis functions, given a set of age / time, knots,
+ and optionally other parameters
+ Inputs:
+ age:              vector of age/time values for which basis functions
+                   need to be created
+
+ knots:            vector of values which serve as knots
+
+ splineType:       character; one of the following:
+                       * 'ns'  (nautral cubic splines)
+                       * 'bs'  (B-splines)
+                       * 'nsk' (natural cubic with unit heights at knots)
+
+ dfFlag:           logical; can be used to specify degrees of freedom
+                   instead of knots; enter a single number corresponding 
+                   to the degrees of freedom for "knots" and specify
+                   "dfFlag" as true
+
+ intercept:        logical; indicates if intercept should be added (this
+                   parameter is specific to R - adding an intercept is not
+                   the same as adding a constant to the basis functions)
+
+ method:           character; one of the following (see Notes):
+                       * 'default'
+                       * 'demean'
+                       * 'regress'
+
+ toDrop:           numeric; indicate which basis function to drop
+                   (relevant if method is 'demean' or 'regress'); can be
+                   set to -1 in which case no columns will be dropped
+
+ ageSubset:        a subset of age to be used for creating basis
+                   functions; the corresponding values for basis functions
+                   for other age values are then interpolated
+ 
+ addConst:         logical; if true, a vector of ones is added as the 
+                   first column of the output basisFunction
+
+ outDir:           full path to an existing output directory where
+                   temporary files will be created; if empty, pwd is used
+
+ optCommand:       optional command(s) to be issued prior to invoking
+                   R; useful, for example, on cluster environments where
+                   modules may need to be loaded before R is accessible
+
+ optAppend:        optional command to be appended to the call to
+                   'Rscript' - for example, '/usr/local/bin/' can be
+                   appended prior to 'Rscript', if Rscript is not on PATH
+
+ cleanUp:          logical; if true, deletes all temporary files that were
+                   created along the way
+
+ Output(s):
+ basisFunction:    a matrix containing the spline basis functions
+
+ bfRank:           rank of the basis functions (useful sanity check)
+
+ basisSubset:      if ageSubset was specified, then basisSubset contains
+                   the results obtained from R prior to interpolation
+
+ Defaults:
+ splineType:       'bs'
+ dfFlag:           false
+ intercept:        true
+ method:           'default'
+ toDrop:           last column (if method is not default)
+ ageSubset:        []
+ addConst:         false if method is default, otherwise true
+ outDir:           pwd
+ optCommand:       ''
+ optAppend:        ''
+ cleanUp:          true

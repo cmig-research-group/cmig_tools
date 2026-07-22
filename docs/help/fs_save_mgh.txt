@@ -1,0 +1,16 @@
+function fs_save_mgh(vol, fname, M, mr_parms);
+
+ fs_save_mgh(vol,fname, M, <mr_parms>);
+
+ M is the 4x4 vox2ras transform such that
+ y(i1,i2,i3), xyz = M*[i1 i2 i3 1] where the
+ indicies are 1-based. M is converted to
+ 0-based before saving.
+
+ mr_parms = [tr flipangle te ti fov]
+
+ See also: load_mgh, vox2ras_0to1
+
+ copied from freesurfer: 07/26/04
+ Last Mod:               05/02/12 by Don Hagler
+

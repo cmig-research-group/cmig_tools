@@ -1,0 +1,9 @@
+ maskCSF  mask out CSF portions of image volume
+
+   img = maskCSF(img, prob, atlas)
+
+  regions within CSF aseg ROIs > prob are replaced with nan
+  atlas is ABCD1_cor10,  ABCD2_cor10 or ABCD3_cor10 (or just ABCD1, ABCD2 or ABCD3) - As of Dec 2023, ABCD3 by default if not specified
+  prob is optional, defines the threshold level for being 'in' CSF. default is 0.7
+
+   if input img is [] just returns the mask

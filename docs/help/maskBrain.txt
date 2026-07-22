@@ -1,0 +1,15 @@
+ maskBrain mask skull and background
+
+   img = maskBrain(img, atlas)
+
+  atlas is one of 3.0_ABCD1_cor10, 4.0_ABCD2_cor10 or 5.0_ABCD3_cor10 (or unambiguous abbreviations, e.g. 5.0 or ABCD2: see validateAtlasVersion.m)
+
+   if input img is [] just returns the mask volume
+
+ mask is computed by summing all aseg rois and taking any voxel with summed probability > 0.01
+
+ demo, compare brain masks for atlas versions:
+   showVol(maskBrain([],'ABCD1'),maskBrain([],'ABCD2'),maskBrain([],'5.0_ABCD3'))
+
+ TODO: check that this method matches vol_mask_aseg
+ Note: this caches the loaded brainMask

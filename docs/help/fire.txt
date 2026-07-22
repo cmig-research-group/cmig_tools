@@ -1,0 +1,16 @@
+FIRE   Blue-Purple Hot colormap
+ 
+ FIRE(M) returns an M-by-3 matrix containing a "fire" colormap.
+ FIRE, by itself, is the same length as the current figure's
+ colormap. If no figure exists, MATLAB creates one.
+
+ To add this colormap as a default map, use 'addpath' with the 
+ directory containing 'fire.m'.
+
+ To reset the colormap of the current figure use 'colormap(fire)'.
+
+ see also:  HSV, GRAY, HOT, COOL, BONE, COPPER, FLAG, PINK, COLORMAP,
+ RGBPLOT.
+
+ To create any custom colormap, see the directions on line 23 of this
+ m-file.
