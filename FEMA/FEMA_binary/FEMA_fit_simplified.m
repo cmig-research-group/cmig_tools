@@ -33,7 +33,7 @@ LHS(subvec_e,:)  = LHS(subvec_e,:) - M(subvec_e,end) .*  W_1;
 % Use new version of lsqnonneg_amd to enfoce non-negative variances
 sig2mat_tmp     = lsqnonneg_amd3(M(:,1:end-1),LHS);
 % sig2mat = [sig2mat_tmp ; 1/sig2tvec] * sig2tvec;
-sig2mat = [sig2mat_tmp ; 1];
+sig2mat = [sig2mat_tmp; ones(1, size(ymat_res,2))]; % [sig2mat_tmp ; 1];
 
 
 %% Using maximum likelihood solution
