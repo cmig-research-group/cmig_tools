@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) starting from ``v1.0.0``.
 
+## 4.0.3 - 2026-07-31
+### Changed 
+- `FEMA/FEMA_save.m`
+    - included FEMA_filelist.json, a file containing a list of files saved by FEMA, as output when running in DEAP
+    - minor bug fix in FEMA_propagateStats when converting ROI names from the naming convention of the tabulated data to that of the voxelwise atlas
+
 ## [4.0.3 - 2026-06-24]
 ### Changed 
 - `FEMA/FEMA_WaldTest.m`: 

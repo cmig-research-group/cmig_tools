@@ -71,13 +71,13 @@ function vol_stat = FEMA_propagateStats(roi_stat, parc_name, roinames, varargin)
     % atlas roinames 
     switch parc_name 
         case 'at' 
-            roinames_atlas_out = fiber2tabroinames(roinames_atlas);
+            roinames_atlas_out = fiber2tabroinames(roinames_atlas, 'atlas2tab');
         case 'aseg'
-            roinames_atlas_out = aseg2tabroinames(roinames_atlas);
+            roinames_atlas_out = aseg2tabroinames(roinames_atlas, 'atlas2tab');
         case {'dsk', 'aparc'}
-            roinames_atlas_out = aparc2tabroinames(roinames_atlas);
+            roinames_atlas_out = aparc2tabroinames(roinames_atlas, 'atlas2tab');
         case {'dst', 'aparc_a2009s'}
-            roinames_atlas_out = aparc2009s2tabroinames(roinames_atlas);
+            roinames_atlas_out = aparc2009s2tabroinames(roinames_atlas, 'atlas2tab');
     end 
 
     % intersect roinames_tab and roinames_atlas_out to find common rois

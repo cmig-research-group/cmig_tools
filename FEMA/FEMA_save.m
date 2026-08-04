@@ -22,6 +22,7 @@ if isfield(unMatched, 'nonDEAP')
 else
     writeJSON = false;
 end
+fileList = {};
 unMatched_flds = fieldnames(unMatched);
 saveDesignMatrix = p.Results.saveDesignMatrix;
 outPrefix = p.Results.outPrefix;
@@ -99,6 +100,7 @@ if any(ismember(outputType, 'summary'))
         fid = fopen(fullfile(dirOutput, 'FEMA_summary.json'), 'w');
         fwrite(fid, info_json);
         fclose(fid);
+        fileList = appendFileList(fileList, 'FEMA_summary.json', false);
     end
 end
 
@@ -135,7 +137,9 @@ if any(ismember(outputType, {'mat', 'corrmat', 'external'}))
     else
         save(saveName, '-struct', 'toSave_struct');
     end
-    fname_mat = saveName; 
+    fname_mat = saveName;
+    estHasResiduals = isfield(toSave_struct, 'residuals_GLS') && ~isempty(toSave_struct.residuals_GLS);
+    fileList = appendFileList(fileList, outName, estHasResiduals);
     FEMA_save.timing.tSaveMat = toc(tSaveMat);
     
     % Second: save filtered design matrix and related variables
@@ -159,6 +163,7 @@ if any(ismember(outputType, {'mat', 'corrmat', 'external'}))
         else 
             save(saveName, '-struct', 'toSave_struct'); 
         end
+        fileList = appendFileList(fileList, outName, true);
         FEMA_save.timing.tSaveDesign = toc(tSaveDesign);
     end
 end
@@ -185,6 +190,7 @@ if any(ismember(outputType, {'ids'}))
 
             % Save as a parquet file
             parquetwrite(saveName, unMatched.designMatrix);
+            fileList = appendFileList(fileList, outName, true);
 
             % Extract and save IDs
             ids  = unMatched.designMatrix;
@@ -200,6 +206,7 @@ if any(ismember(outputType, {'ids'}))
                 warning('ID list is empty; something went wrong');
             else
                 parquetwrite(saveName, ids);
+                fileList = appendFileList(fileList, outName, true);
             end
         end
     else
@@ -222,6 +229,7 @@ if any(ismember(outputType, {'ids'}))
                 end
                 saveName = fullfile(dirOutput, outName);
                 parquetwrite(saveName, ids);
+                fileList = appendFileList(fileList, outName, true);
             end
         else
             error('Unable to extract id list');
@@ -272,6 +280,7 @@ if any(ismember(outputType, [nii_list gii_list]))
                 saveName = fullfile(dirOutput, saveName_tmp);
                 saveData = fullvol(workVar(jj,:), mask);
                 niftiwrite_amd(saveData, saveName, M_atl_sub);
+                fileList = appendFileList(fileList, saveName_tmp, false);
                 json.fixed(j).params.(toSave_FFX{ff}).file_name = saveName_tmp;
             else
                 % save
@@ -279,6 +288,7 @@ if any(ismember(outputType, [nii_list gii_list]))
                 saveName = fullfile(dirOutput, saveName_tmp);
                 saveData = workVar(jj,:);
                 writeGIfTI(saveData, [], saveName, splitLR);
+                fileList = appendFileList(fileList, {[saveName_tmp '_lh.gii'], [saveName_tmp '_rh.gii']}, false);
                 json.fixed(j).params.(toSave_FFX{ff}).file_name = {[saveName_tmp '_lh.gii'] ; [saveName_tmp '_rh.gii']};
             end 
             value_range = saveDataRange(saveData);
@@ -302,12 +312,14 @@ if any(ismember(outputType, [nii_list gii_list]))
                 saveName_tmp = [outName, '_TotVar.nii.gz'];
                 saveName = fullfile(dirOutput, saveName_tmp);
                 niftiwrite_amd(saveData, saveName, M_atl_sub);
+                fileList = appendFileList(fileList, saveName_tmp, false);
                 json.random(1).params.file_name = saveName_tmp;
             else 
                 saveData = workVar;
                 saveName_tmp = [outName, '_TotVar'];
                 saveName = fullfile(dirOutput, saveName_tmp);
                 writeGIfTI(saveData, [], saveName, splitLR);
+                fileList = appendFileList(fileList, {[saveName_tmp '_lh.gii'], [saveName_tmp '_rh.gii']}, false);
                 json.random(1).params.file_name = {[saveName_tmp '_lh.gii'] ; [saveName_tmp '_rh.gii']};
             end 
             % json.random.total_var.file_name = saveName_tmp;
@@ -346,6 +358,7 @@ if any(ismember(outputType, [nii_list gii_list]))
                                     vecData = reshape(squeeze(workVar(i1,i2,rr,:)), 1, []);
                                     saveData = fullvol(vecData, mask);
                                     niftiwrite_amd(saveData, saveName, M_atl_sub);
+                                    fileList = appendFileList(fileList, saveName_tmp, false);
                                     json.random(rr+1).params.(matlab.lang.makeValidName(volName)).file_name = ...
                                     saveName_tmp;           
                                 else
@@ -353,6 +366,7 @@ if any(ismember(outputType, [nii_list gii_list]))
                                     saveName = fullfile(dirOutput, saveName_tmp);
                                     saveData = reshape(squeeze(workVar(i1,i2,rr,:)), 1, []);
                                     writeGIfTI(saveData, [], saveName, splitLR);
+                                    fileList = appendFileList(fileList, {[saveName_tmp '_lh.gii'], [saveName_tmp '_rh.gii']}, false);
                                     json.random(rr+1).params.(matlab.lang.makeValidName(volName)).file_name = ...
                                                               {[saveName_tmp '_lh.gii'] ; [saveName_tmp '_rh.gii']};
                                 end
@@ -378,6 +392,7 @@ if any(ismember(outputType, [nii_list gii_list]))
                                     vecData = reshape(squeeze(workVar(i1,i2,rr,:)), 1, []);
                                     saveData = fullvol(vecData, mask);
                                     niftiwrite_amd(saveData, saveName, M_atl_sub);     
+                                    fileList = appendFileList(fileList, saveName_tmp, false);
                                     json.random(rr+1).params.(matlab.lang.makeValidName(volName)).file_name = ...
                                         saveName_tmp;                            
                                 else
@@ -385,6 +400,7 @@ if any(ismember(outputType, [nii_list gii_list]))
                                     saveName = fullfile(dirOutput, saveName_tmp);
                                     saveData = reshape(squeeze(workVar(i1,i2,rr,:)), 1, []);
                                     writeGIfTI(saveData, [], saveName, splitLR);
+                                    fileList = appendFileList(fileList, {[saveName_tmp '_lh.gii'], [saveName_tmp '_rh.gii']}, false);
                                     json.random(rr+1).params.(matlab.lang.makeValidName(volName)).file_name = ...
                                         {[saveName_tmp '_lh.gii'] ; [saveName_tmp '_rh.gii']};
                                 end
@@ -416,12 +432,14 @@ if any(ismember(outputType, [nii_list gii_list]))
                         saveName_tmp = [outName, '_', volName, '.nii.gz']; 
                         saveName = fullfile(dirOutput, saveName_tmp);
                         niftiwrite_amd(saveData, saveName, M_atl_sub);
+                        fileList = appendFileList(fileList, saveName_tmp, false);
                         json.random(rr+1).params.variance.file_name = saveName_tmp;
                     else 
                         saveName_tmp = [outName, '_', volName];
                         saveName = fullfile(dirOutput, saveName_tmp);  
                         saveData = workVar(rr,:);                        
                         writeGIfTI(saveData, [], saveName, splitLR);
+                        fileList = appendFileList(fileList, {[saveName_tmp '_lh.gii'], [saveName_tmp '_rh.gii']}, false);
                         json.random(rr+1).params.variance.file_name = {[saveName_tmp '_lh.gii'] ; [saveName_tmp '_rh.gii']};
                     end
                     % json.random.sig2mat(rr).variance.file_name = saveName_tmp;
@@ -453,12 +471,14 @@ if any(ismember(outputType, [nii_list gii_list]))
                 saveName = fullfile(dirOutput, saveName_tmp);
                 saveData = fullvol(workVar(j,:), mask);
                 niftiwrite_amd(saveData, saveName, M_atl_sub);
+                fileList = appendFileList(fileList, saveName_tmp, false);
                 json.fixed(length(unMatched.colsinterest)+j).params.(toSave_Wald{ff}).file_name = saveName_tmp;
             else
                 saveName_tmp = [outName, '_', toSave_Wald{ff}, '_', unMatched.splines_of_interest{j,2}];
                 saveName = fullfile(dirOutput, saveName_tmp);
                 saveData = workVar(j,:);
                 writeGIfTI(saveData, [], saveName, splitLR);
+                fileList = appendFileList(fileList, {[saveName_tmp '_lh.gii'], [saveName_tmp '_rh.gii']}, false);
                 json.fixed(length(unMatched.colsinterest)+j).params.(toSave_Wald{ff}).file_name = {[saveName_tmp '_lh.gii'] ; [saveName_tmp '_rh.gii']};
             end
             value_range = saveDataRange(saveData);
@@ -474,6 +494,7 @@ if any(ismember(outputType, [nii_list gii_list]))
         fid = fopen(fname_json, 'w');
         fprintf(fid, tmp);
         fclose(fid);
+        fileList = appendFileList(fileList, 'FEMA_mapping.json', false);
     end
 
     FEMA_save.timing.tSaveImages = toc(tSaveImages);
@@ -530,6 +551,7 @@ if any(ismember(outputType, {'corrmat'}))
             fname_json = [outName, '_', toSave_FFX{ff}, '_col', num2str(jj, '%03d'), '_', unMatched.vars_of_interest{j}, '.json'];
             if writeJSON
                 FEMA_vec2json(workVar(jj,:), fullfile(dirOutput, fname_json));
+                fileList = appendFileList(fileList, fname_json, false);
                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                 % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                 % fprintf(fid, tmp);
@@ -558,6 +580,7 @@ if any(ismember(outputType, {'corrmat'}))
             fname_json = [outName, '_TotVar.json'];
             if writeJSON
                 FEMA_vec2json(unMatched.(toSave_RFX{ff}), fullfile(dirOutput, fname_json));
+                fileList = appendFileList(fileList, fname_json, false);
                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                 % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                 % fprintf(fid, tmp);
@@ -595,6 +618,7 @@ if any(ismember(outputType, {'corrmat'}))
                                 fname_json = [outName, '_', volName, '.json'];
                                 if writeJSON
                                     FEMA_vec2json(reshape(squeeze(workVar(i1,i2,rr,:)), 1, []), fullfile(dirOutput, fname_json));
+                                    fileList = appendFileList(fileList, fname_json, false);
                                     % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                                     % fprintf(fid, tmp);
                                     % fclose(fid);
@@ -620,6 +644,7 @@ if any(ismember(outputType, {'corrmat'}))
                                 fname_json = [outName, '_', volName, '.json'];
                                 if writeJSON
                                     FEMA_vec2json(reshape(squeeze(workVar(i1,i2,rr,:)), 1, []), fullfile(dirOutput, fname_json));
+                                    fileList = appendFileList(fileList, fname_json, false);
                                     % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                                     % fprintf(fid, tmp);
                                     % fclose(fid);
@@ -648,6 +673,7 @@ if any(ismember(outputType, {'corrmat'}))
                     fname_json = [outName, '_', volName, '.json'];
                     if writeJSON
                         FEMA_vec2json(workVar(rr,:), fullfile(dirOutput, fname_json));
+                        fileList = appendFileList(fileList, fname_json, false);
                         % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                         % fprintf(fid, tmp);
                         % fclose(fid);
@@ -687,6 +713,7 @@ if any(ismember(outputType, {'corrmat'}))
             fname_json = [outName, '_', toSave_Wald{ff}, '_', unMatched.splines_of_interest{j,2}, '.json'];
             if writeJSON
                 FEMA_vec2json(workVar(j,:), fullfile(dirOutput, fname_json));
+                fileList = appendFileList(fileList, fname_json, false);
                 % tmp = FEMA_save_jsonencode(tmp, PrettyPrint=true);
                 % fid = fopen(fullfile(dirOutput, fname_json), 'w');
                 % fprintf(fid, tmp);
@@ -706,6 +733,7 @@ if any(ismember(outputType, {'corrmat'}))
         fid = fopen(fname_json, 'w');
         fprintf(fid, tmp);
         fclose(fid);
+        fileList = appendFileList(fileList, 'FEMA_mapping.json', false);
     end
 
     % Write out label file: single file with ROI names
@@ -715,6 +743,7 @@ if any(ismember(outputType, {'corrmat'}))
         fid = fopen(fname_json, 'w');
         fprintf(fid, tmp);
         fclose(fid);
+        fileList = appendFileList(fileList, 'Corrmat_labels.json', false);
     
         % fname_json = fullfile(dirOutput, 'Corrmat_label_source.json');
         % tmp = FEMA_save_jsonencode(unMatched.ymat_names(:,1), PrettyPrint=true); 
@@ -877,6 +906,7 @@ if any(ismember(outputType, {'tables', 'external'}))
             fwrite(fid, table_json);
             fclose(fid);
             json_fileTracker.fixed.byY{track} = outName;
+            fileList = appendFileList(fileList, outName, false);
             track = track + 1;
         end
 
@@ -945,6 +975,7 @@ if any(ismember(outputType, {'tables', 'external'}))
             fwrite(fid, table_json);
             fclose(fid);
             json_fileTracker.random.byY{track} = outName;
+            fileList = appendFileList(fileList, outName, false);
             track = track + 1;
         end
     end
@@ -1056,6 +1087,7 @@ if any(ismember(outputType, {'tables', 'external'}))
             fwrite(fid, table_json);
             fclose(fid);
             json_fileTracker.fixed.byX{track} = outName;
+            fileList = appendFileList(fileList, outName, false);
             track = track + 1;
         end
     end
@@ -1106,6 +1138,7 @@ if any(ismember(outputType, {'tables', 'external'}))
             fwrite(fid, table_json);
             fclose(fid);
             json_fileTracker.fixed.byX{track} = outName;
+            fileList = appendFileList(fileList, outName, false);
             track = track + 1;
         end
     end
@@ -1148,6 +1181,7 @@ if any(ismember(outputType, {'tables', 'external'}))
                 fwrite(fid, table_json);
                 fclose(fid);
                 json_fileTracker.random.byX{track} = outName;
+                fileList = appendFileList(fileList, outName, false);
                 track = track + 1;
             end
         end
@@ -1200,6 +1234,7 @@ if any(ismember(outputType, {'tables', 'external'}))
                 fwrite(fid, table_json);
                 fclose(fid);
                 json_fileTracker.random.byX{track} = outName;
+                fileList = appendFileList(fileList, outName, false);
                 track = track + 1;
             end
 
@@ -1241,6 +1276,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         fwrite(fid, table_json);
         fclose(fid);
         json_fileTracker.random.byX{track} = outName;
+        fileList = appendFileList(fileList, outName, false);
 
         % Any empty entries in json_fileTracker should be deleted
         json_fileTracker.fixed.byX(cellfun(@isempty, json_fileTracker.fixed.byX)) = [];
@@ -1254,6 +1290,7 @@ if any(ismember(outputType, {'tables', 'external'}))
         fid = fopen(fullfile(dirOutput, 'FEMA_mapping.json'), 'w');
         fwrite(fid, json_fileTracker);
         fclose(fid);
+        fileList = appendFileList(fileList, 'FEMA_mapping.json', false);
     end
     
     FEMA_save.timing.tSaveTables = toc(tSaveTables);
@@ -1273,6 +1310,7 @@ if ismember('FFX_conceptMapping', unMatched_flds)
         fid = fopen(fullfile(dirOutput, outName), 'w');
         fwrite(fid, save_jsonencode(unMatched.FFX_conceptMapping', PrettyPrint=true));
         fclose(fid);
+        fileList = appendFileList(fileList, outName, false);
     end
 
     FEMA_save.timing.tSaveConceptMapping = toc(tConceptMapping);
@@ -1474,6 +1512,7 @@ if any(ismember(outputType, {'roi'}))
             fid = fopen(saveName, 'w');
             fwrite(fid, roi_json);
             fclose(fid);
+            fileList = appendFileList(fileList, outName, false);
         end
     
         FEMA_save.timing.tSaveROI = toc(tSaveROI);
@@ -1489,6 +1528,7 @@ if any(ismember(outputType, {'roi'}))
             fid = fopen(fullfile(dirOutput, 'FEMA_mapping.json'), 'w');
             fwrite(fid, json_fileTracker);
             fclose(fid);
+            fileList = appendFileList(fileList, 'FEMA_mapping.json', false);
         end
     else
         warning('Unknown ROI atlas: %s. No mapping outputs.', roi_atlas);
@@ -1496,11 +1536,23 @@ if any(ismember(outputType, {'roi'}))
 end
 
 FEMA_save.timing.tSaveOverall = toc(tSaveOverall);
+
+% save FEMA_filelist.json
+if writeJSON && ~isempty(fileList)
+    fileList_json = struct('files', [fileList{:}]);
+    txt = save_jsonencode(fileList_json, PrettyPrint=true);
+    fid = fopen(fullfile(dirOutput, 'FEMA_filelist.json'), 'w');
+    fwrite(fid, txt);
+    fclose(fid);
+end
+
 if exist('fname_mat', 'var') && exist(fname_mat, 'file')
     info.FEMA_save = FEMA_save;
     save(fname_mat, 'info', '-append');
 end 
-end
+
+end % function FEMA_save
+
 
 function value_range = saveDataRange(saveData)
     cal_min = min(saveData, [], 'all', 'omitmissing');
@@ -1545,4 +1597,16 @@ function FEMA_vec2json(vector, filename)
     % Close the file
     fclose(fid);
 end
- 
+
+function fileList = appendFileList(fileList, file_name, individual_level)
+    if iscell(file_name)
+        names = file_name;
+    else
+        names = {file_name};
+    end
+    for ii = 1:numel(names)
+        fileList{end+1} = struct( ...
+            'file_name', char(names{ii}), ...
+            'individual_level', logical(individual_level)); %#ok<AGROW>
+    end
+end
