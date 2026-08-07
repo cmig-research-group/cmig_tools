@@ -1176,7 +1176,8 @@ elseif nperms == 0
 end
 
 zmat    = cast(double(beta_hat) ./ double(beta_se), precision);
-logpmat = cast(-sign(zmat) .* log10(normcdf(-abs(zmat))*2), precision); % Should look for normcdfln function
+logpmat = cast(-sign(zmat) .* FEMA_get_logp_normcdf(zmat, 'both', true), precision);
+% logpmat = cast(-sign(zmat) .* log10(normcdf(-abs(zmat))*2), precision); % Should look for normcdfln function
 
 if ciflag
     sig2mat = cat(3, sig2mat, sig2mat_ci);

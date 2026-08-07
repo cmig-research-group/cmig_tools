@@ -237,7 +237,8 @@ for cc = 1:numCells
         W(cc,:) = W(cc,:)./df(cc,1);
         p(cc,:) = fcdf(W(cc,:), df(cc,1), df2(cc,1), 'upper');
     else
-        p(cc,:) = chi2cdf(W(cc,:), df(cc,1), 'upper');
+        % p(cc,:) = chi2cdf(W(cc,:), df(cc,1), 'upper');
+        p(cc,:) = FEMA_get_logp_chi2cdf(W(cc,:), df(cc,1), 'upper', true);
     end
 end
 
