@@ -11,7 +11,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,          ...
 % For notation below:
 % n = observations,
 % p = predictors (fixed effects),
-% v = number of outcome variables - currently set as 1
+% v = number of outcome variables
 % c = number of contrasts to evaluate
 % r = number of random effects
 %
@@ -23,10 +23,10 @@ function [beta_hat,      beta_se,        zmat,        logpmat,          ...
 % fid             <num>            [n x 1]    family ID (members of the same family unit have same value)
 % agevec          <num>            [n x 1]    participants age
 % ymat            <num>            [n x v]    matrix of imaging data
-% niter           <num>            [1 x 1]    maximal number of iterations (default 200) 
+% maxIter         <num>            [1 x 1]    maximal number of IRLS iterations (default 200) 
 % contrasts       <num> OR <path>  [c x p]    contrast matrix, where c is number of contrasts to compute,
 %                                             OR path to file containing contrast matrix (readable by readtable)
-% pihatmat        <num>            [n x n]    matrix of genetic relatedness --> already intersected to match X and Y sample
+% nbins           <num>            [1 x 1]    number of covariance bins (default: 20)
 %
 
 
@@ -34,7 +34,7 @@ function [beta_hat,      beta_se,        zmat,        logpmat,          ...
 % RandomEffects   <cell>           list of random effects to estimate (default {'F','S'}):
 %                                       * F:  family relatedness
 %                                       * S:  subject - required for longitudinal analyses
-%                                       * A:  additive genetic relatedness - must include file path to genetic relatedness data (pihat) for this option
+%                                       * A:  additive genetic relatedness - must include file path to genetic relatedness data (GRM) for this option
 %                                       * D:  dominant genetic relatedness - square of A
 %                                       * M:  maternal effect - effect of having same mother
 %                                       * P:  paternal effect  - effect of having same father
@@ -50,7 +50,6 @@ function [beta_hat,      beta_se,        zmat,        logpmat,          ...
 % PermType        <char>           permutation type:
 %                                       * 'wildbootstrap':    residual boostrap --> creates null distribution by randomly flipping the sign of each observation
 %                                       * 'wildbootstrap-nn': non-null boostrap --> estimates distribution around effect of interest using sign flipping (used for sobel test)
-% returnReusable  <boolean>        default false - if true, additionally returns reusableVars as a structure with some variables that can be reused (primarily by FEMA-GWAS)
 % maxIter         <num>            default 200
 % tol             <num>            default 1e-4
 
@@ -164,7 +163,7 @@ logLikflag           = p.Results.logLikflag;
 Hessflag             = p.Results.Hessflag;
 ciflag               = p.Results.ciflag;
 nperms               = p.Results.nperms;
-PermType             = p.Results.PermType;
+PermType             = lower(p.Results.PermType);
 FamilyStruct         = p.Results.FamilyStruct;
 returnResiduals      = p.Results.returnResiduals;
 synthstruct          = p.Results.synthstruct;
@@ -272,13 +271,13 @@ end
 
 % permutation initialization and ensuring that all outputs are initialized
 if nperms>0
-    beta_hat_perm = zeros(num_X, nperms);
-    beta_se_perm  = zeros(num_X, nperms);
-    zmat_perm     = zeros(num_X, nperms);
-    sig2tvec_perm = zeros(1, nperms);
-    sig2mat_perm  = zeros(num_RFX, nperms);
+    beta_hat_perm = zeros(num_X, num_y, nperms, precision);
+    beta_se_perm  = zeros(num_X, num_y, nperms, precision);
+    zmat_perm     = zeros(num_X, num_y, nperms, precision);
+    sig2tvec_perm = zeros(1, num_y, nperms, precision);
+    sig2mat_perm  = zeros(num_RFX, num_y, nperms, precision);
     if logLikflag
-        logLikvec_perm = zeros(1, nperms);
+        logLikvec_perm = zeros(1, num_y, nperms, precision);
     else
         logLikvec_perm = [];
     end
@@ -345,9 +344,6 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
                        'FatherID', p.Results.FatherID,  'MotherID', p.Results.MotherID, ...
                        'PregID',   p.Results.PregID,    'HomeID',   p.Results.HomeID); %#ok<*ASGLU>
     
-    numUqSubjs = info.nUqSubjects;
-    [~, ~, IC_subj] = unique(iid,'stable'); % nsubj = length(iid_list); num_obs = length(iid);
-    [~, ~, IC_fam]  = unique(fid,'stable'); % nfam  = length(fid_list);
     nfam      = length(unique(fid));
     nfamtypes = length(famtypelist);
 
@@ -355,12 +351,7 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
     info.nFamilies = length(clusterinfo);
     info.nFamTypes = nfamtypes;
     
-    % remove after the if-else
-    % RandomVar{1} = sparse(1:num_obs, IC_fam, ones(num_obs,1), num_obs, nfam);
-    % RandomVar{2} = sparse(1:num_obs, IC_subj, ones(num_obs,1), num_obs, nsubj);
-    
     % Prepare generalized matrix version of MoM estimator
-    % tic
     S_sum = Ss{1};
     for i = 2:length(Ss)
         S_sum = S_sum + Ss{i};
@@ -369,59 +360,56 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
     %[subvec1 subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
     indvec = sub2ind([num_obs num_obs],subvec1,subvec2);
 
-    % Should delete as there's no need to do binning
-    % F_num = S_sum;
-    % for fi = 1:nfam
-    %     F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
-    % end
-    % fnumvec = F_num(indvec);
-    % 
-    % for fi = 1:nfam
-    %     jvec_tmp  = clusterinfo{fi}.jvec_fam;
-    %     [sv, si]  = sort(jvec_tmp);
-    %     I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
-    %     ivec_fam  = find(fnumvec==fi);
-    %     ivec_fam  = ivec_fam(colvec(I_tmp(si, si)));
-    %     %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
-    %     clusterinfo{fi}.ivec_fam = ivec_fam;
-    % end
+    F_num = S_sum;
+    for fi = 1:nfam
+        F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
+    end
+    fnumvec = F_num(indvec);
 
-    % Scale back to using tril on S_sum
-    % [subvec1, subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
-    % indvec             = sub2ind([num_obs num_obs],subvec1,subvec2);
+    for fi = 1:nfam
+        jvec_tmp  = clusterinfo{fi}.jvec_fam;
+        [sv, si]  = sort(jvec_tmp);
+        I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
+        ivec_fam  = find(fnumvec==fi);
+        ivec_fam  = ivec_fam(colvec(I_tmp(si, si)));
+        %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
+        clusterinfo{fi}.ivec_fam = ivec_fam;
+    end
 
     M = zeros(length(indvec),length(Ss));
     for i = 1:length(Ss)
         M(:,i) = Ss{i}(indvec);
     end
 
-    % Should delete as there's no need to do binning
     % Create grid of normalized random effects
-    % binvals_edges       = linspace(0,1,nbins+1); 
-    % binvals_edges(end)  = binvals_edges(end)+0.0001;
-    % 
-    % % New ND version
-    % if length(RandomEffects) == 2
-    %     sig2gridi = colvec(1:length(binvals_edges)-1);
-    %     sig2gridl = colvec(binvals_edges(1:end-1));
-    %     sig2gridu = colvec(binvals_edges(2:end));
-    % else
-    %     sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1}, [1 length(RandomEffects)-1]));
-    %     sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 length(RandomEffects)-1]));
-    %     sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 length(RandomEffects)-1]));
-    % end
-    % sig2grid_ivec = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
-    % sig2gridl     = sig2gridl(sig2grid_ivec,:);
-    % sig2gridu     = sig2gridu(sig2grid_ivec,:);
-    % sig2gridi     = sig2gridi(sig2grid_ivec,:);
-    % sig2grid      = (sig2gridl+sig2gridu)/2;
-    % sig2gridind   = sub2ind_amd(nbins*ones(1,length(RandomEffects)-1),sig2gridi);
-    % nsig2bins     = size(sig2gridl,1); % Should handle case of no binning
+    binvals_edges       = linspace(0,1,nbins+1); 
+    binvals_edges(end)  = binvals_edges(end)+0.0001;
+
+    % New ND version
+    if num_RFX == 2
+        sig2gridi = colvec(1:length(binvals_edges)-1);
+        sig2gridl = colvec(binvals_edges(1:end-1));
+        sig2gridu = colvec(binvals_edges(2:end));
+    else
+        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1}, [1 num_RFX-1]));
+        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 num_RFX-1]));
+        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 num_RFX-1]));
+    end
+    sig2grid_ivec = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
+    sig2gridl     = sig2gridl(sig2grid_ivec,:);
+    sig2gridu     = sig2gridu(sig2grid_ivec,:);
+    sig2gridi     = sig2gridi(sig2grid_ivec,:);
+    sig2grid      = (sig2gridl+sig2gridu)/2;
+    sig2gridind   = sub2ind_amd(nbins*ones(1,num_RFX-1),sig2gridi);
+    nsig2bins     = size(sig2gridl,1); % Should handle case of no binning
 
     % Prepare FamilyStruct
     FamilyStruct = struct('clusterinfo', {clusterinfo}, 'M', {M},                     ...
                           'famtypevec',  {famtypevec},  'famtypelist', {famtypelist}, ...
                           'nfamtypes',   nfamtypes,     'nfam', nfam,                 ...
+                          'sig2grid',    sig2grid,      'sig2gridl', sig2gridl,       ...
+                          'sig2gridu',   sig2gridu,     'sig2gridi', sig2gridi,       ...
+                          'sig2gridind', sig2gridind,   'nsig2bins', nsig2bins,       ...
                           'subvec1',     subvec1,       'subvec2', subvec2,           ...
                           'Ss',          {Ss});
     
@@ -429,25 +417,24 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
 else
     clusterinfo = FamilyStruct.clusterinfo;
     M           = FamilyStruct.M;
-    % nsig2bins   = FamilyStruct.nsig2bins;
-    nfam        = FamilyStruct.nfam; % nfam defined by the fid? duplicate
+    nsig2bins   = FamilyStruct.nsig2bins;
+    nfam        = FamilyStruct.nfam; % nfam defined by the fid? duplicate -- no duplicate
     famtypevec  = FamilyStruct.famtypevec;
     nfamtypes   = FamilyStruct.nfamtypes;
-    % sig2grid    = FamilyStruct.sig2grid;
-    % sig2gridl   = FamilyStruct.sig2gridl;
-    % sig2gridu   = FamilyStruct.sig2gridu;
+    sig2grid    = FamilyStruct.sig2grid;
+    sig2gridl   = FamilyStruct.sig2gridl;
+    sig2gridu   = FamilyStruct.sig2gridu;
     subvec1     = FamilyStruct.subvec1;
     subvec2     = FamilyStruct.subvec2;
     Ss          = FamilyStruct.Ss;
 
-    % Remove outside the if-else - duplicated
-    % [iid_list, IA, IC_subj] = unique(iid,'stable'); nsubj = length(iid_list); num_obs = length(iid);
-    % [fid_list, IA, IC_fam]  = unique(fid,'stable'); nfam  = length(fid_list);
-    % RandomVar{1} = sparse(1:num_obs, IC_fam, ones(num_obs,1), num_obs, nfam);
-    % RandomVar{2} = sparse(1:num_obs, IC_subj, ones(num_obs,1), num_obs, nsubj);
 end
 
 % Should be generalized ------- later
+numUqSubjs = info.nUqSubjects;
+[~, ~, IC_subj] = unique(iid,'stable');
+[~, ~, IC_fam]  = unique(fid,'stable');
+
 RandomVar = struct();
 RandomVar.("V_F") = sparse(1:num_obs, IC_fam, ones(num_obs,1),  num_obs, nfam);
 RandomVar.("V_S") = sparse(1:num_obs, IC_subj, ones(num_obs,1), num_obs, numUqSubjs);
@@ -455,34 +442,26 @@ RandomVar.("V_S") = sparse(1:num_obs, IC_subj, ones(num_obs,1), num_obs, numUqSu
 Mi = single(pinv(M));
 Cov_MoM = Mi*Mi'; % Variance  / covariance of MoM estimates, per unit of residual error variance
 
-logging('size(M) = [%d %d]',size(M));
-logging('Cov_MoM:'); disp(Cov_MoM);
-logging('Mi*M:'); disp(Mi*M);
+% logging('size(M) = [%d %d]',size(M));
+% logging('Cov_MoM:'); disp(Cov_MoM);
+% logging('Mi*M:'); disp(Mi*M);
 
-if ~isempty(synthstruct) % do we need this anymore?
+if ~isempty(synthstruct) % do we need this anymore?----------------------------------
     sig2mat_true  = synthstruct.sig2mat_true;
     sig2tvec_true = synthstruct.sig2tvec_true;
-
-    % nvec_bins_true = NaN(nsig2bins,1);
-    % binvec_true    = NaN(1,size(ymat,2));
-    % for sig2bini = 1:nsig2bins
-    %     tmpvec = true;
-    %     for ri = 1:size(sig2mat_true,1)-1
-    %         tmpvec = tmpvec & sig2mat_true(ri,:) >= sig2gridl(sig2bini,ri) & ...
-    %                           sig2mat_true(ri,:) <  sig2gridu(sig2bini,ri);
-    %     end
-    %     ivec_bin = find(tmpvec);
-    %     nvec_bins_true(sig2bini) = length(ivec_bin);
-    %     binvec_true(ivec_bin) = sig2bini;
-    % end
+    nvec_bins_true = NaN(nsig2bins,1);
+    binvec_true    = NaN(1,size(ymat,2));
+    for sig2bini = 1:nsig2bins
+        tmpvec = true;
+        for ri = 1:size(sig2mat_true,1)-1
+            tmpvec = tmpvec & sig2mat_true(ri,:) >= sig2gridl(sig2bini,ri) & ...
+                              sig2mat_true(ri,:) <  sig2gridu(sig2bini,ri);
+        end
+        ivec_bin = find(tmpvec);
+        nvec_bins_true(sig2bini) = length(ivec_bin);
+        binvec_true(ivec_bin) = sig2bini;
+    end
 end
-
-% % Various initialization
-% beta_hat                                = zeros(size(X,2), size(ymat,2), class(ymat));
-% [beta_se, zmat, ymat_hat, ymat_res]     = deal(zeros(size(beta_hat), class(ymat)));
-% [betacon_hat, betacon_se]               = deal(zeros(size(contrasts,1), size(ymat,2), class(ymat)));
-% binvec                                  = NaN(1, size(ymat,2));
-% Randombeta                              = cell(1, size(ymat,2));
 
 if Hessflag
     Hessmat = NaN([num_RFX num_RFX num_y]);
@@ -494,185 +473,238 @@ for permi = 0:nperms
     if permi == 0
         ymat_current = ymat;
     else
-        beta_hat_null = zeros(size(X,2), 1);
+        beta_hat_null = zeros(num_X, num_y, precision);
         if ~exist('sig2mat_null', 'var')
             X_null = ones(num_obs,1);
             [~, ~, ~, ~, ~, sig2mat_null] = FEMA_fit_binary(X_null, iid, eid, fid, ...
                                                             agevec, ymat, maxIter, ...
-                                                            [], [], [], ...
-                                                            'RandomEffects', {'F','S','E'}, ...
-                                                            'RandomEstType','MoM');
+                                                            [], 0, [], ...
+                                                            'RandomEffects', RandomEffects, ...
+                                                            'RandomEstType','MoM','AddIntercept', false);
         end
 
-        ymat_current = generate_null_sample(X, iid, fid, agevec, beta_hat_null, ...
-                                            sig2mat_null, clusterinfo, RandomEffects);
+        ymat_current = zeros(size(ymat), class(ymat));
+        for yy = 1:num_y
+            ymat_current(:,yy) = generate_null_sample( ...
+                X, iid, fid, agevec, beta_hat_null(:,yy), ...
+                sig2mat_null(:,yy), clusterinfo, RandomEffects);
+        end
     end
     
-    beta_hat_current                = zeros(num_X, 1, precision);
-    [beta_se_current, zmat_current] = deal(zeros(size(beta_hat_current), precision));
-    % [betacon_hat_current, betacon_se_current] = deal(zeros(size(contrasts,1), 1, class(ymat_current)));
+    beta_hat_current                = zeros(num_X, num_y, precision);
+    betacon_hat_current = zeros(size(contrasts,1), num_y, precision);
     
     %% Initialization
-    % record should be deleted after
+    % record should be deleted after --------------------------------------
     beta_record     = zeros(maxIter, num_X, num_y); % used for convergence check
     sigmat_record   = zeros(maxIter, num_RFX, num_y);
     deviance_record = zeros(maxIter, num_y);
 
-    iter = 1;
-    
-    converged = false;
+    % --- Initialization ---
+    % initialization of working response and working weights
+    u   = log((ymat_current + 0.5) ./ (1.5 - ymat_current));
+    W   = (ymat_current + 0.5) .* (1.5 - ymat_current) ./ 4;
+    W_1 = 1 ./ W;
 
-    while ~converged && (iter <= maxIter)
-        if iter == 1
-            % --- Initialization (iter = 1) ---
-            % initialization of working response and working weights
-            u   = log((ymat_current + 0.5) ./ (1.5 - ymat_current));
-            W   = (ymat_current + 0.5) .* (1.5 - ymat_current) ./4;
-            W_1 = 1 ./ W; % avoid redundant calculation
-        
-            % Initially use OLS estimate
-            XtX = X' * X;
-            if lowRank
-                if useLSQ
-                    iXtX = lsqminnorm(XtX, eye(size(XtX)));
-                else
-                    iXtX = pinv(X);
-                end
-            else
-                iXtX     = XtX \ eye(size(XtX));
-            end
-            df               = (num_obs - num_X); 
-            beta_hat_current = iXtX * (X' * u);
-            u_res            = u - X * beta_hat_current;
-            sig2tvec_current = sum(u_res.^2,1)/df;
-
-            p_marginal       =  1 ./ (1 + exp(-X * beta_hat_current));
-            r                = (ymat_current - p_marginal)./(p_marginal.*(1-p_marginal));
-        
-            % Compute random variances (only fid and iid)
-            [~, sig2mat_current] =    ...
-             FEMA_fit_simplified(X, iid, eid, fid, u_res, sig2tvec_current,  ...
-                                 GRM, W_1, 'MLflag', MLflag, 'FamilyStruct', ...
-                                 FamilyStruct, 'NonnegFlag', NonnegFlag);
-        
-            % GLS updating fixed effects estimates
-            [allWsTerms, beta_hat_current, beta_cov_current] =   ...
-             FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
-                      clusterinfo, nfamtypes, famtypevec,        ...
-                      'GroupByFamType', GroupByFamType, 'useLSQ', useLSQ);
-
-            % calculate the probability according to the updated parameters
-            [u_update, prob, deviance] = compute_BLUP(u, X, beta_hat_current, sig2mat_current, allWsTerms, ...
-                                                   RandomEffects, RandomVar, ymat_current);
-            deviance_record(iter,:) = deviance;
-    
-            % record the parameter estimation
-            beta_record(iter,:,:)   = beta_hat_current;
-            sigmat_record(iter,:,:) = sig2mat_current;
-        
-        else % for iter>0
-            step = 1;
-            previous_deviance = deviance_record(iter-1,:);
-
-            % record old state
-            u_old          = u;
-            u_update_old   = u_update;
-            prob_old       = prob;
-            W_1_old        = W_1;
-            beta_old       = beta_hat_current;
-            beta_cov_old   = beta_cov_current;
-            sig2mat_old    = sig2mat_current;
-            sig2tvec_old   = sig2tvec_current;
-            allWsTerms_old = allWsTerms;
-
-            W   = prob .* (1 - prob);
-            W_1 = 1 ./ W;
-
-            % Firth penalization
-            U        = (allWsTerms * X) * beta_cov_current;
-            h_diag   = sum(U .* X, 2);
-            bias_adj = h_diag .* (0.5 - prob);
-
-            % Line searching
-            while true
-
-                u = u_update_old + step * (ymat_current - prob_old + bias_adj) ./ (prob_old .* (1-prob_old));
-    
-                % reupdate the beta_hat and sig2mat
-                [~, beta_hat_current, beta_cov_current] =                     ...
-                 FEMA_GLS(u, X, W_1, sig2mat_old, RandomEffects, clusterinfo, ...
-                          nfamtypes, famtypevec, 'allWsTerms', allWsTerms,    ...
-                          'GroupByFamType', GroupByFamType, 'useLSQ', useLSQ);
-
-                u_res            = u - (X * beta_hat_current);
-                sig2tvec_current = sum(u_res.^2,1)/df; 
-
-                [~, sig2mat_current] = FEMA_fit_simplified(X, iid, eid, fid,             ...
-                                                           u_res, sig2tvec_current,      ...
-                                                           GRM, W_1, 'MLflag', MLflag,   ...
-                                                           'FamilyStruct', FamilyStruct, ...
-                                                           'NonnegFlag', NonnegFlag);
-    
-                [allWsTerms, ~, ~] = FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
-                                              clusterinfo, nfamtypes, famtypevec, ...
-                                              'GroupByFamType', GroupByFamType, 'useLSQ', useLSQ, ...
-                                              'GLSflag',false);
-    
-                % calculate the probability according to the updated parameters
-                [u_update, prob, deviance] = compute_BLUP(u, X, beta_hat_current, ...
-                                                          sig2mat_current, allWsTerms, ...
-                                                          RandomEffects, RandomVar, ymat_current);
-    
-                % if all(deviance < previous_deviance)
-                if all(deviance < previous_deviance - 1e-3 * 2 * step * sum((ymat_current - prob_old).^2 ./ (prob_old .* (1-prob_old)),1))
-                % if true
-                    % accept current step
-                    deviance_record(iter,:) = deviance;
-
-                    break;
-    
-                else
-    
-                    step = step * 0.5;
-    
-                    if step < 1e-2
-                        % take the (t-1) state
-                        u                       = u_old;
-                        u_update                = u_update_old;
-                        prob                    = prob_old;
-                        W_1                     = W_1_old;
-                        beta_hat_current        = beta_old;
-                        beta_cov_current        = beta_cov_old;
-                        sig2mat_current         = sig2mat_old;
-                        sig2tvec_current        = sig2tvec_old;
-                        allWsTerms              = allWsTerms_old;
-                        deviance_record(iter,:) = previous_deviance;
-                        break;
-                    end
-                end
-            end
-     
-            % Convergence Check
-            beta_change = norm(beta_hat_current - beta_old) / (norm(beta_old) + tol);
-            sig_change  = norm(sig2mat_current - sig2mat_old) / (norm(sig2mat_old) + tol);
-            if beta_change <= tol && sig_change <= tol
-                converged = true;
-            end
-    
-            beta_record(iter,:,:) = beta_hat_current;
-            sigmat_record(iter,:,:) = sig2mat_current;
-        
+    % Initially use OLS estimate
+    XtX = X' * X;
+    if lowRank
+        if useLSQ
+            iXtX = lsqminnorm(XtX, eye(size(XtX)));
+        else
+            iXtX = pinv(XtX);
         end
-        
-        iter = iter + 1;
-    
+    else
+        iXtX = XtX \ eye(size(XtX));
     end
 
-    % if converged
-    %     fprintf('Converged at iteration %d.\n', iter-1);
-    % else
-    %     fprintf('Maximum iterations (%d) reached.\n', maxIter);
-    % end
+    df               = num_obs - num_X; 
+    beta_hat_current = iXtX * (X' * u);
+    u_res            = u - X * beta_hat_current;
+    sig2tvec_current = sum(u_res.^2, 1) / df;
+
+    % Compute random variances
+    [~, sig2mat_current] = FEMA_fit_simplified(X, iid, eid, fid, u_res, sig2tvec_current,  ...
+                                               GRM, W_1, 'MLflag', MLflag, 'FamilyStruct', ...
+                                               FamilyStruct, 'NonnegFlag', NonnegFlag);
+
+    % Snap to random effects grid
+    [binvec_current, nvec_bins_current] = FEMA_snap_to_sig2grid(sig2mat_current, nbins, FamilyStruct);
+
+
+    % GLS updating fixed effects estimates
+    [allWsTerms, beta_hat_current, beta_cov_current, tvec_bins_current] =   ...
+     FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, clusterinfo, ...
+              nfamtypes, famtypevec, 'GroupByFamType', GroupByFamType, ...
+              'precision', precision, 'useLSQ', useLSQ, ...
+              'binvec', binvec_current, 'sig2tvec', sig2tvec_current);
+
+
+    %Restore the absolute working scale for the coefficient covariance
+    beta_cov_current = beta_cov_current .* reshape(sig2tvec_current, [1 1 num_y]);
+
+    % calculate the probability according to the updated parameters
+    [u_update, prob, deviance] = compute_BLUP(u, X, beta_hat_current, sig2mat_current, allWsTerms, ...
+                                           RandomEffects, RandomVar, ymat_current);
+
+    % record the parameter estimation---------------------------------------
+    beta_record(1,:,:)   = reshape(beta_hat_current, [1 num_X num_y]);
+    sigmat_record(1,:,:) = reshape(sig2mat_current, [1 num_RFX num_y]);
+    deviance_record(1,:) = deviance;
+    converged            = false(1, num_y);
+    
+    %% Iterate PQL/IRLS updates
+    for iter = 2:maxIter
+        ivec_active = find(~converged);
+        if isempty(ivec_active)
+            break;
+        end
+
+        previous_deviance = deviance(ivec_active);
+
+        % record old state
+        u_old          = u;
+        u_update_old   = u_update;
+        prob_old       = prob;
+        W_1_old        = W_1;
+        beta_old       = beta_hat_current;
+        beta_cov_old   = beta_cov_current;
+        sig2mat_old    = sig2mat_current;
+        sig2tvec_old   = sig2tvec_current;
+        allWsTerms_old = allWsTerms;
+
+        W_1(:,ivec_active) = 1 ./ (prob_old(:,ivec_active) .* (1 - prob_old(:,ivec_active)));
+
+        % Firth penalization
+        bias_adj = zeros(num_obs, num_y, precision);
+        for yy = ivec_active
+            PX             = allWsTerms_old{yy} * X;
+            U              = PX * (beta_cov_old(:,:,yy) / sig2tvec_old(yy));
+            h_diag         = sum(U .* X, 2);
+            bias_adj(:,yy) = h_diag .* (0.5 - prob_old(:,yy));
+        end
+
+        step         = ones(1, num_y);
+        ivec_pending = ivec_active;
+
+        % Line searching
+        while ~isempty(ivec_pending)
+            u_trial = u_update_old(:,ivec_pending) + ...
+                (ymat_current(:,ivec_pending) - prob_old(:,ivec_pending) + bias_adj(:,ivec_pending)) ./ ...
+                (prob_old(:,ivec_pending) .* (1 - prob_old(:,ivec_pending))) .* step(ivec_pending);
+
+            % Snap to random effects grid before the GLS update
+            binvec_old = FEMA_snap_to_sig2grid(sig2mat_old(:,ivec_pending), ...
+                                               nbins, FamilyStruct);
+
+            % reupdate the beta_hat and sig2mat
+            [~, beta_trial, beta_cov_trial] = FEMA_GLS(u_trial, X, W_1(:,ivec_pending), ...
+                                                       sig2mat_old(:,ivec_pending), RandomEffects, ...
+                                                       clusterinfo, nfamtypes, famtypevec, ...
+                                                       'GroupByFamType', GroupByFamType, ...
+                                                       'precision', precision, 'useLSQ', useLSQ, ...
+                                                       'binvec', binvec_old, 'sig2tvec', sig2tvec_old(ivec_pending));
+            
+            beta_cov_trial = beta_cov_trial .* reshape(sig2tvec_old(ivec_pending), [1 1 length(ivec_pending)]);
+
+            u_res_trial    = u_trial - X * beta_trial;
+            sig2tvec_trial = sum(u_res_trial.^2, 1) / df;
+
+            [~, sig2mat_trial] = FEMA_fit_simplified(X, iid, eid, fid, u_res_trial, ...
+                                                     sig2tvec_trial, GRM, W_1(:,ivec_pending), ...
+                                                     'MLflag', MLflag, 'FamilyStruct', FamilyStruct, ...
+                                                     'NonnegFlag', NonnegFlag);
+
+            W_1_trial = W_1(:,ivec_pending);
+
+            % Snap to random effects grid again with the updated random
+            % effects before rebuilding the precision matrices
+            binvec_trial = FEMA_snap_to_sig2grid(sig2mat_trial, nbins, FamilyStruct);
+            [allWs_trial, ~, ~] = FEMA_GLS(u_trial, X, W_1_trial, sig2mat_trial, ...
+                                           RandomEffects, clusterinfo, nfamtypes, famtypevec, ...
+                                           'GroupByFamType', GroupByFamType, 'precision', precision, ...
+                                           'useLSQ', useLSQ, 'GLSflag', false, 'binvec', binvec_trial, ...
+                                           'sig2tvec', sig2tvec_trial);
+
+            % calculate the probability according to the updated parameters
+            [u_update_trial, prob_trial, deviance_trial] = compute_BLUP(u_trial, X, beta_trial, ...
+                                                                        sig2mat_trial, allWs_trial, ...
+                                                                        RandomEffects, RandomVar, ...
+                                                                        ymat_current(:,ivec_pending));
+
+            descent = 1e-3 * 2 .* step(ivec_pending) .* ...
+                      sum((ymat_current(:,ivec_pending) - prob_old(:,ivec_pending)).^2 ./ ...
+                      (prob_old(:,ivec_pending) .* (1 - prob_old(:,ivec_pending))), 1);
+            [~, loc_previous] = ismember(ivec_pending, ivec_active);
+            accept_local = deviance_trial < ...
+                           previous_deviance(loc_previous) - descent;
+
+            ivec_accept = ivec_pending(accept_local);
+            loc_accept  = find(accept_local);
+            for jj = 1:length(ivec_accept)
+                yy = ivec_accept(jj);
+                kk = loc_accept(jj);
+                u(:,yy)                    = u_trial(:,kk);
+                W_1(:,yy)                  = W_1_trial(:,kk);
+                beta_hat_current(:,yy)     = beta_trial(:,kk);
+                beta_cov_current(:,:,yy)   = beta_cov_trial(:,:,kk);
+                sig2mat_current(:,yy)      = sig2mat_trial(:,kk);
+                sig2tvec_current(yy)       = sig2tvec_trial(kk);
+                allWsTerms{yy}             = allWs_trial{kk};
+                u_update(:,yy)             = u_update_trial(:,kk);
+                prob(:,yy)                 = prob_trial(:,kk);
+                deviance(yy)               = deviance_trial(kk);
+            end
+
+            ivec_reject = ivec_pending(~accept_local);
+            step(ivec_reject) = step(ivec_reject) * 0.5;
+
+            % Match the original single-y fallback: when the step becomes too small, retain the complete previous state and stop trying.
+            ivec_stop = ivec_reject(step(ivec_reject) < 1e-2);
+            for yy = ivec_stop
+                u(:,yy)                  = u_old(:,yy);
+                u_update(:,yy)           = u_update_old(:,yy);
+                prob(:,yy)               = prob_old(:,yy);
+                W_1(:,yy)                = W_1_old(:,yy);
+                beta_hat_current(:,yy)   = beta_old(:,yy);
+                beta_cov_current(:,:,yy) = beta_cov_old(:,:,yy);
+                sig2mat_current(:,yy)    = sig2mat_old(:,yy);
+                sig2tvec_current(yy)     = sig2tvec_old(yy);
+                allWsTerms{yy}           = allWsTerms_old{yy};
+                deviance(yy)             = previous_deviance(ivec_active == yy);
+            end
+
+            ivec_pending = setdiff(ivec_reject, ivec_stop, 'stable');
+        end
+
+        beta_change = zeros(1, length(ivec_active));
+        sig_change  = zeros(1, length(ivec_active));
+        for jj = 1:length(ivec_active)
+            yy = ivec_active(jj);
+            beta_change(jj) = norm(beta_hat_current(:,yy) - beta_old(:,yy)) / ...
+                              (norm(beta_old(:,yy)) + tol);
+        end
+        converged(ivec_active) = beta_change <= tol;
+
+        beta_record(iter,:,:)   = reshape(beta_hat_current, [1 num_X num_y]);
+        sigmat_record(iter,:,:) = reshape(sig2mat_current, [1 num_RFX num_y]);
+        deviance_record(iter,:) = deviance;
+        iter_last               = iter;
+    end
+
+    % Snap to the random-effects grid
+    [binvec_current, nvec_bins_current] = ...
+     FEMA_snap_to_sig2grid(sig2mat_current, nbins, FamilyStruct);
+
+    [allWsTerms, ~, ~, tvec_bins_current] = ...
+     FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
+              clusterinfo, nfamtypes, famtypevec, ...
+              'GroupByFamType', GroupByFamType, 'precision', precision, ...
+              'useLSQ', useLSQ, ...
+              'GLSflag', false, 'binvec', binvec_current, ...
+              'sig2tvec', sig2tvec_current);
+
+    residuals_GLS_current = u - X * beta_hat_current;
 
 
     % Laplace correction for all random effects
@@ -683,83 +715,61 @@ for permi = 0:nperms
     beta_se_robust = zeros(num_X, num_y, precision);
     
     for yy = 1:num_y
-        [sig2mat_lap, intercept_lap] = laplace_correct(ymat_current(:,yy), X, beta_hat_current(:,yy), ...
-                                                       RandomEffects, RandomVar,          ...
-                                                       sig2mat_current(:,yy), IC_fam, IC_subj);
 
-        sig2mat_current(1:end-1,yy) = sig2mat_lap;
-        beta_hat_current(1,yy)      = intercept_lap;
+        % V = (X'X)^{-1} X'\Omega X (X'X)^{-1}
+        re_est = RandomEffects(~strcmpi(RandomEffects, 'E'));
+        Z_list = cell(1, numel(re_est));
+        for kf = 1:numel(re_est)
+            fieldName = ['V_', re_est{kf}];
+            if ~isfield(RandomVar, fieldName)
+                error('RandomVar lacks the loading matrix %s.', fieldName);
+            end
+            Z_list{kf} = RandomVar.(fieldName);
+        end
+
+        theta_tot = sum(sig2tvec_current(yy) * sig2mat_current(1:end-1,yy));
+        eta = X * beta_hat_current(:,yy);
+        z_A = 2 + 2 * cosh(eta) * exp(theta_tot / 2);
+        meat = X' * (z_A .* X);
+                
+        PX = allWsTerms{yy} * X;   
+        XPX = X' * PX;                        
+        if useLSQ
+            iXPX = lsqminnorm(XPX, eye(size(XPX)));
+        else
+            iXPX = pinv(XPX);
+        end            
     
-        % degree of freedom for random effects
-        sigma2_total = sum(sig2mat_current(1:end-1,yy), 1);
-        W            = prob(:,yy) .* (1-prob(:,yy)); 
-        [G, ~]       = findgroups(fid);
-        W_sum        = splitapply(@sum, W, G')';
-        h_edf        = sum(sigma2_total * W_sum ./ (sigma2_total * W_sum + 1));
+        % random effect degree of freedom
+        h_tr = 0;                              
+        for k = 1:numel(Z_list)                            
+            Zk = Z_list{k};                    
     
-        % sandwich estimates of beta_se
-        % S0 = X' * diag(1 ./ W) * X;
+            if sig2mat_current(k,yy) == 0                 
+                continue;                     
+            end
 
-        % PP: Are we sure of the calculation here?
-        % Here is an reference: https://stats.stackexchange.com/a/284939
-        % solve(t(X) %*% X) %*% t(X) %*% diag(r^2) %*% X %*% solve(t(X) %*% X)
-        % 
-        % Part 1): Note that X has been modified! X_mod = X * sqrt(W)
-        % 
-        % Part 2): r are the working residuals: r = (y - yHat) * (d(eta)/d(mu))
-        % https://www.rdocumentation.org/packages/binomTools/versions/1.0-1/topics/Residuals
-        % eta and mu are calculated at the end of IRLS:
-        % https://github.com/wch/r-source/blob/84961436a6409c44ef226c0fadb16f5f84bc2b40/src/library/stats/R/glm.R#L263
-        % 
-        % Now, Google Gemini insists that the d(mu)/d(eta) simplifies to
-        % p(1-p), and therefore, the working residuals should be: 
-        % (y - p)/(p * (1-p))
-        % 
-        % See, here, for a reference on how to compute these residuals:
-        % https://stats.stackexchange.com/a/485734
-        % 
-        % Using the code from above, 
-        % predictedValue = 1/(1 + e^-z), where z = X * beta
-        % mu = exp(predictedValue)/(1+exp(predictedValue))
-        % workingResiduals = (Y-mu) / (mu*(1-mu))
-        % (Y-exp(predictedValue)/(1+exp(predictedValue))) / (exp(predictedValue)/(1+exp(predictedValue))*(1-exp(predictedValue)/(1+exp(predictedValue))))
-        % (Y-exp(1/(1 + e^-z))/(1+exp(1/(1 + e^-z)))) / (exp(1/(1 + e^-z))/(1+exp(1/(1 + e^-z)))*(1-exp(1/(1 + e^-z))/(1+exp(1/(1 + e^-z)))))
-        % (Y-exp(1/(1 + e^-(X * beta)))/(1+exp(1/(1 + e^-(X * beta))))) / (exp(1/(1 + e^-(X * beta)))/(1+exp(1/(1 + e^-(X * beta))))*(1-exp(1/(1 + e^-(X * beta)))/(1+exp(1/(1 + e^-(X * beta))))))
-        % Asking Google Gemini to simplify the above gives me (y - p)/(p * (1-p))
-        % 
-        % So, r = (y - p)/(p * (1-p)), needs to be scaled by sqrt(weights)
-        % r_mod = r * sqrt(W)
-        % r_mod = ((y - p)/(p * (1-p))) * sqrt(W)
-        % 
-        % Therefore, practically
-        % solve(t(X) %*% X) %*% t(X) %*% diag(r^2) %*% X %*% solve(t(X) %*% X)
-        % becomes
-        % solve(t(X_mod) %*% X_mod) %*% t(X_mod) %*% diag(r_mod^2) %*% X_mod %*% solve(t(X_mod) %*% X_mod)
-        % Solve is just a way to compute the inverse, so
-        % inv(t(X_mod) * X_mod) * t(X_mod) * diag(r_mod^2) * X_mod * inv(t(X_mod) * X_mod)
-        % inv(X_mod' * X_mod) * X_mod' * diag(r_mod^2) * X_mod * inv(X_mod' * X_mod)
-        % inv((X * sqrt(W))' * (X * sqrt(W))) * (X * sqrt(W))' * diag(r_mod^2) * (X * sqrt(W)) * inv((X * sqrt(W))' * (X * sqrt(W)))
-        % inv((X * sqrt(W))' * (X * sqrt(W))) * (X * sqrt(W))' * diag((((y - p)/(p * (1-p))) * sqrt(W))^2) * (X * sqrt(W)) * inv((X * sqrt(W))' * (X * sqrt(W)))
-        
-        % Separate weights
-        W_bread    = prob(:,yy) .* (1-prob(:,yy));
-        W_meat     = (ymat_current(:,yy) - prob(:,yy)).^2;
+            sig2_rel = sig2mat_current(k,yy);
+            sig2_abs = sig2tvec_current(yy) * sig2_rel;
+                                 
+            ZX = Zk' * X;                  
+            meat = meat + sig2_abs * (ZX' * ZX);
+            PZ = allWsTerms{yy} * Zk;             
+            T1 = full(sum(sum(Zk .* PZ, 1))); 
+            XPZ = PX' * Zk;                
+            T2 = XPZ * XPZ';                                           
+    
+            h_tr = h_tr + sig2_rel * (T1 - trace(iXPX * T2));       
+        end    
 
-        % Compute bread and meat
-        bread = pinv(X' * (W_bread .* X));
-        meat  = X' * (W_meat .* X);
+        if ~isfinite(h_tr) || h_tr < -0.5 || h_tr > (num_obs - num_X)
+            error('Trace effective-df out of valid range: %g', h_tr); 
+        end                                    
+    
+        df_factor = num_obs / (num_obs - num_X - h_tr);        % trace 有效自由度有限样本校正：n/(n-p-h_b)。
+    
+        V_sandwich = iXtX * meat * iXtX;
 
-        % V sandwich
-        V_sandwich = bread * meat * bread;
-        
-        % Older solution: not sure if the above is entirely correct
-        % Cannot use iXtX directly since it is not weighted
-        % Do we need the sigma2_total weighting? Isn't that sort of mean
-        % squared error which is not used in logistic regression?
-        % S0                     = X' * (X ./ W);
-        % V1                     = iXtX * S0 * iXtX;
-        % V2                     = sigma2_total * iXtX;
-        % [coeffCovar, converge] = nearestSPD_timeout(V1 + V2);
         [tmpCoeff, converge] = nearestSPD_timeout(V_sandwich);
         if ~converge
             warning('Could not convert coefficient covariance matrix into positive semidefinite; results might be inaccurate');
@@ -768,26 +778,67 @@ for permi = 0:nperms
             V_sandwich = tmpCoeff;
             coeffCovar(:,:,yy) = tmpCoeff;
         end
-        beta_se_robust(:,yy) = sqrt(diag(V_sandwich) * num_obs / (num_obs-num_X-h_edf));
+        beta_se_robust(:,yy) = sqrt(diag(V_sandwich) * df_factor);
+
+        [sig2mat_lap, intercept_lap] = laplace_correct(ymat_current(:,yy), X, beta_hat_current(:,yy), ...
+                                                       RandomEffects, RandomVar,          ...
+                                                       sig2tvec_current(yy) * sig2mat_current(:,yy), IC_fam, IC_subj);
+
+        sig2mat_current(:,yy)  = [sig2mat_lap; 1];
+        beta_hat_current(1,yy)      = intercept_lap;
+    
+    end
+
+    % Evaluate contrasts after all coefficient corrections.
+    if isempty(contrasts)
+        beta_hat_current_out = beta_hat_current;
+        beta_se_current_out  = beta_se_robust;
+    else
+        betacon_hat = contrasts * beta_hat_current;
+        betacon_se  = zeros(size(contrasts,1), num_y, precision);
+        for yy = 1:num_y
+            for ci = 1:size(contrasts,1)
+                betacon_se(ci,yy) = sqrt(contrasts(ci,:) * ...
+                    coeffCovar(:,:,yy) * contrasts(ci,:)');
+            end
+        end
+        beta_hat_current_out = [betacon_hat; beta_hat_current];
+        beta_se_current_out  = [betacon_se; beta_se_robust];
     end
 
     % z-statistics
-    zmat_current    = double(beta_hat_current) ./ double(beta_se_robust);
+    zmat_current    = double(beta_hat_current_out) ./ double(beta_se_current_out);
     logpmat_current = -log10(normcdf(-abs(zmat_current))*2);
 
+    if logLikflag
+        logLikvec_current = NaN(1, num_y, precision);
+    end
+
     if permi == 0
-        beta_hat = beta_hat_current;
-        beta_se  = beta_se_robust;
+        beta_hat = beta_hat_current_out;
+        beta_se  = beta_se_current_out;
         zmat     = zmat_current;
         logpmat  = logpmat_current;
         sig2tvec = sig2tvec_current;
         sig2mat  = sig2mat_current;
+        binvec_save = binvec_current;
+        nvec_bins   = nvec_bins_current;
+        tvec_bins   = tvec_bins_current;
+        if returnResiduals
+            residuals_GLS = residuals_GLS_current;
+        end
         if logLikflag
             logLikvec = logLikvec_current;
         end
+        info.converged           = converged;
+        info.numIterations       = iter_last;
+        info.deviance            = deviance;
+        info.binning.binvec      = binvec_current;
+        info.binning.nvec_bins   = nvec_bins_current;
+        info.binning.tvec_bins   = tvec_bins_current;
     else
-        beta_hat_perm(:,:,permi) = beta_hat_current;
-        beta_se_perm(:,:,permi)  = beta_se_robust;
+        beta_hat_perm(:,:,permi) = beta_hat_current_out;
+        beta_se_perm(:,:,permi)  = beta_se_current_out;
         zmat_perm(:,:,permi)     = zmat_current;
         sig2tvec_perm(:,:,permi) = sig2tvec_current;
         sig2mat_perm(:,:,permi)  = sig2mat_current;
@@ -795,11 +846,8 @@ for permi = 0:nperms
             logLikvec_perm(:,:,permi) = logLikvec_current;
         end
     end
+end
 
-    % after_mem = memory().MemUsedMATLAB / 1024^2;
-    % memory_usage = after_mem - before;
+info.timing.total = toc(tInit);
 
-    % fprintf("Memory used: %.2f MB\n", after_mem-before);
-    
-    % fprintf('Permutation at permi %d. Converged at iteration %d.\n', [permi, iter-1]);
 end

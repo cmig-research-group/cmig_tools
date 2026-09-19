@@ -1,31 +1,27 @@
-function [u_update, p, deviance] = compute_BLUP(u, X, beta_hat, sig2mat, allWsTerms, ...
+function [u_update, prob, deviance] = compute_BLUP(u, X, beta_hat, sig2mat, allWsTerms, ...
                                                 RandomEffects, RandomVar, ymat)
+
+    num_obs = size(X, 1);
+    num_y   = size(ymat, 2);
+    num_RE = sum(~strcmpi(RandomEffects, 'E'));
     
     u_res      = u - X * beta_hat;
-    nobs       = size(X,1);
-    Wu         = allWsTerms * u_res;
-
-    % The third dimension indexes the columns of y
-    Randombeta = zeros(nobs, length(RandomEffects)-1, size(ymat,2));
-
-    for r = 1:(length(RandomEffects)-1) % excluding the error part
-        RandomVar_tmp     = RandomVar.(sprintf('V_%s', RandomEffects{r}));
-        Randombeta_tmp    = sig2mat(r) * RandomVar_tmp' * Wu; 
-        Randombeta(:,r,:) = RandomVar_tmp * Randombeta_tmp; % random coefficients for all observations
+    Wu = zeros(num_obs, num_y, class(u));
+    for yy = 1:num_y
+        Wu(:,yy) = allWsTerms{yy} * u_res(:,yy);
     end
 
-    % Summing across the random effects; squeeze drops the singleton random
-    % effects dimension since that is what is being collapsed
-    u_update_r = squeeze(sum(Randombeta, 2));
+    u_update_r = zeros(num_obs, num_y, class(u));
+    for ri = 1:num_RE
+        fieldName = sprintf('V_%s', RandomEffects{ri});
+        Z = RandomVar.(fieldName);
+        Randombeta = (Z' * Wu) .* sig2mat(ri,:);
+        u_update_r = u_update_r + Z * Randombeta;
+    end
 
-    % X*beta_hat will nobs * nyvar; to each, add u_update_r but cognizant
-    % of the third dimeension; result should be nobs * nyvars
     u_update  = X * beta_hat + u_update_r;
-
-    p = 1 ./ (1 + exp(-u_update));
-
-    p = max(min(p, 1 - 1e-6), 1e-6);
-
-    deviance = -2 * sum(ymat .* log(p) + (1 - ymat) .* log(1 - p), 1);
+    prob = 1 ./ (1 + exp(-u_update));
+    prob = max(min(prob, 1 - 1e-6), 1e-6);
+    deviance = -2 * sum(ymat .* log(prob) + (1 - ymat) .* log(1 - prob), 1);
 
 end

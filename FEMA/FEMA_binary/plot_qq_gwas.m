@@ -6,7 +6,7 @@ addRequired(p, 'neg_log10_p_values', @isnumeric);
 addParameter(p, 'title', 'QQ Plot for GWAS', @ischar);
 addParameter(p, 'color', [0.2 0.4 0.8], @(x) isnumeric(x) && length(x)==3);
 addParameter(p, 'markersize', 20, @isnumeric);
-addParameter(p, 'show_lambda', false, @islogical);
+addParameter(p, 'show_lambda', true, @islogical);
 parse(p, neg_log10_p_values, varargin{:});
 
 valid_idx = isfinite(neg_log10_p_values);

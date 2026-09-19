@@ -1,12 +1,12 @@
 function [sig2tvec,  sig2mat] =                                  ...
           FEMA_fit_simplified(X, iid, eid, fid, ymat_res, sig2tvec,  ...
-                   pihatmat, W_1, varargin)
+                   GRM, W_1, varargin)
 
 p = inputParser;
-% addParamValue(p,'ciflag', false);
-addParamValue(p,'MLflag', false);
-addParamValue(p,'FamilyStruct', {});
-addParamValue(p,'NonnegFlag', true);
+% addParameter(p,'ciflag', false);
+addParameter(p,'MLflag', false);
+addParameter(p,'FamilyStruct', {});
+addParameter(p,'NonnegFlag', true);
 
 parse(p,varargin{:})
 
@@ -20,20 +20,21 @@ subvec1     = FamilyStruct.subvec1;
 subvec2     = FamilyStruct.subvec2;
 
 
-% LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ mean(ymat_res.^2,1); % use normalized residuals
-LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:);
-sig2mat  = NaN(size(Ss,2));
+LHS      = ymat_res(subvec1,:) .* ymat_res(subvec2,:) ./ sig2tvec; % use unbiased normalized residuals
 
 % heterogeneity variance is considered, showed as E ~ N(0, diag(W)^{-1}).
 M           = FamilyStruct.M;
-subvec_e    = find(M(:,end)); % diagonal position of variance matrix for y 
-LHS(subvec_e,:)  = LHS(subvec_e,:) - M(subvec_e,end) .*  W_1;
+subvec_e    = find(M(:,end)); % diagonal position of variance matrix for y 1;
+LHS(subvec_e,:)  = LHS(subvec_e,:) - M(subvec_e,end) .*  W_1 / sig2tvec;
 
 
 % Use new version of lsqnonneg_amd to enfoce non-negative variances
-sig2mat_tmp     = lsqnonneg_amd3(M(:,1:end-1),LHS);
-% sig2mat = [sig2mat_tmp ; 1/sig2tvec] * sig2tvec;
-sig2mat = [sig2mat_tmp; ones(1, size(ymat_res,2))]; % [sig2mat_tmp ; 1];
+if NonnegFlag
+    sig2mat_tmp = lsqnonneg_amd3(M(:,1:end-1), LHS);
+else
+    sig2mat_tmp = pinv(M(:,1:end-1)) * LHS;
+end
+sig2mat = [sig2mat_tmp ; 1 ./sig2tvec];
 
 
 %% Using maximum likelihood solution
