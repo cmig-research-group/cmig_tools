@@ -4,8 +4,8 @@ function [beta_hat,      beta_se,        zmat,        logpmat,          ...
           sig2mat_perm,  logLikvec_perm, binvec_save, nvec_bins,        ...
           tvec_bins,     FamilyStruct,   coeffCovar,  unstructParams,   ...
           residuals_GLS, info] = FEMA_fit_binary(X, iid, eid, fid,      ...
-                                                 agevec, ymat, maxIter, ...
-                                                 contrasts, nbins, GRM, varargin)
+                                                 agevec, ymat, contrasts, ...
+                                                 nbins, GRM, varargin)
 % Function to fit fast and efficient linear mixed effects model
 %
 % For notation below:
@@ -45,7 +45,8 @@ function [beta_hat,      beta_se,        zmat,        logpmat,          ...
 % RandomEstType   <char>           default 'MoM' --> other option: 'ML' (much slower)
 % GroupByFamType  <boolean>        default true
 % NonnegFlag      <blooean>        default true - non-negativity constraint on random effects estimation
-% precision  <char>           default 'double' --> other option: 'single' - for precision
+% precision       <char>           default 'double' --> other option: 'single' - for precision
+% max_pages       <num>            default 100000 - maximum number of matrix pages processed together
 % logLikflag      <boolean>        default true - compute log-likelihood
 % PermType        <char>           permutation type:
 %                                       * 'wildbootstrap':    residual boostrap --> creates null distribution by randomly flipping the sign of each observation
@@ -92,10 +93,6 @@ end
 
 p = inputParser;
 
-if ~exist('maxIter', 'var') || isempty(maxIter)
-    maxIter = 200;
-end
-
 if ~exist('contrasts', 'var')
     contrasts = [];
 end
@@ -129,6 +126,7 @@ addParamValue(p,'PermType', 'wildbootstrap');
 addParamValue(p,'GroupByFamType', true);
 addParamValue(p,'NonnegFlag', true); % Perform lsqnonneg on random effects estimation
 addParamValue(p,'precision', 'double');
+addParamValue(p,'max_pages', 100000);
 addParamValue(p,'RandomEffects', {'F' 'S' 'E'}); % Default to Family, Subject, and eps
 addParamValue(p,'logLikflag', false);
 addParamValue(p,'Hessflag', false);
@@ -156,6 +154,7 @@ RandomEstType        = p.Results.RandomEstType;
 GroupByFamType       = p.Results.GroupByFamType;
 NonnegFlag           = p.Results.NonnegFlag;
 precision            = p.Results.precision;
+max_pages            = p.Results.max_pages;
 RandomEffects        = p.Results.RandomEffects;
 MoMflag              = ismember(lower(RandomEstType), {'mom'});
 MLflag               = ismember(lower(RandomEstType), {'ml'});
@@ -360,20 +359,40 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
     %[subvec1 subvec2] = find(tril(S_sum)); % Should exclude diagonals: tril(S_sum,-1)
     indvec = sub2ind([num_obs num_obs],subvec1,subvec2);
 
-    F_num = S_sum;
+    fam_of_obs = zeros(num_obs, 1);
     for fi = 1:nfam
-        F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
+        fam_of_obs(clusterinfo{fi}.jvec_fam) = fi;
     end
-    fnumvec = F_num(indvec);
+    fnumvec_d = fam_of_obs(subvec1);
 
-    for fi = 1:nfam
-        jvec_tmp  = clusterinfo{fi}.jvec_fam;
-        [sv, si]  = sort(jvec_tmp);
-        I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
-        ivec_fam  = find(fnumvec==fi);
-        ivec_fam  = ivec_fam(colvec(I_tmp(si, si)));
-        %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
-        clusterinfo{fi}.ivec_fam = ivec_fam;
+    if ~all(fnumvec_d >= 1)
+        F_num = S_sum;
+        for fi = 1:nfam
+            F_num(clusterinfo{fi}.jvec_fam,clusterinfo{fi}.jvec_fam) = fi;
+        end
+        fnumvec = F_num(indvec);
+    
+        for fi = 1:nfam
+            jvec_tmp  = clusterinfo{fi}.jvec_fam;
+            [sv, si]  = sort(jvec_tmp);
+            I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
+            ivec_fam  = find(fnumvec==fi);
+            ivec_fam  = ivec_fam(colvec(I_tmp(si, si)));
+            %  ivec_fam = find(fnumvec==fi); ivec_fam(colvec(I_tmp(si,si))) = ivec_fam;
+            clusterinfo{fi}.ivec_fam = ivec_fam;
+        end
+    else
+        npos   = length(fnumvec_d);
+        [~, isort] = sort(fnumvec_d * (npos + 1) + (1:npos)');
+        counts = accumarray(fnumvec_d, 1, [nfam 1]);
+        bounds = [0; cumsum(counts)];
+        for fi = 1:nfam
+            jvec_tmp  = clusterinfo{fi}.jvec_fam;
+            [~, si]   = sort(jvec_tmp);
+            I_tmp     = reshape(1:length(jvec_tmp)^2, length(jvec_tmp) * [1 1]);
+            ivec_fam  = isort(bounds(fi)+1 : bounds(fi+1));
+            clusterinfo{fi}.ivec_fam = ivec_fam(colvec(I_tmp(si, si)));
+        end
     end
 
     M = zeros(length(indvec),length(Ss));
@@ -383,24 +402,12 @@ if ~exist('FamilyStruct', 'var') || isempty(FamilyStruct)
 
     % Create grid of normalized random effects
     binvals_edges       = linspace(0,1,nbins+1); 
-    binvals_edges(end)  = binvals_edges(end)+0.0001;
 
-    % New ND version
-    if num_RFX == 2
-        sig2gridi = colvec(1:length(binvals_edges)-1);
-        sig2gridl = colvec(binvals_edges(1:end-1));
-        sig2gridu = colvec(binvals_edges(2:end));
-    else
-        sig2gridi = ndgrid_amd(repmat({1:length(binvals_edges)-1}, [1 num_RFX-1]));
-        sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 num_RFX-1]));
-        sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 num_RFX-1]));
-    end
-    sig2grid_ivec = find(sum(sig2gridl,2)<=1); % Get rid of "impossible" bins
-    sig2gridl     = sig2gridl(sig2grid_ivec,:);
-    sig2gridu     = sig2gridu(sig2grid_ivec,:);
-    sig2gridi     = sig2gridi(sig2grid_ivec,:);
+    sig2gridi = ndgrid_amd(repmat({1:nbins}, [1 num_RFX]));
+    sig2gridl = ndgrid_amd(repmat({binvals_edges(1:end-1)},    [1 num_RFX]));
+    sig2gridu = ndgrid_amd(repmat({binvals_edges(2:end)},      [1 num_RFX]));
     sig2grid      = (sig2gridl+sig2gridu)/2;
-    sig2gridind   = sub2ind_amd(nbins*ones(1,num_RFX-1),sig2gridi);
+    sig2gridind   = sub2ind_amd(nbins*ones(1,num_RFX),sig2gridi);
     nsig2bins     = size(sig2gridl,1); % Should handle case of no binning
 
     % Prepare FamilyStruct
@@ -434,6 +441,9 @@ end
 numUqSubjs = info.nUqSubjects;
 [~, ~, IC_subj] = unique(iid,'stable');
 [~, ~, IC_fam]  = unique(fid,'stable');
+
+% precompute iteration-invariant GLS sparse-assembly coordinates once
+GLSCache = FEMA_GLS_make_cache(clusterinfo, RandomEffects, nfamtypes, famtypevec, GroupByFamType);
 
 RandomVar = struct();
 RandomVar.("V_F") = sparse(1:num_obs, IC_fam, ones(num_obs,1),  num_obs, nfam);
@@ -477,8 +487,7 @@ for permi = 0:nperms
         if ~exist('sig2mat_null', 'var')
             X_null = ones(num_obs,1);
             [~, ~, ~, ~, ~, sig2mat_null] = FEMA_fit_binary(X_null, iid, eid, fid, ...
-                                                            agevec, ymat, maxIter, ...
-                                                            [], 0, [], ...
+                                                            agevec, ymat, [], 0, [], ...
                                                             'RandomEffects', RandomEffects, ...
                                                             'RandomEstType','MoM','AddIntercept', false);
         end
@@ -529,15 +538,16 @@ for permi = 0:nperms
                                                FamilyStruct, 'NonnegFlag', NonnegFlag);
 
     % Snap to random effects grid
-    [binvec_current, nvec_bins_current] = FEMA_snap_to_sig2grid(sig2mat_current, nbins, FamilyStruct);
+    [binvec_current, nvec_bins_current] = FEMA_snap_to_sig2grid(sig2mat_current, nbins, ...
+                                                                FamilyStruct, W_1);
 
 
     % GLS updating fixed effects estimates
     [allWsTerms, beta_hat_current, beta_cov_current, tvec_bins_current] =   ...
      FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, clusterinfo, ...
               nfamtypes, famtypevec, 'GroupByFamType', GroupByFamType, ...
-              'precision', precision, 'useLSQ', useLSQ, ...
-              'binvec', binvec_current, 'sig2tvec', sig2tvec_current);
+              'precision', precision, 'useLSQ', useLSQ, 'max_pages', max_pages, ...
+              'nbins', nbins, 'binvec', binvec_current, 'GLSCache', GLSCache);
 
 
     %Restore the absolute working scale for the coefficient covariance
@@ -595,15 +605,15 @@ for permi = 0:nperms
 
             % Snap to random effects grid before the GLS update
             binvec_old = FEMA_snap_to_sig2grid(sig2mat_old(:,ivec_pending), ...
-                                               nbins, FamilyStruct);
+                                               nbins, FamilyStruct, W_1(:,ivec_pending));
 
             % reupdate the beta_hat and sig2mat
             [~, beta_trial, beta_cov_trial] = FEMA_GLS(u_trial, X, W_1(:,ivec_pending), ...
                                                        sig2mat_old(:,ivec_pending), RandomEffects, ...
                                                        clusterinfo, nfamtypes, famtypevec, ...
                                                        'GroupByFamType', GroupByFamType, ...
-                                                       'precision', precision, 'useLSQ', useLSQ, ...
-                                                       'binvec', binvec_old, 'sig2tvec', sig2tvec_old(ivec_pending));
+                                                       'precision', precision, 'useLSQ', useLSQ, 'max_pages', max_pages, ...
+                                                       'binvec', binvec_old, 'GLSCache', GLSCache, 'nbins', nbins);
             
             beta_cov_trial = beta_cov_trial .* reshape(sig2tvec_old(ivec_pending), [1 1 length(ivec_pending)]);
 
@@ -619,12 +629,12 @@ for permi = 0:nperms
 
             % Snap to random effects grid again with the updated random
             % effects before rebuilding the precision matrices
-            binvec_trial = FEMA_snap_to_sig2grid(sig2mat_trial, nbins, FamilyStruct);
+            binvec_trial = FEMA_snap_to_sig2grid(sig2mat_trial, nbins, FamilyStruct, W_1_trial);
             [allWs_trial, ~, ~] = FEMA_GLS(u_trial, X, W_1_trial, sig2mat_trial, ...
                                            RandomEffects, clusterinfo, nfamtypes, famtypevec, ...
                                            'GroupByFamType', GroupByFamType, 'precision', precision, ...
-                                           'useLSQ', useLSQ, 'GLSflag', false, 'binvec', binvec_trial, ...
-                                           'sig2tvec', sig2tvec_trial);
+                                           'useLSQ', useLSQ, 'max_pages', max_pages, 'GLSflag', false, ...
+                                           'binvec', binvec_trial, 'GLSCache', GLSCache, 'nbins', nbins);
 
             % calculate the probability according to the updated parameters
             [u_update_trial, prob_trial, deviance_trial] = compute_BLUP(u_trial, X, beta_trial, ...
@@ -694,15 +704,27 @@ for permi = 0:nperms
 
     % Snap to the random-effects grid
     [binvec_current, nvec_bins_current] = ...
-     FEMA_snap_to_sig2grid(sig2mat_current, nbins, FamilyStruct);
+     FEMA_snap_to_sig2grid(sig2mat_current, nbins, FamilyStruct, W_1);
 
-    [allWsTerms, ~, ~, tvec_bins_current] = ...
-     FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
-              clusterinfo, nfamtypes, famtypevec, ...
-              'GroupByFamType', GroupByFamType, 'precision', precision, ...
-              'useLSQ', useLSQ, ...
-              'GLSflag', false, 'binvec', binvec_current, ...
-              'sig2tvec', sig2tvec_current);
+    if nbins == 0
+         [allWsTerms, ~, beta_cov_current, tvec_bins_current] = ...
+         FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
+                  clusterinfo, nfamtypes, famtypevec, ...
+                  'GroupByFamType', GroupByFamType, 'precision', precision, ...
+                  'useLSQ', useLSQ, 'max_pages', max_pages, ...
+                  'GLSflag', true, 'binvec', binvec_current, ...
+                  'allWsTerms', allWsTerms, 'nbins', nbins);
+    else     
+        [allWsTerms, ~, beta_cov_current, tvec_bins_current] = ...
+         FEMA_GLS(u, X, W_1, sig2mat_current, RandomEffects, ...
+                  clusterinfo, nfamtypes, famtypevec, ...
+                  'GroupByFamType', GroupByFamType, 'precision', precision, ...
+                  'useLSQ', useLSQ, 'max_pages', max_pages, ...
+                  'GLSflag', true, 'binvec', binvec_current, ...
+                  'GLSCache', GLSCache, 'nbins', nbins);
+    end
+
+    beta_cov_current = beta_cov_current .* reshape(sig2tvec_current, [1 1 num_y]);
 
     residuals_GLS_current = u - X * beta_hat_current;
 
@@ -711,88 +733,26 @@ for permi = 0:nperms
     % Currently resorting to loop because multiple things in
     % laplace_correct will need to be changed to make this compatible with
     % multiple y variables
-    coeffCovar     = zeros(num_X, num_X, num_y, precision);
-    beta_se_robust = zeros(num_X, num_y, precision);
-    
-    for yy = 1:num_y
+    coeffCovar     = beta_cov_current;
 
-        % V = (X'X)^{-1} X'\Omega X (X'X)^{-1}
-        re_est = RandomEffects(~strcmpi(RandomEffects, 'E'));
-        Z_list = cell(1, numel(re_est));
-        for kf = 1:numel(re_est)
-            fieldName = ['V_', re_est{kf}];
-            if ~isfield(RandomVar, fieldName)
-                error('RandomVar lacks the loading matrix %s.', fieldName);
-            end
-            Z_list{kf} = RandomVar.(fieldName);
-        end
+    diag_idx = (1:num_X+1:num_X^2).' + (0:num_y-1) * num_X^2;
 
-        theta_tot = sum(sig2tvec_current(yy) * sig2mat_current(1:end-1,yy));
-        eta = X * beta_hat_current(:,yy);
-        z_A = 2 + 2 * cosh(eta) * exp(theta_tot / 2);
-        meat = X' * (z_A .* X);
-                
-        PX = allWsTerms{yy} * X;   
-        XPX = X' * PX;                        
-        if useLSQ
-            iXPX = lsqminnorm(XPX, eye(size(XPX)));
-        else
-            iXPX = pinv(XPX);
-        end            
-    
-        % random effect degree of freedom
-        h_tr = 0;                              
-        for k = 1:numel(Z_list)                            
-            Zk = Z_list{k};                    
-    
-            if sig2mat_current(k,yy) == 0                 
-                continue;                     
-            end
+    beta_se = sqrt(coeffCovar(diag_idx));
 
-            sig2_rel = sig2mat_current(k,yy);
-            sig2_abs = sig2tvec_current(yy) * sig2_rel;
-                                 
-            ZX = Zk' * X;                  
-            meat = meat + sig2_abs * (ZX' * ZX);
-            PZ = allWsTerms{yy} * Zk;             
-            T1 = full(sum(sum(Zk .* PZ, 1))); 
-            XPZ = PX' * Zk;                
-            T2 = XPZ * XPZ';                                           
-    
-            h_tr = h_tr + sig2_rel * (T1 - trace(iXPX * T2));       
-        end    
+    eta_fixed = X * beta_hat_current;
 
-        if ~isfinite(h_tr) || h_tr < -0.5 || h_tr > (num_obs - num_X)
-            error('Trace effective-df out of valid range: %g', h_tr); 
-        end                                    
-    
-        df_factor = num_obs / (num_obs - num_X - h_tr);        % trace 有效自由度有限样本校正：n/(n-p-h_b)。
-    
-        V_sandwich = iXtX * meat * iXtX;
+    [sig2mat_lap, intercept_lap] = laplace_correct(ymat_current, X, beta_hat_current, ...
+                                                   eta_fixed, RandomEffects, RandomVar, ...
+                                                   sig2tvec_current.* sig2mat_current, IC_fam, IC_subj);
 
-        [tmpCoeff, converge] = nearestSPD_timeout(V_sandwich);
-        if ~converge
-            warning('Could not convert coefficient covariance matrix into positive semidefinite; results might be inaccurate');
-            coeffCovar(:,:,yy) = V_sandwich;
-        else
-            V_sandwich = tmpCoeff;
-            coeffCovar(:,:,yy) = tmpCoeff;
-        end
-        beta_se_robust(:,yy) = sqrt(diag(V_sandwich) * df_factor);
+    sig2mat_current(:,:)  = [sig2mat_lap; ones(1, num_y)];
+    beta_hat_current(1,:) = intercept_lap;
 
-        [sig2mat_lap, intercept_lap] = laplace_correct(ymat_current(:,yy), X, beta_hat_current(:,yy), ...
-                                                       RandomEffects, RandomVar,          ...
-                                                       sig2tvec_current(yy) * sig2mat_current(:,yy), IC_fam, IC_subj);
-
-        sig2mat_current(:,yy)  = [sig2mat_lap; 1];
-        beta_hat_current(1,yy)      = intercept_lap;
-    
-    end
 
     % Evaluate contrasts after all coefficient corrections.
     if isempty(contrasts)
         beta_hat_current_out = beta_hat_current;
-        beta_se_current_out  = beta_se_robust;
+        beta_se_current_out  = beta_se;
     else
         betacon_hat = contrasts * beta_hat_current;
         betacon_se  = zeros(size(contrasts,1), num_y, precision);
@@ -803,7 +763,7 @@ for permi = 0:nperms
             end
         end
         beta_hat_current_out = [betacon_hat; beta_hat_current];
-        beta_se_current_out  = [betacon_se; beta_se_robust];
+        beta_se_current_out  = [betacon_se; beta_se];
     end
 
     % z-statistics
